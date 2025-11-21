@@ -1,116 +1,159 @@
 import { Request, Response, NextFunction } from 'express';
 
-// Custom error interface
-interface CustomError extends Error {
-  status?: number;
-  statusCode?: number;
-  type?: string;
-  response?: {
-    status?: number;
-    data?: any;
-  };
+// Custom error class
+export class AppError extends Error {
+    statusCode: number;
+    status: string;
+    isOperational: boolean;
+
+    constructor(message: string, statusCode: number) {
+        super(message);
+        this.statusCode = statusCode;
+        this.status = `${statusCode}`.startsWith('4') ? 'fail' : 'error';
+        this.isOperational = true;
+
+        Error.captureStackTrace(this, this.constructor);
+    }
 }
 
-// Extended Response interface with custom methods
+// Response interface
 export interface AppResponse extends Response {
-  data: (data: any, message?: string) => AppResponse;
-  success: (message?: string) => AppResponse;
-  error: (error: any, message?: string, code?: number) => AppResponse;
-  errorMessage: (message?: string, style?: object, code?: number) => AppResponse;
+    data: (data: any, message?: string, status?: number) => Response;
+    success: (message?: string, status?: number) => Response;
+    error: (error: any, message?: string, code?: number) => Response;
+    errorMessage: (message: string, status?: number) => Response;
 }
 
 // Custom response methods
-const customExpress = {
-  data: function(this: AppResponse, data: any, message: string = 'success'): AppResponse {
-    return this.type('json').json({
-      type: 'success',
-      data,
-      message,
-    }) as AppResponse;
-  },
+const responseHelpers = {
+    data: function (this: Response, data: any, message: string = 'Success', status: number = 200): Response {
+        return this.status(status).json({
+            success: true,
+            type: 'success',
+            message,
+            data,
+            timestamp: new Date().toISOString()
+        });
+    },
 
-  success: function(this: AppResponse, message: string = 'success'): AppResponse {
-    return this.type('json').json({
-      type: 'success',
-      message,
-    }) as AppResponse;
-  },
+    success: function (this: Response, message: string = 'Operation successful', status: number = 200): Response {
+        return this.status(status).json({
+            success: true,
+            type: 'success',
+            message,
+            timestamp: new Date().toISOString()
+        });
+    },
 
-  error: function(this: AppResponse, error: any, message: string = 'An error occurred', code?: number): AppResponse {
-    return this.status(code || 500).json({
-      message,
-      statusCode: -3,
-      type: 'error',
-      error,
-    }) as AppResponse;
-  },
+    error: function (this: Response, error: any, message: string = 'An error occurred', code: number = 500): Response {
+        const isDev = process.env.NODE_ENV === 'development';
 
-  errorMessage: function(this: AppResponse, message: string = 'API response message', style: object = {}, code?: number): AppResponse {
-    return this.status(code || 400).json({
-      message,
-      ...style,
-      statusCode: 1,
-      type: 'error',
-    }) as AppResponse;
-  },
+        return this.status(code).json({
+            success: false,
+            type: 'error',
+            message,
+            ...(isDev && { error: error.message, stack: error.stack }),
+            timestamp: new Date().toISOString()
+        });
+    },
+
+    errorMessage: function (this: Response, message: string = 'Bad request', status: number = 400): Response {
+        return this.status(status).json({
+            success: false,
+            type: 'error',
+            message,
+            timestamp: new Date().toISOString()
+        });
+    }
 };
 
-// Apply custom methods to response prototype
-export const extendResponse = (req: Request, res: Response, next: NextFunction) => {
-  (res as AppResponse).data = customExpress.data;
-  (res as AppResponse).success = customExpress.success;
-  (res as AppResponse).error = customExpress.error;
-  (res as AppResponse).errorMessage = customExpress.errorMessage;
-  next();
+// Middleware to extend response object
+export const extendResponse = (req: Request, res: Response, next: NextFunction): void => {
+    (res as AppResponse).data = responseHelpers.data.bind(res);
+    (res as AppResponse).success = responseHelpers.success.bind(res);
+    (res as AppResponse).error = responseHelpers.error.bind(res);
+    (res as AppResponse).errorMessage = responseHelpers.errorMessage.bind(res);
+    next();
 };
 
 // Main error handler
-export const errorHandler = (err: CustomError, req: Request, res: Response, next: NextFunction): void => {
-  try {
-    if (process.env.NODE_ENV === 'production') {
-      if (err.status === 412) {
-        (res as AppResponse).errorMessage(err.message, {}, err.status);
+export const errorHandler = (err: any, req: Request, res: Response, next: NextFunction): void => {
+    const appRes = res as AppResponse;
+
+    err.statusCode = err.statusCode || 500;
+    err.status = err.status || 'error';
+
+    // Development vs Production
+    if (process.env.NODE_ENV === 'development') {
+        appRes.error(err, err.message, err.statusCode);
         return;
-      }
-      (res as AppResponse).errorMessage('An error occurred', {}, err.status || 400);
-      return;
     }
 
-    // Development mode - show detailed errors
-    (res as AppResponse).error(err, err.message, err.status || 400);
-  } catch (error) {
-    const fallbackError = error as CustomError;
-    (res as AppResponse).errorMessage(fallbackError.message, {}, fallbackError.status || 400);
-  }
+    // Production - handle specific errors
+    let error = { ...err };
+    error.message = err.message;
+
+    // Mongoose bad ObjectId
+    if (err.name === 'CastError') {
+        const message = 'Resource not found';
+        error = new AppError(message, 404);
+    }
+
+    // Mongoose duplicate key
+    if (err.code === 11000) {
+        const field = Object.keys(err.keyValue)[0];
+        const message = `${field.charAt(0).toUpperCase() + field.slice(1)} already exists`;
+        error = new AppError(message, 409);
+    }
+
+    // Mongoose validation error
+    if (err.name === 'ValidationError') {
+        const errors = Object.values(err.errors).map((e: any) => e.message);
+        const message = errors.join('. ');
+        error = new AppError(message, 400);
+    }
+
+    // JWT errors
+    if (err.name === 'JsonWebTokenError') {
+        const message = 'Invalid token. Please login again';
+        error = new AppError(message, 401);
+    }
+
+    if (err.name === 'TokenExpiredError') {
+        const message = 'Token expired. Please login again';
+        error = new AppError(message, 401);
+    }
+
+    appRes.errorMessage(error.message || 'Something went wrong', error.statusCode || 500);
 };
 
-// Not found route handler
+// 404 handler
 export const handle404 = (req: Request, res: Response): void => {
-  (res as AppResponse).errorMessage('Route not found', {}, 404);
+    (res as AppResponse).errorMessage(`Route ${req.originalUrl} not found`, 404);
 };
 
-// JSON payload error handler
-export const jsonPayload = (err: any, req: Request, res: Response): void => {
-  if (err.type && err.type === 'entity.parse.failed') {
-    (res as AppResponse).errorMessage('Invalid JSON payload passed.');
-    return;
-  }
-
-  // Log error (you can integrate your logger here)
-  console.error('JSON Parse Error:', {
-    url: req.originalUrl,
-    error: err.response?.data || err.toString(),
-    stack: err.stack
-  });
-
-  const statusCode = err.response?.status || 500;
-  (res as AppResponse).errorMessage(
-    'Internal Server Error',
-    {
-      description: `Something broke! Check application logs for helpful tips. OriginalUrl: ${req.originalUrl}`,
-    },
-    statusCode
-  );
+// Async handler wrapper
+export const asyncHandler = (fn: Function) => {
+    return (req: Request, res: Response, next: NextFunction) => {
+        Promise.resolve(fn(req, res, next)).catch(next);
+    };
 };
 
-export default errorHandler;
+// JSON parsing error handler
+export const jsonParseErrorHandler = (err: any, req: Request, res: Response, next: NextFunction): void => {
+    if (err instanceof SyntaxError && 'body' in err) {
+        (res as AppResponse).errorMessage('Invalid JSON payload', 400);
+        return;
+    }
+    next(err);
+};
+
+// Export default for easier imports
+export default {
+    AppError,
+    extendResponse,
+    errorHandler,
+    handle404,
+    asyncHandler,
+    jsonParseErrorHandler
+};

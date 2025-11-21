@@ -1,18 +1,18 @@
-import express, { Request, Response, NextFunction, ErrorRequestHandler } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 
 import connectDB from './config/database';
 import {
     errorHandler,
     handle404,
-    jsonPayload,
+    jsonParseErrorHandler,
     extendResponse
 } from './middleware/error';
-import routes from './routes';
 
 // Load env vars
 dotenv.config();
@@ -28,13 +28,17 @@ app.use(helmet());
 
 // Rate limiting
 const limiter = rateLimit({
-    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'),
-    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
+    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
+    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'), // limit each IP to 100 requests per windowMs
     message: {
         error: 'Too many requests from this IP, please try again later.'
-    }
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
 });
-app.use(limiter);
+
+// Apply rate limiting to all routes
+app.use('/api/', limiter);
 
 // CORS
 app.use(cors({
@@ -42,33 +46,20 @@ app.use(cors({
     credentials: true
 }));
 
-// Body parser middleware with error handling
-app.use(express.json({
-    limit: '10mb',
-    verify: (req: any, res, buf) => {
-        req.rawBody = buf;
-    }
-}));
+// Body parser middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-app.use(express.urlencoded({
-    extended: true,
-    verify: (req: any, res, buf) => {
-        req.rawBody = buf;
-    }
-}));
+// Cookie parser
+app.use(cookieParser());
 
-// JSON payload error handler
-app.use(((err: any, req: Request, res: Response, next: NextFunction) => {
-    if (err instanceof SyntaxError && 'body' in err) {
-        jsonPayload(err, req, res);
-        return;
-    }
-    next();
-}) as ErrorRequestHandler);
+// JSON parsing error handler
+app.use(jsonParseErrorHandler);
 
 // Extend response object with custom methods
 app.use(extendResponse);
 
+// Logging
 if (process.env.NODE_ENV === 'development') {
     app.use(morgan('dev'));
 } else {
@@ -78,27 +69,47 @@ if (process.env.NODE_ENV === 'development') {
 // Health check route
 app.get('/health', (req, res) => {
     (res as any).data({
+        status: 'OK',
         timestamp: new Date().toISOString(),
-        environment: process.env.NODE_ENV
-    }, 'Server is running healthy');
+        environment: process.env.NODE_ENV,
+        uptime: process.uptime()
+    }, 'Server is healthy');
 });
 
-// dynamic routes
-app.use('/api/v1', routes);
+// API routes
+import authRoutes from './routes/auth';
+
+app.use('/api/v1/auth', authRoutes);
+
+// 404 handler
 app.use('*', handle404);
 
+// Error handler (must be last)
 app.use(errorHandler);
 
 const server = app.listen(PORT, () => {
-    console.log(`🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+    console.log(`
+    GoKart Server Running
+    Environment: ${process.env.NODE_ENV}
+    Port: ${PORT}
+    Time: ${new Date().toLocaleTimeString()}
+  `);
 });
 
-process.on('unhandledRejection', (err: Error, promise) => {
-    console.log('Unhandled Rejection at:', promise, 'reason:', err);
-    console.log(err.stack);
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err: Error) => {
+    console.log('UNHANDLED REJECTION! Shutting down...');
+    console.log(err.name, err.message);
     server.close(() => {
         process.exit(1);
     });
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err: Error) => {
+    console.log('UNCAUGHT EXCEPTION! Shutting down...');
+    console.log(err.name, err.message);
+    process.exit(1);
 });
 
 export default app;
