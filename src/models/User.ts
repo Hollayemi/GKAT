@@ -1,11 +1,11 @@
-import mongoose, { Document, Schema, Model } from 'mongoose';
-import bcrypt from 'bcryptjs';
-import jwt, { Secret, SignOptions } from 'jsonwebtoken';
+import mongoose, { Document, Schema } from 'mongoose';
+import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 
 export interface IUser extends Document {
     name: string;
     email?: string;
+    password?: string;
     phoneNumber: string;
     residentArea: string;
     avatar?: string;
@@ -45,6 +45,11 @@ const UserSchema = new Schema<IUser>({
             /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
             'Please add a valid email'
         ]
+    },
+    password: {
+        type: String,
+        minlength: [6, 'Password must be at least 6 characters'],
+        select: false
     },
     phoneNumber: {
         type: String,
@@ -145,10 +150,8 @@ UserSchema.methods.getRefreshToken = function (): string {
 
 // Generate OTP
 UserSchema.methods.generateOTP = function (): string {
-    // Generate 6 digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Hash OTP before saving
     this.otp = crypto.createHash('sha256').update(otp).digest('hex');
     this.otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
@@ -180,7 +183,7 @@ async function generateUniqueReferralCode(): Promise<string> {
     // Check if code exists
     const existingUser = await mongoose.model('User').findOne({ referralCode: code });
     if (existingUser) {
-        return generateUniqueReferralCode(); // Recursive call if code exists
+        return generateUniqueReferralCode(); // fOR Recursive (call if code exists)
     }
 
     return code;

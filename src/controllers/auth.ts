@@ -2,8 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import User, { IUser } from '../models/User';
 import { AppError, asyncHandler, AppResponse } from '../middleware/error';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 
-// Send token response
 const sendTokenResponse = (user: IUser, statusCode: number, res: AppResponse, message: string) => {
     const token = user.getSignedJwtToken();
     const refreshToken = user.getRefreshToken();
@@ -41,6 +41,100 @@ const sendTokenResponse = (user: IUser, statusCode: number, res: AppResponse, me
         );
 };
 
+// @desc    Login user with phone number and send OTP
+// @route   POST /api/v1/auth/login
+// @access  Public
+export const login = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    const { phoneNumber, password } = req.body;
+
+    if (!phoneNumber) {
+        return next(new AppError('Please provide phone number', 400));
+    }
+
+    // Find user by phone number
+    const user = await User.findOne({ phoneNumber }).select('+otp +otpExpiry +password');
+
+    if (!user) {
+        return next(new AppError('No user found with this phone number', 404));
+    }
+
+    // If user is admin, verify password
+    if (user.role === 'admin') {
+        if (!password) {
+            return next(new AppError('Please provide password for admin login', 400));
+        }
+
+        // Check if password is correct
+        const isPasswordMatch = await bcrypt.compare(password, user?.password || '');
+        if (!isPasswordMatch) {
+            return next(new AppError('Invalid password', 401));
+        }
+
+        // For admin, send token immediately without OTP
+        sendTokenResponse(user, 200, res as AppResponse, 'Admin login successful');
+        return;
+    }
+
+    // For non-admin users, generate and send OTP
+    const otp = user.generateOTP();
+    await user.save({ validateBeforeSave: false });
+
+    // TODO: Send OTP via SMS service (Twilio)
+    console.log(`OTP for ${phoneNumber}: ${otp}`);
+
+    const responseData: any = {
+        phoneNumber,
+        message: 'OTP sent successfully',
+        requiresOTP: true
+    };
+
+    // Include OTP in response for development
+    if (process.env.NODE_ENV === 'development') {
+        responseData.otp = otp;
+    }
+
+    (res as AppResponse).data(responseData, 'OTP sent successfully for login');
+});
+
+// @desc    Verify OTP for login
+// @route   POST /api/v1/auth/verify-login-otp
+// @access  Public
+export const verifyLoginOTP = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    const { phoneNumber, otp } = req.body;
+
+    if (!phoneNumber || !otp) {
+        return next(new AppError('Please provide phone number and OTP', 400));
+    }
+
+    const user = await User.findOne({ phoneNumber }).select('+otp +otpExpiry');
+
+    if (!user) {
+        return next(new AppError('User not found', 404));
+    }
+
+    // Skip OTP verification for admin users
+    if (user.role === 'admin') {
+        return next(new AppError('Admin users should use password login', 400));
+    }
+
+    if (!user.verifyOTP(otp)) {
+        return next(new AppError('Invalid or expired OTP', 401));
+    }
+
+    // Clear OTP fields
+    user.otp = undefined;
+    user.otpExpiry = undefined;
+
+    // Mark phone as verified if not already
+    if (!user.isPhoneVerified) {
+        user.isPhoneVerified = true;
+    }
+
+    await user.save({ validateBeforeSave: false });
+
+    sendTokenResponse(user, 200, res as AppResponse, 'Login successful');
+});
+
 // @desc    Send OTP to phone number
 // @route   POST /api/v1/auth/send-otp
 // @access  Public
@@ -51,15 +145,13 @@ export const sendOTP = asyncHandler(async (req: Request, res: Response, next: Ne
         return next(new AppError('Please provide phone number', 400));
     }
 
-    // Check if user exists
     let user = await User.findOne({ phoneNumber }).select('+otp +otpExpiry');
 
     if (!user) {
-        // Create new user
         user = await User.create({
             phoneNumber,
             residentArea,
-            name: `User${phoneNumber.slice(-4)}` // Temporary name
+            name: `User${phoneNumber.slice(-10)}`
         });
     }
 
@@ -67,7 +159,7 @@ export const sendOTP = asyncHandler(async (req: Request, res: Response, next: Ne
     const otp = user.generateOTP();
     await user.save({ validateBeforeSave: false });
 
-    // TODO: Send OTP via SMS service (Twilio, Termii, etc.)
+    // TODO Reminder: Send OTP via SMS service (Twilio)
     console.log(`OTP for ${phoneNumber}: ${otp}`);
 
     // For development, include OTP in response
@@ -76,6 +168,7 @@ export const sendOTP = asyncHandler(async (req: Request, res: Response, next: Ne
         message: 'OTP sent successfully'
     };
 
+    // this will be deleted in production
     if (process.env.NODE_ENV === 'development') {
         responseData.otp = otp; // Only in development
     }
@@ -99,12 +192,10 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response, next: 
         return next(new AppError('User not found', 404));
     }
 
-    // Verify OTP
     if (!user.verifyOTP(otp)) {
         return next(new AppError('Invalid or expired OTP', 401));
     }
 
-    // Mark phone as verified
     user.isPhoneVerified = true;
     user.otp = undefined;
     user.otpExpiry = undefined;
@@ -133,7 +224,7 @@ export const resendOTP = asyncHandler(async (req: Request, res: Response, next: 
     const otp = user.generateOTP();
     await user.save({ validateBeforeSave: false });
 
-    // TODO: Send OTP via SMS
+    // when the twilio service is ready, iwill handle it here
     console.log(`New OTP for ${phoneNumber}: ${otp}`);
 
     const responseData: any = {
@@ -265,8 +356,6 @@ export const logout = asyncHandler(async (req: Request, res: Response, next: Nex
     if (!req.user) {
         return next(new AppError('Not authenticated', 401));
     }
-
-    // Clear refresh token
     const user = await User.findById(req.user.id).select('+refreshToken');
     if (user) {
         user.refreshToken = undefined;
@@ -291,7 +380,6 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response, nex
         return next(new AppError('Please provide refresh token', 400));
     }
 
-    // Verify refresh token
     const decoded: any = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET as string);
 
     const user = await User.findById((decoded as any).id).select('+refreshToken');

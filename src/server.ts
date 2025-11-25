@@ -78,8 +78,10 @@ app.get('/health', (req, res) => {
 
 // API routes
 import authRoutes from './routes/auth';
+import productRoutes from './routes/products';
 
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/product', productRoutes);
 
 // 404 handler
 app.use('*', handle404);

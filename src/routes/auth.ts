@@ -8,7 +8,9 @@ import {
     updateBiometricSettings,
     getMe,
     logout,
-    refreshToken
+    refreshToken,
+    login,
+    verifyLoginOTP
 } from '../controllers/auth';
 import { protect } from '../middleware/auth';
 
@@ -16,6 +18,8 @@ const router = Router();
 
 // Public routes
 router.post('/send-otp', sendOTP);
+router.post('/login', login);
+router.post('/verify-login-otp', verifyLoginOTP);
 router.post('/verify-otp', verifyOTP);
 router.post('/resend-otp', resendOTP);
 router.post('/refresh-token', refreshToken);
