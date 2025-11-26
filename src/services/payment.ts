@@ -28,17 +28,36 @@ interface PaymentResponse {
 }
 
 interface PaymentConfig {
-    secretKey: string;
-    publicKey: string;
+    secretKey?: string;
+    publicKey?: string;
     baseURL: string;
     merchantId?: string;
     privateKey?: string;
 }
 
 class PaymentGateway extends PaymentLogging {
-    private palmpay: PaymentConfig;
-    private paystack: PaymentConfig;
-    private opay: PaymentConfig;
+    protected paystack: {
+        secretKey: string;
+        publicKey: string;
+        baseURL: string;
+    };
+
+    protected palmpay: {
+        merchantId: string;
+        secretKey: string;
+        baseURL: string;
+    };
+
+    protected opay: {
+        merchantId: string;
+        publicKey: string;
+        privateKey: string;
+        baseURL: string;
+    };
+
+    // private palmpay: PaymentConfig;
+    // private paystack: PaymentConfig;
+    // private opay: PaymentConfig;
 
     constructor() {
         super();
@@ -51,12 +70,12 @@ class PaymentGateway extends PaymentLogging {
         this.palmpay = {
             merchantId: process.env.PALMPAY_MERCHANT_ID || '',
             secretKey: process.env.PALMPAY_SECRET_KEY || '',
-            publicKey: process.env.PALMPAY_PUBLIC_KEY || '',
+            // publicKey: process.env.PALMPAY_PUBLIC_KEY || '',
             baseURL: process.env.PALMPAY_BASE_URL || 'https://api.palmpay.com'
         };
         
         this.opay = {
-            secretKey: process.env.OPAY_SECRET_KEY || '',
+            // secretKey: process.env.OPAY_SECRET_KEY || '',
             merchantId: process.env.OPAY_MERCHANT_ID || '',
             publicKey: process.env.OPAY_PUBLIC_KEY || '',
             privateKey: process.env.OPAY_PRIVATE_KEY || '',
@@ -68,7 +87,7 @@ class PaymentGateway extends PaymentLogging {
     private generatePalmPaySignature(data: any, timestamp: string): string {
         const stringToSign = `${timestamp}${JSON.stringify(data)}`;
         return crypto
-            .createHmac('sha256', this.palmpay.secretKey)
+            .createHmac('sha256', this.palmpay?.secretKey || '')
             .update(stringToSign)
             .digest('hex');
     }
@@ -428,7 +447,7 @@ class PaymentGateway extends PaymentLogging {
     // Webhook signature verification for Paystack
     verifyPaystackWebhook(payload: any, signature: string): boolean {
         const hash = crypto
-            .createHmac('sha512', this.paystack.secretKey)
+            .createHmac('sha512', this.paystack?.secretKey || '')
             .update(JSON.stringify(payload))
             .digest('hex');
         return hash === signature;

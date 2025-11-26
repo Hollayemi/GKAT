@@ -1,15 +1,22 @@
-import webpush from 'web-push';
+import admin from 'firebase-admin';
 import UserSchema from '../models/User';
-import BranchSchema from '../models/businesses/store_details';
-import UserNotification from '../models/user/notification';
+import UserNotification from '../models/Notification';
 import logger from '../utils/logger';
 
-interface PushSubscription {
-    endpoint: string;
-    keys: {
-        p256dh: string;
-        auth: string;
-    };
+// Initialize Firebase Admin SDK
+// You'll need to add your service account credentials
+// Download from Firebase Console > Project Settings > Service Accounts
+const serviceAccount = require('../../config/firebase-service-account.json');
+
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+});
+
+interface FCMToken {
+    token: string;
+    deviceId: string;
+    platform: 'ios' | 'android';
+    addedAt: Date;
 }
 
 interface NotificationData {
@@ -23,28 +30,27 @@ interface NotificationData {
     priority?: string;
     silent?: boolean;
     data?: Record<string, any>;
-    actions?: Array<{ action: string; title: string }>;
     groupKey?: string;
+    typeId?: any;
 }
 
 interface SendResult {
     success: boolean;
-    statusCode?: number;
-    subscription?: PushSubscription;
+    messageId?: string;
+    token?: string;
     error?: string;
     shouldRemove?: boolean;
-    shouldRetry?: boolean;
 }
 
 interface BulkSendResult {
-    total: number;
-    successful: number;
-    failed: number;
+    successCount: number;
+    failureCount: number;
+    results: admin.messaging.BatchResponse;
 }
 
-class PushNotificationService {
+class MobilePushNotificationService {
     /**
-     * Send push notification with retry logic and error handling
+     * Send push notification to user's mobile devices
      */
     static async sendPushNotification(
         notification: NotificationData,
@@ -52,241 +58,183 @@ class PushNotificationService {
         accountType: string = 'user'
     ): Promise<any> {
         try {
-            const account = accountType === 'user'
-                ? await UserSchema.findById(userId).lean()
-                : await BranchSchema.findOne({ branchId: userId });
+            const user = await UserSchema.findById(userId).lean();
 
-            if (!account) {
-                throw new Error(`Account not found: ${userId}`);
+            if (!user) {
+                throw new Error(`User not found: ${userId}`);
             }
 
             // Check notification preferences
-            if (!account.notification_pref?.push_notification) {
+            if (!user.notification_pref?.push_notification) {
                 logger.info(`Push notifications disabled for user: ${userId}`);
                 return { skipped: true, reason: 'Push notifications disabled' };
             }
 
-            if (!account.push_subscription || Object.keys(account.push_subscription).length === 0) {
-                logger.info(`No push subscriptions found for user: ${userId}`);
-                return { skipped: true, reason: 'No subscriptions' };
+            // Get FCM tokens
+            const fcmTokens = user.fcmTokens || [];
+
+            if (fcmTokens.length === 0) {
+                logger.info(`No FCM tokens found for user: ${userId}`);
+                return { skipped: true, reason: 'No FCM tokens' };
             }
 
-            const payload = this._buildPayload(notification);
-            const subscriptions = Object.values(account.push_subscription) as PushSubscription[];
+            // Build notification payload
+            const payload = this._buildFCMPayload(notification);
 
-            const results = await Promise.allSettled(
-                subscriptions.map(subscription =>
-                    this._sendToSubscription(subscription, payload, notification._id)
-                )
-            );
+            // Send to all user devices
+            const tokens = fcmTokens.map((t: FCMToken) => t.token);
+            const result = await this._sendMulticast(tokens, payload, notification._id);
 
-            return this._processResults(results, notification._id);
+            // Process results and clean up invalid tokens
+            await this._processResults(result, fcmTokens, userId);
+
+            return result;
 
         } catch (error) {
-            logger.error('Push notification error:', error);
+            logger.error('Mobile push notification error:', error);
             await this._updateNotificationStatus(notification._id, 'failed', (error as Error).message);
             throw error;
         }
     }
 
     /**
-     * Send to single subscription with error handling
+     * Build FCM notification payload
      */
-    static async _sendToSubscription(
-        subscription: PushSubscription,
-        payload: any,
-        notificationId: string
-    ): Promise<SendResult> {
-        try {
-            const response = await webpush.sendNotification(
-                subscription,
-                JSON.stringify(payload),
-                {
-                    TTL: 3600, // 1 hour
-                    urgency: payload.priority === 'urgent' ? 'high' : 'normal'
-                }
-            );
-
-            // Update notification delivery status
-            await this._updateNotificationStatus(notificationId, 'sent', null, 'push');
-
-            return {
-                success: true,
-                statusCode: response.statusCode,
-                subscription
-            };
-
-        } catch (error: any) {
-            // Handle different error types
-            if (error.statusCode === 410 || error.statusCode === 404) {
-                // Subscription expired or not found - remove it
-                logger.warn(`Removing expired subscription: ${error.statusCode}`);
-                await this._removeExpiredSubscription(subscription);
-                return {
-                    success: false,
-                    error: 'Subscription expired',
-                    shouldRemove: true
-                };
-            }
-
-            if (error.statusCode === 429) {
-                // Rate limited - schedule retry
-                logger.warn('Push notification rate limited');
-                await this._scheduleRetry(notificationId, subscription);
-                return {
-                    success: false,
-                    error: 'Rate limited',
-                    shouldRetry: true
-                };
-            }
-
-            logger.error('Push send error:', error);
-            return {
-                success: false,
-                error: error.message,
-                statusCode: error.statusCode
-            };
-        }
-    }
-
-    /**
-     * Build notification payload
-     */
-    static _buildPayload(notification: NotificationData): any {
+    static _buildFCMPayload(notification: NotificationData): admin.messaging.MulticastMessage['notification'] & { data: any } {
         return {
-            title: notification.title || "",
-            body: notification.body || "",
-            icon: notification.icon || "",
-            badge: '/icons/badge.png',
-            image: notification.image,
+            notification: {
+                title: notification.title || "",
+                body: notification.body || "",
+                imageUrl: notification.image
+            },
             data: {
                 notificationId: notification._id,
-                type: notification.type,
-                url: notification.clickUrl || '/',
+                type: notification.type || 'general',
+                clickUrl: notification.clickUrl || '/',
+                icon: notification.icon || '',
+                groupKey: notification.groupKey || '',
+                typeId: JSON.stringify(notification.typeId || {}),
                 timestamp: new Date().toISOString(),
-                ...notification.data
+                ...(notification.data || {})
             },
-            actions: notification.actions || [
-                { action: 'view', title: 'View' },
-                { action: 'dismiss', title: 'Dismiss' }
-            ],
-            requireInteraction: notification.priority === 'urgent',
-            silent: notification.silent || false,
-            vibrate: notification.silent ? undefined : [200, 100, 200],
-            tag: notification.groupKey || `notification-${notification._id}`,
-            renotify: true,
-            timestamp: Date.now()
-        };
-    }
-
-    /**
-     * Process batch send results
-     */
-    static _processResults(results: PromiseSettledResult<SendResult>[], notificationId: string): any {
-        const summary = {
-            total: results.length,
-            sent: 0,
-            failed: 0,
-            expired: 0,
-            errors: [] as Array<{ index: number; error: string }>
-        };
-
-        results.forEach((result, index) => {
-            if (result.status === 'fulfilled' && result.value.success) {
-                summary.sent++;
-            } else {
-                summary.failed++;
-
-                if (result.status === 'fulfilled' && result.value.shouldRemove) {
-                    summary.expired++;
+            android: {
+                priority: notification.priority === 'urgent' ? 'high' : 'normal',
+                notification: {
+                    icon: notification.icon || 'ic_notification',
+                    color: '#8B5CF6',
+                    sound: notification.silent ? undefined : 'default',
+                    channelId: notification.type || 'default',
+                    clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+                    tag: notification.groupKey || `notification-${notification._id}`
                 }
-
-                summary.errors.push({
-                    index,
-                    error: result.status === 'rejected' ? result.reason?.message : result.value?.error || 'Unknown error'
-                });
-            }
-        });
-
-        logger.info(`Push notification results for ${notificationId}:`, summary);
-        return summary;
-    }
-
-    /**
-     * Remove expired subscription
-     */
-    static async _removeExpiredSubscription(subscription: PushSubscription): Promise<void> {
-        try {
-            // Find user with this subscription
-            const user = await UserSchema.findOne({
-                'push_subscription': { $exists: true }
-            });
-
-            if (user) {
-                // Remove the specific subscription
-                const updatedSubscriptions: Record<string, PushSubscription> = {};
-                for (const [key, value] of Object.entries(user.push_subscription)) {
-                    if (JSON.stringify(value) !== JSON.stringify(subscription)) {
-                        updatedSubscriptions[key] = value as PushSubscription;
+            },
+            apns: {
+                payload: {
+                    aps: {
+                        alert: {
+                            title: notification.title,
+                            body: notification.body
+                        },
+                        sound: notification.silent ? undefined : 'default',
+                        badge: 1,
+                        'mutable-content': 1,
+                        'content-available': 1
                     }
+                },
+                fcmOptions: {
+                    imageUrl: notification.image
                 }
-
-                console.log(updatedSubscriptions);
-
-                await UserSchema.updateOne(
-                    { _id: user._id },
-                    { $set: { push_subscription: updatedSubscriptions } }
-                );
-
-                logger.info(`Removed expired subscription for user: ${user._id}`);
             }
-        } catch (error) {
-            logger.error('Error removing subscription:', error);
+        };
+    }
+
+    /**
+     * Send to multiple devices (multicast)
+     */
+    static async _sendMulticast(
+        tokens: string[],
+        payload: any,
+        notificationId: string
+    ): Promise<admin.messaging.BatchResponse> {
+        try {
+            const message: admin.messaging.MulticastMessage = {
+                tokens: tokens,
+                ...payload
+            };
+
+            const response = await admin.messaging().sendMulticast(message);
+
+            // Update notification status
+            if (response.successCount > 0) {
+                await this._updateNotificationStatus(notificationId, 'sent', null, 'push');
+            }
+
+            logger.info(`FCM multicast result: ${response.successCount} success, ${response.failureCount} failures`);
+
+            return response;
+
+        } catch (error: any) {
+            logger.error('FCM multicast error:', error);
+            throw error;
         }
     }
 
     /**
-     * Schedule retry for failed notification
+     * Process batch send results and remove invalid tokens
      */
-    static async _scheduleRetry(notificationId: string, subscription: PushSubscription): Promise<void> {
+    static async _processResults(
+        result: admin.messaging.BatchResponse,
+        tokens: FCMToken[],
+        userId: string
+    ): Promise<void> {
         try {
-            const notification = await UserNotification.findById(notificationId);
+            const tokensToRemove: string[] = [];
 
-            if (!notification) return;
+            result.responses.forEach((response, index) => {
+                if (!response.success) {
+                    const error = response.error;
+                    const token = tokens[index];
 
-            // Max 3 retries
-            if (notification.retryCount >= 3) {
-                await this._updateNotificationStatus(notificationId, 'failed', 'Max retries exceeded');
-                return;
+                    // Check for errors that require token removal
+                    if (
+                        error?.code === 'messaging/invalid-registration-token' ||
+                        error?.code === 'messaging/registration-token-not-registered' ||
+                        error?.code === 'messaging/invalid-argument'
+                    ) {
+                        logger.warn(`Removing invalid FCM token: ${error.code}`);
+                        tokensToRemove.push(token.token);
+                    }
+                }
+            });
+
+            // Remove invalid tokens
+            if (tokensToRemove.length > 0) {
+                await this._removeInvalidTokens(userId, tokensToRemove);
             }
 
-            // Exponential backoff: 1min, 5min, 15min
-            const delays = [60, 300, 900];
-            const delay = delays[notification.retryCount] || 900;
+        } catch (error) {
+            logger.error('Error processing FCM results:', error);
+        }
+    }
 
-            // Store retry job in Redis (commented out as Redis client is not available)
-            // await redis.zadd(
-            //     'notification:retry',
-            //     Date.now() + (delay * 1000),
-            //     JSON.stringify({
-            //         notificationId,
-            //         subscription,
-            //         retryCount: notification.retryCount + 1
-            //     })
-            // );
-
-            await UserNotification.updateOne(
-                { _id: notificationId },
+    /**
+     * Remove invalid FCM tokens
+     */
+    static async _removeInvalidTokens(userId: string, tokens: string[]): Promise<void> {
+        try {
+            await UserSchema.updateOne(
+                { _id: userId },
                 {
-                    $inc: { retryCount: 1 },
-                    $set: { lastRetryAt: new Date() }
+                    $pull: {
+                        fcmTokens: { token: { $in: tokens } }
+                    }
                 }
             );
 
-            logger.info(`Scheduled retry for notification: ${notificationId} in ${delay}s`);
+            logger.info(`Removed ${tokens.length} invalid FCM tokens for user: ${userId}`);
 
         } catch (error) {
-            logger.error('Error scheduling retry:', error);
+            logger.error('Error removing FCM tokens:', error);
         }
     }
 
@@ -324,55 +272,176 @@ class PushNotificationService {
     }
 
     /**
-     * Process retry queue (should be run by a cron job)
+     * Register FCM token for user
      */
-    static async processRetryQueue(): Promise<void> {
+    static async registerToken(
+        userId: string,
+        token: string,
+        deviceId: string,
+        platform: 'ios' | 'android'
+    ): Promise<{ success: boolean }> {
         try {
-            const now = Date.now();
-
-            // Get notifications ready for retry (commented out as Redis client is not available)
-            // const retries = await redis.zrangebyscore(
-            //     'notification:retry',
-            //     0,
-            //     now,
-            //     'LIMIT', 0, 100
-            // );
-
-            const retries: any[] = []; // Placeholder
-
-            for (const retryData of retries) {
-                const { notificationId, subscription } = JSON.parse(retryData);
-
-                const notification = await UserNotification.findById(notificationId);
-                if (notification) {
-                    const payload = this._buildPayload(notification);
-                    await this._sendToSubscription(subscription, payload, notificationId);
-                }
-
-                // Remove from retry queue (commented out as Redis client is not available)
-                // await redis.zrem('notification:retry', retryData);
+            // Verify token with FCM first
+            try {
+                await admin.messaging().send({
+                    token,
+                    data: { test: 'true' }
+                }, true); // dry run
+            } catch (error: any) {
+                logger.error('Invalid FCM token:', error.code);
+                throw new Error('Invalid FCM token');
             }
 
-            if (retries.length > 0) {
-                logger.info(`Processed ${retries.length} notification retries`);
+            // Check if token already exists
+            const user = await UserSchema.findById(userId);
+            if (!user) {
+                throw new Error('User not found');
             }
+
+            const existingTokenIndex = user.fcmTokens?.findIndex(
+                (t: FCMToken) => t.deviceId === deviceId
+            );
+
+            if (existingTokenIndex !== undefined && existingTokenIndex >= 0) {
+                // Update existing token
+                await UserSchema.updateOne(
+                    { _id: userId, 'fcmTokens.deviceId': deviceId },
+                    {
+                        $set: {
+                            'fcmTokens.$.token': token,
+                            'fcmTokens.$.platform': platform,
+                            'fcmTokens.$.addedAt': new Date()
+                        }
+                    }
+                );
+            } else {
+                // Add new token
+                await UserSchema.updateOne(
+                    { _id: userId },
+                    {
+                        $push: {
+                            fcmTokens: {
+                                token,
+                                deviceId,
+                                platform,
+                                addedAt: new Date()
+                            }
+                        }
+                    }
+                );
+            }
+
+            // Enable push notifications
+            await UserSchema.updateOne(
+                { _id: userId },
+                { $set: { 'notification_pref.push_notification': true } }
+            );
+
+            logger.info(`FCM token registered for user ${userId}, device: ${deviceId}`);
+            return { success: true };
 
         } catch (error) {
-            logger.error('Error processing retry queue:', error);
+            logger.error('FCM token registration error:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Unregister FCM token
+     */
+    static async unregisterToken(
+        userId: string,
+        deviceId: string
+    ): Promise<{ success: boolean }> {
+        try {
+            await UserSchema.updateOne(
+                { _id: userId },
+                {
+                    $pull: {
+                        fcmTokens: { deviceId }
+                    }
+                }
+            );
+
+            logger.info(`FCM token unregistered for user ${userId}, device: ${deviceId}`);
+            return { success: true };
+
+        } catch (error) {
+            logger.error('FCM token unregistration error:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Send to topic (for broadcast notifications)
+     */
+    static async sendToTopic(
+        topic: string,
+        notification: NotificationData
+    ): Promise<string> {
+        try {
+            const payload = this._buildFCMPayload(notification);
+
+            const message: admin.messaging.Message = {
+                topic,
+                ...payload
+            };
+
+            const messageId = await admin.messaging().send(message);
+            logger.info(`Message sent to topic ${topic}: ${messageId}`);
+
+            return messageId;
+
+        } catch (error) {
+            logger.error('FCM topic send error:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Subscribe user to topic
+     */
+    static async subscribeToTopic(
+        tokens: string[],
+        topic: string
+    ): Promise<void> {
+        try {
+            await admin.messaging().subscribeToTopic(tokens, topic);
+            logger.info(`Subscribed ${tokens.length} tokens to topic: ${topic}`);
+        } catch (error) {
+            logger.error('Topic subscription error:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Unsubscribe user from topic
+     */
+    static async unsubscribeFromTopic(
+        tokens: string[],
+        topic: string
+    ): Promise<void> {
+        try {
+            await admin.messaging().unsubscribeFromTopic(tokens, topic);
+            logger.info(`Unsubscribed ${tokens.length} tokens from topic: ${topic}`);
+        } catch (error) {
+            logger.error('Topic unsubscription error:', error);
+            throw error;
         }
     }
 
     /**
      * Send bulk notifications efficiently
      */
-    static async sendBulkNotifications(notifications: Array<{
-        notification: NotificationData;
-        userId: string;
-        accountType: string;
-    }>): Promise<BulkSendResult> {
+    static async sendBulkNotifications(
+        notifications: Array<{
+            notification: NotificationData;
+            userId: string;
+        }>
+    ): Promise<{ total: number; successful: number; failed: number }> {
         const results = await Promise.allSettled(
-            notifications.map(({ notification, userId, accountType }) =>
-                this.sendPushNotification(notification, userId, accountType)
+            notifications.map(({ notification, userId }) =>
+                this.sendPushNotification(notification, userId)
             )
         );
 
@@ -384,62 +453,58 @@ class PushNotificationService {
     }
 
     /**
-     * Subscribe user to push notifications
+     * Send silent data message (for background updates)
      */
-    static async subscribe(
+    static async sendDataMessage(
         userId: string,
-        subscription: PushSubscription,
-        deviceId: string,
-        accountType: string = 'user'
-    ): Promise<{ success: boolean }> {
+        data: Record<string, string>
+    ): Promise<void> {
         try {
-            const AccountModel = accountType === 'user' ? UserSchema : BranchSchema;
-            const filter = accountType === 'user' ? { _id: userId } : { branchId: userId };
+            const user = await UserSchema.findById(userId).lean();
+            if (!user || !user.fcmTokens || user.fcmTokens.length === 0) {
+                return;
+            }
 
-            await AccountModel.updateOne(
-                filter,
-                {
-                    $set: {
-                        [`push_subscription.${deviceId}`]: subscription,
-                        'notification_pref.push_notification': true
+            const tokens = user.fcmTokens.map((t: FCMToken) => t.token);
+
+            await admin.messaging().sendMulticast({
+                tokens,
+                data,
+                android: {
+                    priority: 'normal'
+                },
+                apns: {
+                    headers: {
+                        'apns-priority': '5',
+                        'apns-push-type': 'background'
+                    },
+                    payload: {
+                        aps: {
+                            'content-available': 1
+                        }
                     }
                 }
-            );
+            });
 
-            logger.info(`User ${userId} subscribed to push notifications (${deviceId})`);
-            return { success: true };
+            logger.info(`Data message sent to user: ${userId}`);
 
         } catch (error) {
-            logger.error('Subscription error:', error);
-            throw error;
+            logger.error('Data message error:', error);
         }
     }
 
     /**
-     * Unsubscribe user from push notifications
+     * Get user's registered devices
      */
-    static async unsubscribe(
-        userId: string,
-        deviceId: string,
-        accountType: string = 'user'
-    ): Promise<{ success: boolean }> {
+    static async getUserDevices(userId: string): Promise<FCMToken[]> {
         try {
-            const AccountModel = accountType === 'user' ? UserSchema : BranchSchema;
-            const filter = accountType === 'user' ? { _id: userId } : { branchId: userId };
-
-            await AccountModel.updateOne(
-                filter,
-                { $unset: { [`push_subscription.${deviceId}`]: "" } }
-            );
-
-            logger.info(`User ${userId} unsubscribed from push notifications (${deviceId})`);
-            return { success: true };
-
+            const user = await UserSchema.findById(userId).select('fcmTokens').lean();
+            return user?.fcmTokens || [];
         } catch (error) {
-            logger.error('Unsubscription error:', error);
-            throw error;
+            logger.error('Error getting user devices:', error);
+            return [];
         }
     }
 }
 
-export default PushNotificationService;
+export default MobilePushNotificationService;

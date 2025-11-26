@@ -1,9 +1,7 @@
 import { Request, Response } from 'express';
-import UserNotification from '../../models/user/notification';
-import BusinessNotification from '../../models/businesses/notification';
-import PushNotificationService from '../../services/pushNotificationService';
-import SocketSession from '../../models/Auth/userSession';
-import { webpushPayload } from '../../helpers/keys';
+import UserNotification from '../../models/Notification';
+// import BusinessNotification from '../../models/businesses/notification';
+// import SocketSession from '../../models/Auth/userSession';
 import logger from '../../utils/logger';
 
 interface NotificationData {
@@ -64,9 +62,8 @@ class NotificationController {
         options: SendOptions = {}
     ): Promise<any> {
         try {
-            const NotificationModel = accountType === 'user'
-                ? UserNotification
-                : BusinessNotification;
+            const NotificationModel = UserNotification
+
 
             // Create notification in database
             const notification = await NotificationModel.create({
@@ -137,13 +134,12 @@ class NotificationController {
             const io = getSocketIo().myIo;
 
             // Get user's active socket sessions
-            const sessions = await SocketSession.find({ accountId: userId });
+            // const sessions = await SocketSession.find({ accountId: userId });
 
-            if (sessions.length === 0) {
-                logger.info(`User ${userId} not connected - notification saved for later`);
-                return;
-            }
-
+            // if (sessions.length === 0) {
+            //     logger.info(`User ${userId} not connected - notification saved for later`);
+            //     return;
+            // }
             // Get updated notification list
             const filter = accountType === 'user'
                 ? { userId }
@@ -152,12 +148,12 @@ class NotificationController {
             const notifications = await NotificationController.getNotificationList(filter, accountType);
 
             // Send to all connected devices
-            sessions.forEach(session => {
-                io.to(session.socketId).emit('notification:new', {
-                    notification: this._formatNotification(notification),
-                    unreadCount: notifications.unreadCount
-                });
-            });
+            // sessions.forEach(session => {
+            //     io.to(session.socketId).emit('notification:new', {
+            //         notification: this._formatNotification(notification),
+            //         unreadCount: notifications.unreadCount
+            //     });
+            // });
 
             // Update delivery status
             await UserNotification.updateOne(
@@ -171,7 +167,7 @@ class NotificationController {
                 }
             );
 
-            logger.info(`In-app notification sent to ${sessions.length} devices for user ${userId}`);
+            logger.info(`In-app notification sent to devices for user ${userId}`);
 
         } catch (error) {
             logger.error('In-app notification error:', error);
@@ -187,14 +183,10 @@ class NotificationController {
         accountType: string = 'user'
     ): Promise<any> {
         try {
-            const result = await PushNotificationService.sendPushNotification(
-                notification,
-                userId,
-                accountType
-            );
+            //    FCM push notification logic here
 
-            logger.info(`Push notification result for ${userId}:`, result);
-            return result;
+            // logger.info(`Push notification result for ${userId}:`, result);
+            return null;
 
         } catch (error) {
             logger.error('Push notification error:', error);
@@ -250,9 +242,7 @@ class NotificationController {
             unreadOnly = false
         } = options;
 
-        const NotificationModel = accountType === 'user'
-            ? UserNotification
-            : BusinessNotification;
+        const NotificationModel = UserNotification;
 
         const query: any = {
             ...filter,
@@ -382,13 +372,9 @@ class NotificationController {
      */
     static async markAllAsRead(userId: string, accountType: string = 'user'): Promise<{ success: boolean }> {
         try {
-            const NotificationModel = accountType === 'user'
-                ? UserNotification
-                : BusinessNotification;
+            const NotificationModel = UserNotification;
 
-            await NotificationModel.markAllAsRead(
-                accountType === 'user' ? userId : userId.store
-            );
+            await NotificationModel.markAllAsRead(userId);
 
             // Emit update via socket
             await this._emitNotificationUpdate(userId);
@@ -431,9 +417,7 @@ class NotificationController {
      */
     static async getUnreadCount(userId: string, accountType: string = 'user'): Promise<{ count: number }> {
         try {
-            const NotificationModel = accountType === 'user'
-                ? UserNotification
-                : BusinessNotification;
+            const NotificationModel = UserNotification;
 
             const count = await NotificationModel.getUnreadCount(userId);
             return { count };
@@ -478,13 +462,13 @@ class NotificationController {
      */
     static async _emitNotificationUpdate(userId: string): Promise<void> {
         try {
-            const io = getSocketIo();
-            const sessions = await SocketSession.find({ accountId: userId });
-            const unreadCount = await UserNotification.getUnreadCount(userId);
+            // const io = getSocketIo();
+            // const sessions = await SocketSession.find({ accountId: userId });
+            // const unreadCount = await UserNotification.getUnreadCount(userId);
 
-            sessions.forEach(session => {
-                io.to(session.socketId).emit('notification:update', { unreadCount });
-            });
+            // sessions.forEach(session => {
+            //     io.to(session.socketId).emit('notification:update', { unreadCount });
+            // });
 
         } catch (error) {
             logger.error('Emit update error:', error);
@@ -504,12 +488,7 @@ class NotificationController {
                 return res.status(400).json({ error: 'Subscription and deviceId required' });
             }
 
-            await PushNotificationService.subscribe(
-                accountType === "user" ? userId : (req as any).user.branchId,
-                subscription,
-                deviceId,
-                accountType
-            );
+            // FCM subscription object
 
             return res.status(200).json({ message: 'Subscribed successfully' });
 
@@ -532,11 +511,7 @@ class NotificationController {
                 return res.status(400).json({ error: 'DeviceId required' });
             }
 
-            await PushNotificationService.unsubscribe(
-                userId,
-                deviceId,
-                accountType
-            );
+            // FCM unsubscription logic
 
             return res.status(200).json({ message: 'Unsubscribed successfully' });
 
@@ -652,18 +627,6 @@ class NotificationController {
                 await this.sendNotification(notification, 'user');
             }
 
-            // Also check business notifications
-            const businessNotifications = await BusinessNotification.find({
-                status: 'pending',
-                scheduledAt: { $lte: now }
-            }).limit(100);
-
-            for (const notification of businessNotifications) {
-                await this.sendNotification(notification, 'business', {
-                    branchId: notification.branch
-                });
-            }
-
         } catch (error) {
             logger.error('Process scheduled notifications error:', error);
         }
@@ -684,14 +647,7 @@ class NotificationController {
             });
 
             logger.info(`Cleaned up ${result.deletedCount} old notifications`);
-
-            // Also clean business notifications
-            const businessResult = await BusinessNotification.deleteMany({
-                unread: 0,
-                createdAt: { $lt: thirtyDaysAgo }
-            });
-
-            logger.info(`Cleaned up ${businessResult.deletedCount} old business notifications`);
+    
 
         } catch (error) {
             logger.error('Cleanup notifications error:', error);
@@ -708,7 +664,7 @@ class NotificationController {
                 title: 'Test Notification',
                 body: 'This is a test notification to verify your settings',
                 type: 'system',
-                icon: webpushPayload.icon,
+                icon: "",
                 priority: 'medium'
             }, 'user');
 

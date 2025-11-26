@@ -19,6 +19,7 @@ interface JwtPayload {
 
 // Protect routes - verify JWT token
 export const protect = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    console.log(req.body)
     let token: string | undefined;
 
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {

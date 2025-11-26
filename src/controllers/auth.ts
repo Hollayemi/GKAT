@@ -304,7 +304,7 @@ export const updateNotificationSettings = asyncHandler(async (req: Request, res:
         return next(new AppError('User not found', 404));
     }
 
-    user.notificationsEnabled = enabled;
+    user.notification_pref.push_notification = enabled;
     await user.save();
 
     (res as AppResponse).success('Notification settings updated');

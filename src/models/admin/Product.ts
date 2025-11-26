@@ -225,7 +225,7 @@ ProductSchema.virtual('isLowStock').get(function () {
 
 // Virtual for total stock (including variants)
 ProductSchema.virtual('totalStock').get(function () {
-    const variantStock = this.variants.reduce((sum, variant) => sum + variant.stockQuantity, 0);
+    const variantStock = this.variants?.reduce((sum, variant) => sum + variant.stockQuantity, 0) || 0;
     return this.stockQuantity + variantStock;
 });
 

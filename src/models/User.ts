@@ -1,6 +1,23 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Types } from 'mongoose';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+
+interface FCMToken {
+    token: string;
+    deviceId: string;
+    platform: 'ios' | 'android';
+    addedAt: Date;
+}
+
+interface NotificationPreferences {
+    push_notification: boolean;
+    in_app_notification: boolean;
+    email_notification: boolean;
+    notification_sound: boolean;
+    order_updates: boolean;
+    promotions: boolean;
+    system_updates: boolean;
+}
 
 export interface IUser extends Document {
     name: string;
@@ -10,15 +27,35 @@ export interface IUser extends Document {
     residentArea: string;
     avatar?: string;
     role: 'user' | 'admin' | 'driver';
+
+    // Verification
     isPhoneVerified: boolean;
     isEmailVerified: boolean;
+
+    // Referral
     referralCode: string;
     referredBy?: string;
-    notificationsEnabled: boolean;
+
+    // Settings
+    notification_pref: NotificationPreferences;
     biometricsEnabled: boolean;
+
+    // OTP
     otp?: string;
     otpExpiry?: Date;
+
+    // Tokens
     refreshToken?: string;
+    fcmTokens: FCMToken[]; // Firebase Cloud Messaging tokens for push notifications
+
+    // Saved Addresses
+    addresses: Types.ObjectId[];
+    defaultAddress?: Types.ObjectId;
+
+    // Stats
+    totalOrders: number;
+    totalSpent: number;
+
     createdAt: Date;
     updatedAt: Date;
 
@@ -55,12 +92,13 @@ const UserSchema = new Schema<IUser>({
         type: String,
         required: [true, 'Please add a phone number'],
         unique: true,
-        trim: true
+        trim: true,
+        index: true
     },
     residentArea: {
         type: String,
         required: [true, 'Please add a resident area'],
-        default: '+234'
+        default: 'Lagos'
     },
     avatar: {
         type: String,
@@ -69,8 +107,11 @@ const UserSchema = new Schema<IUser>({
     role: {
         type: String,
         enum: ['user', 'admin', 'driver'],
-        default: 'user'
+        default: 'user',
+        index: true
     },
+
+    // Verification
     isPhoneVerified: {
         type: Boolean,
         default: false
@@ -79,6 +120,8 @@ const UserSchema = new Schema<IUser>({
         type: Boolean,
         default: false
     },
+
+    // Referral
     referralCode: {
         type: String,
         unique: true,
@@ -88,14 +131,45 @@ const UserSchema = new Schema<IUser>({
         type: String,
         default: null
     },
-    notificationsEnabled: {
-        type: Boolean,
-        default: true
+
+    // Notification Preferences
+    notification_pref: {
+        push_notification: {
+            type: Boolean,
+            default: true
+        },
+        in_app_notification: {
+            type: Boolean,
+            default: true
+        },
+        email_notification: {
+            type: Boolean,
+            default: true
+        },
+        notification_sound: {
+            type: Boolean,
+            default: true
+        },
+        order_updates: {
+            type: Boolean,
+            default: true
+        },
+        promotions: {
+            type: Boolean,
+            default: true
+        },
+        system_updates: {
+            type: Boolean,
+            default: true
+        }
     },
+
     biometricsEnabled: {
         type: Boolean,
         default: false
     },
+
+    // OTP
     otp: {
         type: String,
         select: false
@@ -104,25 +178,81 @@ const UserSchema = new Schema<IUser>({
         type: Date,
         select: false
     },
+
+    // Tokens
     refreshToken: {
         type: String,
         select: false
     },
+
+    // FCM Tokens for push notifications
+    fcmTokens: [{
+        token: {
+            type: String,
+            required: true
+        },
+        deviceId: {
+            type: String,
+            required: true
+        },
+        platform: {
+            type: String,
+            enum: ['ios', 'android'],
+            required: true
+        },
+        addedAt: {
+            type: Date,
+            default: Date.now
+        }
+    }],
+
+    // Addresses
+    addresses: [{
+        type: Schema.Types.ObjectId,
+        ref: 'Address'
+    }],
+    defaultAddress: {
+        type: Schema.Types.ObjectId,
+        ref: 'Address'
+    },
+
+    // User Stats
+    totalOrders: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    totalSpent: {
+        type: Number,
+        default: 0,
+        min: 0
+    }
 }, {
-    timestamps: true
+    timestamps: true,
+    toJSON: {
+        virtuals: true,
+        transform: function (doc, ret) {
+            delete ret.otp;
+            delete ret.otpExpiry;
+            delete ret.refreshToken;
+            delete ret.password;
+            return ret;
+        }
+    },
+    toObject: { virtuals: true }
 });
 
-// Generate unique referral code before saving
+// Indexes
+UserSchema.index({ phoneNumber: 1 });
+UserSchema.index({ email: 1 }, { sparse: true });
+UserSchema.index({ referralCode: 1 });
+UserSchema.index({ role: 1 });
+
+// Pre-save: Generate unique referral code
 UserSchema.pre('save', async function (next) {
     if (!this.referralCode) {
         this.referralCode = await generateUniqueReferralCode();
     }
-    next();
-});
-
-
-UserSchema.pre('save', async function (next) {
-
     next();
 });
 
@@ -147,7 +277,6 @@ UserSchema.methods.getRefreshToken = function (): string {
     return refreshToken;
 };
 
-
 // Generate OTP
 UserSchema.methods.generateOTP = function (): string {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -170,7 +299,6 @@ UserSchema.methods.verifyOTP = function (otp: string): boolean {
     return false;
 };
 
-
 // Helper function to generate unique referral code
 async function generateUniqueReferralCode(): Promise<string> {
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -183,7 +311,7 @@ async function generateUniqueReferralCode(): Promise<string> {
     // Check if code exists
     const existingUser = await mongoose.model('User').findOne({ referralCode: code });
     if (existingUser) {
-        return generateUniqueReferralCode(); // fOR Recursive (call if code exists)
+        return generateUniqueReferralCode(); // Recursive call if code exists
     }
 
     return code;
