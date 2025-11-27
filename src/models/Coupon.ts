@@ -5,32 +5,26 @@ export interface ICoupon extends Document {
     title: string;
     description?: string;
 
-    // Discount Configuration
     discountType: 'percentage' | 'fixed';
     discountValue: number;
     maxDiscount?: number; // For percentage discounts
     minPurchase?: number; // Minimum order amount required
 
-    // Validity
     startDate: Date;
     expiresAt: Date;
     isActive: boolean;
 
-    // Usage Limits
     maxUsage?: number; // Total times coupon can be used
     maxUsagePerUser?: number; // Max times per user
     currentUsage: number;
 
-    // User Restrictions
     userType?: 'all' | 'new' | 'existing'; // Who can use it
     specificUsers?: Types.ObjectId[]; // Specific user IDs
 
-    // Product Restrictions
     applicableProducts?: Types.ObjectId[]; // Specific products
     applicableCategories?: string[]; // Specific categories
     excludedProducts?: Types.ObjectId[];
 
-    // UI Display
     backgroundColor?: string;
     icon?: string;
     terms?: string;
@@ -39,12 +33,10 @@ export interface ICoupon extends Document {
     createdAt: Date;
     updatedAt: Date;
 
-    // Virtuals
     isExpired: boolean;
     isAvailable: boolean;
     usageRemaining: number;
 
-    // Methods
     canBeUsedBy(userId: Types.ObjectId): Promise<boolean>;
     incrementUsage(userId: Types.ObjectId): Promise<void>;
     validateForCart(cartTotal: number, cartItems: any[]): { valid: boolean; reason?: string };
@@ -174,17 +166,14 @@ const couponSchema = new Schema<ICoupon, ICouponModel>({
     toObject: { virtuals: true }
 });
 
-// Indexes
 couponSchema.index({ code: 1, isActive: 1 });
 couponSchema.index({ expiresAt: 1, isActive: 1 });
 couponSchema.index({ userType: 1, isActive: 1 });
 
-// Virtual: Is Expired
 couponSchema.virtual('isExpired').get(function () {
     return new Date() > this.expiresAt;
 });
 
-// Virtual: Is Available
 couponSchema.virtual('isAvailable').get(function () {
     if (!this.isActive || this.isExpired) return false;
     if (new Date() < this.startDate) return false;
@@ -192,25 +181,20 @@ couponSchema.virtual('isAvailable').get(function () {
     return true;
 });
 
-// Virtual: Usage Remaining
 couponSchema.virtual('usageRemaining').get(function () {
     if (!this.maxUsage) return Infinity;
     return Math.max(0, this.maxUsage - this.currentUsage);
 });
 
-// Method: Can Be Used By User
 couponSchema.methods.canBeUsedBy = async function (userId: Types.ObjectId): Promise<boolean> {
-    // Check if coupon is available
     if (!this.isAvailable) return false;
 
-    // Check specific users restriction
     if (this.specificUsers && this.specificUsers.length > 0) {
         if (!this.specificUsers.some((id: any) => id.toString() === userId.toString())) {
             return false;
         }
     }
 
-    // Check user type restriction
     if (this.userType !== 'all') {
         const User = mongoose.model('User');
         const Order = mongoose.model('Order');
@@ -227,7 +211,6 @@ couponSchema.methods.canBeUsedBy = async function (userId: Types.ObjectId): Prom
         if (this.userType === 'existing' && orderCount === 0) return false;
     }
 
-    // Check per-user usage limit
     if (this.maxUsagePerUser) {
         const Order = mongoose.model('Order');
         const usageCount = await Order.countDocuments({
@@ -241,23 +224,19 @@ couponSchema.methods.canBeUsedBy = async function (userId: Types.ObjectId): Prom
     return true;
 };
 
-// Method: Increment Usage
 couponSchema.methods.incrementUsage = async function (userId: Types.ObjectId): Promise<void> {
     this.currentUsage += 1;
     await this.save();
 };
 
-// Method: Validate For Cart
 couponSchema.methods.validateForCart = function (
     cartTotal: number,
     cartItems: any[]
 ): { valid: boolean; reason?: string } {
-    // Check if available
     if (!this.isAvailable) {
         return { valid: false, reason: 'Coupon is not available' };
     }
 
-    // Check minimum purchase
     if (this.minPurchase && cartTotal < this.minPurchase) {
         return {
             valid: false,
@@ -265,7 +244,6 @@ couponSchema.methods.validateForCart = function (
         };
     }
 
-    // Check product restrictions
     if (this.applicableProducts && this.applicableProducts.length > 0) {
         const hasApplicableProduct = cartItems.some(item =>
             this.applicableProducts!.some((pid: any) =>
@@ -281,7 +259,6 @@ couponSchema.methods.validateForCart = function (
         }
     }
 
-    // Check category restrictions
     if (this.applicableCategories && this.applicableCategories.length > 0) {
         const hasApplicableCategory = cartItems.some(item =>
             this.applicableCategories!.includes(item.category)
@@ -295,7 +272,6 @@ couponSchema.methods.validateForCart = function (
         }
     }
 
-    // Check excluded products
     if (this.excludedProducts && this.excludedProducts.length > 0) {
         const hasExcludedProduct = cartItems.some(item =>
             this.excludedProducts!.some((pid: any) =>
@@ -314,21 +290,18 @@ couponSchema.methods.validateForCart = function (
     return { valid: true };
 };
 
-// Static: Get Available Coupons
 couponSchema.statics.getAvailableCoupons = async function (
     userId: Types.ObjectId,
     cartTotal?: number
 ): Promise<ICoupon[]> {
     const now = new Date();
 
-    // Base query
     const query: any = {
         isActive: true,
         startDate: { $lte: now },
         expiresAt: { $gt: now }
     };
 
-    // Add usage limit check
     query.$or = [
         { maxUsage: { $exists: false } },
         { $expr: { $lt: ['$currentUsage', '$maxUsage'] } }
@@ -336,13 +309,11 @@ couponSchema.statics.getAvailableCoupons = async function (
 
     let coupons = await this.find(query).sort({ createdAt: -1 });
 
-    // Filter by user eligibility
     const eligibleCoupons: ICoupon[] = [];
 
     for (const coupon of coupons) {
         const canUse = await coupon.canBeUsedBy(userId);
         if (canUse) {
-            // Further filter by cart total if provided
             if (cartTotal !== undefined) {
                 if (!coupon.minPurchase || cartTotal >= coupon.minPurchase) {
                     eligibleCoupons.push(coupon);
@@ -356,7 +327,6 @@ couponSchema.statics.getAvailableCoupons = async function (
     return eligibleCoupons;
 };
 
-// Static: Validate Coupon
 couponSchema.statics.validateCoupon = async function (
     code: string,
     userId: Types.ObjectId

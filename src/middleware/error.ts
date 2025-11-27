@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
 
-// Custom error class
 export class AppError extends Error {
     statusCode: number;
     status: string;
@@ -16,7 +15,6 @@ export class AppError extends Error {
     }
 }
 
-// Response interface
 export interface AppResponse extends Response {
     data: (data: any, message?: string, status?: number) => Response;
     success: (message?: string, status?: number) => Response;
@@ -24,7 +22,6 @@ export interface AppResponse extends Response {
     errorMessage: (message: string, status?: number) => Response;
 }
 
-// Custom response methods
 const responseHelpers = {
     data: function (this: Response, data: any, message: string = 'Success', status: number = 200): Response {
         return this.status(status).json({
@@ -67,7 +64,6 @@ const responseHelpers = {
     }
 };
 
-// Middleware to extend response object
 export const extendResponse = (req: Request, res: Response, next: NextFunction): void => {
     (res as AppResponse).data = responseHelpers.data.bind(res);
     (res as AppResponse).success = responseHelpers.success.bind(res);
@@ -76,44 +72,37 @@ export const extendResponse = (req: Request, res: Response, next: NextFunction):
     next();
 };
 
-// Main error handler
 export const errorHandler = (err: any, req: Request, res: Response, next: NextFunction): void => {
     const appRes = res as AppResponse;
 
     err.statusCode = err.statusCode || 500;
     err.status = err.status || 'error';
 
-    // Development vs Production
     if (process.env.NODE_ENV === 'development') {
         appRes.error(err, err.message, err.statusCode);
         return;
     }
 
-    // Production - handle specific errors
     let error = { ...err };
     error.message = err.message;
 
-    // Mongoose bad ObjectId
     if (err.name === 'CastError') {
         const message = 'Resource not found';
         error = new AppError(message, 404);
     }
 
-    // Mongoose duplicate key
     if (err.code === 11000) {
         const field = Object.keys(err.keyValue)[0];
         const message = `${field.charAt(0).toUpperCase() + field.slice(1)} already exists`;
         error = new AppError(message, 409);
     }
 
-    // Mongoose validation error
     if (err.name === 'ValidationError') {
         const errors = Object.values(err.errors).map((e: any) => e.message);
         const message = errors.join('. ');
         error = new AppError(message, 400);
     }
 
-    // JWT errors
     if (err.name === 'JsonWebTokenError') {
         const message = 'Invalid token. Please login again';
         error = new AppError(message, 401);
@@ -127,19 +116,16 @@ export const errorHandler = (err: any, req: Request, res: Response, next: NextFu
     appRes.errorMessage(error.message || 'Something went wrong', error.statusCode || 500);
 };
 
-// 404 handler
 export const handle404 = (req: Request, res: Response): void => {
     (res as AppResponse).errorMessage(`Route ${req.originalUrl} not found`, 404);
 };
 
-// Async handler wrapper
 export const asyncHandler = (fn: Function) => {
     return (req: Request, res: Response, next: NextFunction) => {
         Promise.resolve(fn(req, res, next)).catch(next);
     };
 };
 
-// JSON parsing error handler
 export const jsonParseErrorHandler = (err: any, req: Request, res: Response, next: NextFunction): void => {
     if (err instanceof SyntaxError && 'body' in err) {
         (res as AppResponse).errorMessage('Invalid JSON payload', 400);
@@ -148,7 +134,6 @@ export const jsonParseErrorHandler = (err: any, req: Request, res: Response, nex
     next(err);
 };
 
-// Export default for easier imports
 export default {
     AppError,
     extendResponse,

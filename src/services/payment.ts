@@ -8,11 +8,8 @@ interface PaymentData {
     amount: number;
     reference: string;
     currency?: string;
-    callback_url?: string;
-    return_url?: string;
     orderId?: string;
     userId?: string;
-    orderIds?: string[];
     description?: string;
     phone?: string;
     userIp?: string;
@@ -83,7 +80,6 @@ class PaymentGateway extends PaymentLogging {
         };
     }
 
-    // Generate signature for PalmPay
     private generatePalmPaySignature(data: any, timestamp: string): string {
         const stringToSign = `${timestamp}${JSON.stringify(data)}`;
         return crypto
@@ -92,7 +88,6 @@ class PaymentGateway extends PaymentLogging {
             .digest('hex');
     }
 
-    // Generate signature for OPay
     private generateOpaySignature(data: any, timestamp: string): string {
         const orderedData = this.sortObjectKeys(data);
         const stringToSign = `${JSON.stringify(orderedData)}${timestamp}${this.opay.privateKey}`;
@@ -102,7 +97,6 @@ class PaymentGateway extends PaymentLogging {
             .digest('hex');
     }
 
-    // Helper method to sort object keys (required for OPay)
     private sortObjectKeys(obj: any): any {
         const sorted: any = {};
         Object.keys(obj).sort().forEach(key => {
@@ -115,7 +109,6 @@ class PaymentGateway extends PaymentLogging {
         return sorted;
     }
 
-    // Paystack payment initialization
     async initializePaystackPayment(paymentData: PaymentData): Promise<PaymentResponse> {
         try {
             const response: AxiosResponse = await axios.post(
@@ -125,12 +118,12 @@ class PaymentGateway extends PaymentLogging {
                     amount: paymentData.amount * 100, // Convert to kobo
                     reference: paymentData.reference,
                     currency: paymentData.currency || 'NGN',
-                    callback_url: paymentData.callback_url,
+                    callback_url: `${process.env.API_URL}/payment/callback?provider=paystack&platform=mobile`,
+                    return_url: `${process.env.API_URL}/payment/callback?provider=paystack&platform=mobile`,
                     metadata: {
                         type: 'purchase',
                         orderId: paymentData.orderId,
                         userId: paymentData.userId,
-                        orderIds: paymentData.orderIds,
                         ...paymentData.metadata
                     }
                 },
@@ -166,7 +159,6 @@ class PaymentGateway extends PaymentLogging {
         }
     }
 
-    // PalmPay payment initialization
     async initializePalmPayPayment(paymentData: PaymentData): Promise<PaymentResponse> {
         try {
             const timestamp = Date.now().toString();
@@ -178,7 +170,7 @@ class PaymentGateway extends PaymentLogging {
                 description: paymentData.description || 'Order Payment',
                 customerEmail: paymentData.email,
                 customerPhone: paymentData.phone,
-                callbackUrl: paymentData.callback_url,
+                callbackUrl: `${process.env.API_URL}/payment/callback?provider=palmpay&platform=mobile`,
                 metadata: {
                     orderId: paymentData.orderId,
                     userId: paymentData.userId,
@@ -216,7 +208,6 @@ class PaymentGateway extends PaymentLogging {
         }
     }
 
-    // OPay payment initialization
     async initializeOpayPayment(paymentData: PaymentData): Promise<PaymentResponse> {
         try {
             const timestamp = Date.now().toString();
@@ -230,8 +221,8 @@ class PaymentGateway extends PaymentLogging {
                 amount: Math.round(paymentData.amount * 100), // Convert to kobo
                 currency: paymentData.currency || 'NGN',
                 osType: 'WEB',
-                callbackUrl: paymentData.callback_url,
-                returnUrl: paymentData.return_url || paymentData.callback_url,
+                callbackUrl: `${process.env.API_URL}/payment/callback?provider=opay&platform=mobile`,
+                returnUrl: `${process.env.API_URL}/payment/callback?provider=opay&platform=mobile`,
                 expireAt: Math.floor(Date.now() / 1000) + 3600, // 1 hour expiry
                 userClientIP: paymentData.userIp || '127.0.0.1'
             };
@@ -279,7 +270,6 @@ class PaymentGateway extends PaymentLogging {
         }
     }
 
-    // Verify Paystack payment
     async verifyPaystackPayment(reference: string): Promise<PaymentResponse> {
         return new Promise(async (resolve, reject) => {
             try {
@@ -310,7 +300,6 @@ class PaymentGateway extends PaymentLogging {
         });
     }
 
-    // Verify PalmPay payment
     async verifyPalmPayPayment(reference: string): Promise<PaymentResponse> {
         try {
             const timestamp = Date.now().toString();
@@ -349,7 +338,6 @@ class PaymentGateway extends PaymentLogging {
         }
     }
 
-    // Verify OPay payment
     async verifyOpayPayment(reference: string): Promise<PaymentResponse> {
         try {
             const timestamp = Date.now().toString();
@@ -402,7 +390,6 @@ class PaymentGateway extends PaymentLogging {
         }
     }
 
-    // Main payment initialization method
     async initializePayment(provider: string, paymentData: PaymentData): Promise<PaymentResponse> {
         switch (provider.toLowerCase()) {
             case 'paystack':
@@ -420,7 +407,6 @@ class PaymentGateway extends PaymentLogging {
         }
     }
 
-    // Main payment verification method
     async verifyPayment(provider: string, reference: string): Promise<PaymentResponse> {
         switch (provider.toLowerCase()) {
             case 'paystack':
@@ -438,13 +424,11 @@ class PaymentGateway extends PaymentLogging {
         }
     }
 
-    // Generate unique payment reference
     generatePaymentReference(orderId: string): string {
         const timestamp = Date.now();
         return `PAY_${orderId}_${timestamp}`;
     }
 
-    // Webhook signature verification for Paystack
     verifyPaystackWebhook(payload: any, signature: string): boolean {
         const hash = crypto
             .createHmac('sha512', this.paystack?.secretKey || '')
@@ -453,19 +437,16 @@ class PaymentGateway extends PaymentLogging {
         return hash === signature;
     }
 
-    // Webhook signature verification for PalmPay
     verifyPalmPayWebhook(payload: any, signature: string, timestamp: string): boolean {
         const expectedSignature = this.generatePalmPaySignature(payload, timestamp);
         return expectedSignature === signature;
     }
 
-    // Webhook signature verification for OPay
     verifyOpayWebhook(payload: any, signature: string, timestamp: string): boolean {
         const expectedSignature = this.generateOpaySignature(payload, timestamp);
         return expectedSignature === signature;
     }
 
-    // Get supported payment methods
     getSupportedPaymentMethods(): Array<{
         id: string;
         name: string;
@@ -505,7 +486,6 @@ class PaymentGateway extends PaymentLogging {
         ];
     }
 
-    // Get payment provider fees (if applicable)
     getPaymentFees(provider: string, amount: number): number {
         const fees: Record<string, { percentage: number; cap: number; fixed: number }> = {
             paystack: {

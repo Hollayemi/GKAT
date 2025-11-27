@@ -1,5 +1,3 @@
-// logger.ts
-
 type LogLevel = 'error' | 'warn' | 'info' | 'debug';
 
 interface LoggerInterface {
@@ -51,20 +49,16 @@ class Logger implements LoggerInterface {
         this.log('debug', message, ...args);
     }
 
-    // Optional: Method to change log level at runtime
     setLevel(level: LogLevel): void {
         this.level = level;
     }
 
-    // Optional: Method to get current log level
     getLevel(): LogLevel {
         return this.level;
     }
 }
 
-// Create and export a default instance
 const logger: Logger = new Logger((process.env.LOG_LEVEL as LogLevel) || 'info');
 
-// Export both the class and the default instance
 export { Logger, logger };
 export default logger;

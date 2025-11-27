@@ -5,6 +5,7 @@ import Coupon from '../models/Coupon';
 import Product from '../models/admin/Product';
 import { AppError, asyncHandler, AppResponse } from '../middleware/error';
 import NotificationController from './others/notification';
+import PaymentGateway from '../services/payment';
 
 
 // @desc    Create order from cart
@@ -22,18 +23,15 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
         notes
     } = req.body;
 
-    // Validate required fields
     if (!shippingAddress || !deliveryMethod || !paymentMethod) {
         return next(new AppError('Missing required fields', 400));
     }
 
-    // Get cart
     const cart = await Cart.getActiveCart(req.user.id);
     if (!cart || cart.items.length === 0) {
         return next(new AppError('Cart is empty', 400));
     }
 
-    // Validate stock
     const stockValidation = await cart.validateStock();
     if (!stockValidation.valid) {
         return next(new AppError(
@@ -42,11 +40,34 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
         ));
     }
 
-    // Generate order number and slug
     const orderNumber = await Order.generateOrderNumber();
     const orderSlug = await Order.generateOrderSlug();
 
-    // Create order
+
+    const paymentGateway = new PaymentGateway();
+
+    console.log({
+        orderNumber,
+        orderSlug,
+        userId: req.user.id,
+        items: cart.items,
+        shippingAddress,
+        deliveryMethod,
+        paymentInfo: {
+            method: paymentMethod,
+            paymentStatus: paymentMethod === 'cash_on_delivery' ? 'pending' : 'pending',
+            amount: cart.totalAmount
+        },
+        orderStatus: 'pending',
+        subtotal: cart.subtotal,
+        deliveryFee: cart.deliveryFee,
+        serviceCharge: cart.serviceCharge,
+        discount: cart.discount,
+        totalAmount: cart.totalAmount,
+        appliedCoupons: cart.appliedCoupons,
+        notes
+    })
+
     const order = await Order.create({
         orderNumber,
         orderSlug,
@@ -69,12 +90,11 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
         notes
     });
 
-    // Update product stock
     for (const item of cart.items) {
         const product = await Product.findById(item.productId);
         if (product) {
             if (item.variantId) {
-                const variant = product.variants.find(v => 
+                const variant = product.variants.find(v =>
                     v._id?.toString() === item.variantId?.toString()
                 );
                 if (variant) {
@@ -87,7 +107,6 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
         }
     }
 
-    // Increment coupon usage
     for (const coupon of cart.appliedCoupons) {
         const couponDoc = await Coupon.findOne({ code: coupon.code });
         if (couponDoc) {
@@ -95,23 +114,37 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
         }
     }
 
-    // Clear cart
-    await cart.clearCart();
+    // await cart.clearCart();
 
-    // Send notification
-    await NotificationController.saveAndSendNotification({
+    const paymentReference = paymentGateway.generatePaymentReference(order.orderNumber);
+
+    const paymentData = {
+        email: req.user.email,
+        amount: order.paymentInfo.amount,
+        reference: paymentReference,
+        orderId: order._id.toString(),
         userId: req.user.id,
-        title: 'Order Placed Successfully',
-        body: `Your order #${orderSlug} has been placed. Total: ₦${order.totalAmount.toLocaleString()}`,
-        type: 'order',
-        typeId: order._id.toString(),
-        clickUrl: `/orders/${order._id}`,
-        priority: 'high'
-    }, 'user', {
-        push_notification: true
-    });
+        description: "Order Payment",
+        phone: req.user.phone || '',
+        metadata: {}
+    }
 
-    (res as AppResponse).data({ order }, 'Order created successfully', 201);
+    const paymentResult = await paymentGateway.initializePayment(paymentMethod, paymentData);
+    console.log('Payment Result:', paymentResult);
+
+    // await NotificationController.saveAndSendNotification({
+    //     userId: req.user.id,
+    //     title: 'Order Placed Successfully',
+    //     body: `Your order #${orderSlug} has been placed. Total: ₦${order.totalAmount.toLocaleString()}`,
+    //     type: 'order',
+    //     typeId: order._id.toString(),
+    //     clickUrl: `/orders/${order._id}`,
+    //     priority: 'high'
+    // }, 'user', {
+    //     push_notification: true
+    // });
+
+    (res as AppResponse).data({ order, payment: paymentResult }, 'Order created successfully', 201);
 });
 
 // @desc    Get user orders
@@ -134,7 +167,7 @@ export const getUserOrders = asyncHandler(async (req: Request, res: Response, ne
     const orders = await Order.find(query)
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(parseInt(limit as string));
+        .limit(parseInt(limit as string)).populate('shippingAddress');
 
     const total = await Order.countDocuments(query);
 

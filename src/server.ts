@@ -14,22 +14,16 @@ import {
     extendResponse
 } from './middleware/error';
 
-// Load env vars
 dotenv.config();
 
-// Connect to database
 connectDB();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Security middleware
 app.use(helmet());
 
-// Rate limiting
 const limiter = rateLimit({
-    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
-    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'), // limit each IP to 100 requests per windowMs
     message: {
         error: 'Too many requests from this IP, please try again later.'
     },
@@ -37,36 +31,28 @@ const limiter = rateLimit({
     legacyHeaders: false,
 });
 
-// Apply rate limiting to all routes
 app.use('/api/', limiter);
 
-// CORS
 app.use(cors({
     origin: process.env.CLIENT_URL || 'http://localhost:3000',
     credentials: true
 }));
 
-// Body parser middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Cookie parser
 app.use(cookieParser());
 
-// JSON parsing error handler
 app.use(jsonParseErrorHandler);
 
-// Extend response object with custom methods
 app.use(extendResponse);
 
-// Logging
 if (process.env.NODE_ENV === 'development') {
     app.use(morgan('dev'));
 } else {
     app.use(morgan('combined'));
 }
 
-// Health check route
 app.get('/health', (req, res) => {
     (res as any).data({
         status: 'OK',
@@ -76,20 +62,19 @@ app.get('/health', (req, res) => {
     }, 'Server is healthy');
 });
 
-// API routes
 import authRoutes from './routes/auth';
 import productRoutes from './routes/products';
 import cartRoutes from './routes/cart';
 import orderRoutes from './routes/order';
+import addressRoutes from './routes/address';
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/product', productRoutes);
 app.use('/api/v1/cart', cartRoutes);
 app.use('/api/v1/order', orderRoutes);
-// 404 handler
+app.use('/api/v1/addresses', addressRoutes);
 app.use('*', handle404);
 
-// Error handler (must be last)
 app.use(errorHandler);
 
 const server = app.listen(PORT, () => {
@@ -101,7 +86,6 @@ const server = app.listen(PORT, () => {
   `);
 });
 
-// Handle unhandled promise rejections
 process.on('unhandledRejection', (err: Error) => {
     console.log('UNHANDLED REJECTION! Shutting down...');
     console.log(err.name, err.message);
@@ -110,7 +94,6 @@ process.on('unhandledRejection', (err: Error) => {
     });
 });
 
-// Handle uncaught exceptions
 process.on('uncaughtException', (err: Error) => {
     console.log('UNCAUGHT EXCEPTION! Shutting down...');
     console.log(err.name, err.message);

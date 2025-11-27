@@ -367,7 +367,6 @@ const UserNotificationSchema: Schema<IUserNotification> = new Schema(
     }
 );
 
-// Indexes for performance
 UserNotificationSchema.index({ userId: 1, createdAt: -1 });
 UserNotificationSchema.index({ userId: 1, status: 1, unread: 1 });
 UserNotificationSchema.index({ userId: 1, type: 1 });
@@ -379,22 +378,18 @@ UserNotificationSchema.index({ expiresAt: 1 }, {
 UserNotificationSchema.index({ status: 1, scheduledAt: 1 });
 UserNotificationSchema.index({ archived: 1, deletedAt: 1 });
 
-// Virtual for isExpired
 UserNotificationSchema.virtual('isExpired').get(function (this: IUserNotification) {
     return this.expiresAt && this.expiresAt < new Date();
 });
 
-// Virtual for isScheduled
 UserNotificationSchema.virtual('isScheduled').get(function (this: IUserNotification) {
     return this.scheduledAt && this.scheduledAt > new Date();
 });
 
-// Virtual for hasActions
 UserNotificationSchema.virtual('hasActions').get(function (this: IUserNotification) {
     return this.actions && this.actions.length > 0;
 });
 
-// Virtual for deliveryStatus
 UserNotificationSchema.virtual('deliveryStatus').get(function (this: IUserNotification) {
     if (this.delivery.push.delivered) return 'delivered';
     if (this.delivery.push.sent) return 'sent';
@@ -402,7 +397,6 @@ UserNotificationSchema.virtual('deliveryStatus').get(function (this: IUserNotifi
     return 'pending';
 });
 
-// Method to mark as read
 UserNotificationSchema.methods.markAsRead = async function (): Promise<IUserNotification> {
     this.unread = 0;
     this.status = NotificationStatus.READ;
@@ -411,12 +405,10 @@ UserNotificationSchema.methods.markAsRead = async function (): Promise<IUserNoti
     return await this.save();
 };
 
-// Method to track click
 UserNotificationSchema.methods.trackClick = async function (): Promise<IUserNotification> {
     this.clicked = true;
     this.clickedAt = new Date();
 
-    // Also mark as read if not already
     if (this.unread === 1) {
         await this.markAsRead();
     }
@@ -424,12 +416,10 @@ UserNotificationSchema.methods.trackClick = async function (): Promise<IUserNoti
     return await this.save();
 };
 
-// Method to check if notification is actionable
 UserNotificationSchema.methods.isActionable = function (): boolean {
     return this.hasActions || !!this.clickUrl;
 };
 
-// Method to mark as sent
 UserNotificationSchema.methods.markAsSent = async function (channel: keyof IDelivery = 'push'): Promise<IUserNotification> {
     this.delivery[channel].sent = true;
     this.delivery[channel].sentAt = new Date();
@@ -437,7 +427,6 @@ UserNotificationSchema.methods.markAsSent = async function (channel: keyof IDeli
     return await this.save();
 };
 
-// Method to mark as delivered
 UserNotificationSchema.methods.markAsDelivered = async function (channel: keyof IDelivery = 'push'): Promise<IUserNotification> {
     this.delivery[channel].delivered = true;
     this.delivery[channel].deliveredAt = new Date();
@@ -445,7 +434,6 @@ UserNotificationSchema.methods.markAsDelivered = async function (channel: keyof 
     return await this.save();
 };
 
-// Method to mark as failed
 UserNotificationSchema.methods.markAsFailed = async function (error: string, channel: keyof IDelivery = 'push'): Promise<IUserNotification> {
     this.delivery[channel].failed = true;
     this.delivery[channel].failedAt = new Date();
@@ -454,7 +442,6 @@ UserNotificationSchema.methods.markAsFailed = async function (error: string, cha
     return await this.save();
 };
 
-// Static method to get unread count
 UserNotificationSchema.statics.getUnreadCount = function (userId: Types.ObjectId | string): Promise<number> {
     return this.countDocuments({
         userId,
@@ -464,7 +451,6 @@ UserNotificationSchema.statics.getUnreadCount = function (userId: Types.ObjectId
     });
 };
 
-// Static method to mark all as read
 UserNotificationSchema.statics.markAllAsRead = function (userId: Types.ObjectId | string) {
     return this.updateMany(
         {
@@ -484,7 +470,6 @@ UserNotificationSchema.statics.markAllAsRead = function (userId: Types.ObjectId 
     );
 };
 
-// Static method to find by user ID with options
 UserNotificationSchema.statics.findByUserId = function (
     userId: Types.ObjectId | string,
     options: {
@@ -517,7 +502,6 @@ UserNotificationSchema.statics.findByUserId = function (
         .exec();
 };
 
-// Static method to find expired notifications
 UserNotificationSchema.statics.findExpired = function (): Promise<IUserNotification[]> {
     return this.find({
         expiresAt: { $lt: new Date() },
@@ -526,7 +510,6 @@ UserNotificationSchema.statics.findExpired = function (): Promise<IUserNotificat
     }).exec();
 };
 
-// Static method to cleanup old notifications
 UserNotificationSchema.statics.cleanupOldNotifications = function (days: number = 30) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
@@ -547,14 +530,11 @@ UserNotificationSchema.statics.cleanupOldNotifications = function (days: number 
     );
 };
 
-// Pre-save hook to set status based on scheduledAt
 UserNotificationSchema.pre<IUserNotification>('save', function (next) {
-    // If scheduled for future, set as pending
     if (this.scheduledAt && this.scheduledAt > new Date()) {
         this.status = NotificationStatus.PENDING;
     }
 
-    // If expired, mark as read and archived
     if (this.expiresAt && this.expiresAt < new Date() && !this.archived) {
         this.unread = 0;
         this.archived = true;
@@ -564,7 +544,6 @@ UserNotificationSchema.pre<IUserNotification>('save', function (next) {
     next();
 });
 
-// Pre-find hook to exclude archived/deleted notifications
 UserNotificationSchema.pre(/^find/, function (this: any, next) {
     if (this.getFilter().archived === undefined) {
         this.where({ archived: false, deletedAt: null });
@@ -572,7 +551,6 @@ UserNotificationSchema.pre(/^find/, function (this: any, next) {
     next();
 });
 
-// Create and export the model
 const UserNotification: IUserNotificationModel = mongoose.model<IUserNotification, IUserNotificationModel>(
     'UserNotification',
     UserNotificationSchema

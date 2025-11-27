@@ -28,7 +28,6 @@ export interface IAppliedCoupon {
     appliedAt: Date;
 }
 
-// Interface for Cart Document
 export interface ICart extends Document {
     userId: Types.ObjectId;
     items: ICartItem[];
@@ -42,7 +41,7 @@ export interface ICart extends Document {
 
     // Coupon management
     appliedCoupons: IAppliedCoupon[];
-    availableCoupons: string[]; // Coupon codes user can apply
+    availableCoupons: string[]; 
 
     // Delivery info
     deliveryMethod?: 'pickup' | 'delivery';
@@ -85,13 +84,11 @@ export interface ICart extends Document {
     validateStock(): Promise<{ valid: boolean; outOfStock: string[] }>;
 }
 
-// Interface for Cart Model with static methods
 interface ICartModel extends Model<ICart> {
     findOrCreateCart(userId: Types.ObjectId): Promise<ICart>;
     getActiveCart(userId: Types.ObjectId): Promise<ICart | null>;
 }
 
-// Cart Item Schema
 const cartItemSchema = new Schema<ICartItem>({
     productId: {
         type: Schema.Types.ObjectId,
@@ -182,7 +179,6 @@ const appliedCouponSchema = new Schema<IAppliedCoupon>({
     }
 }, { _id: false });
 
-// Cart Schema
 const cartSchema = new Schema<ICart, ICartModel>({
     userId: {
         type: Schema.Types.ObjectId,
@@ -192,7 +188,6 @@ const cartSchema = new Schema<ICart, ICartModel>({
     },
     items: [cartItemSchema],
 
-    // Pricing
     subtotal: {
         type: Number,
         default: 0,
@@ -219,14 +214,12 @@ const cartSchema = new Schema<ICart, ICartModel>({
         min: 0
     },
 
-    // Coupons
     appliedCoupons: [appliedCouponSchema],
     availableCoupons: [{
         type: String,
         uppercase: true
     }],
 
-    // Delivery
     deliveryMethod: {
         type: String,
         enum: ['pickup', 'delivery']
@@ -239,7 +232,6 @@ const cartSchema = new Schema<ICart, ICartModel>({
         type: String
     },
 
-    // Status
     isActive: {
         type: Boolean,
         default: true
@@ -257,38 +249,31 @@ const cartSchema = new Schema<ICart, ICartModel>({
     toObject: { virtuals: true }
 });
 
-// Indexes
 cartSchema.index({ userId: 1, isActive: 1 });
 cartSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
-// Virtual: Total Items Count
 cartSchema.virtual('totalItems').get(function () {
     return this.items.reduce((total, item) => total + item.quantity, 0);
 });
 
-// Virtual: Total Savings
 cartSchema.virtual('totalSavings').get(function () {
     return this.discount + this.appliedCoupons.reduce((total, coupon) =>
         total + coupon.discountAmount, 0
     );
 });
 
-// Pre-save middleware to calculate totals
 cartSchema.pre('save', function (next) {
     this.calculateTotals();
     this.lastModified = new Date();
     next();
 });
 
-// Calculate totals method
 cartSchema.methods.calculateTotals = function (): void {
-    // Calculate subtotal
     this.subtotal = this.items.reduce((total: number, item: any) => {
         item.totalPrice = item.price * item.quantity;
         return total + item.totalPrice;
     }, 0);
 
-    // Calculate coupon discounts
     let totalCouponDiscount = 0;
     this.appliedCoupons.forEach((coupon: any) => {
         if (coupon.discountType === 'percentage') {
@@ -311,7 +296,6 @@ cartSchema.methods.calculateTotals = function (): void {
     );
 };
 
-// Add item to cart
 cartSchema.methods.addItem = function (productData: any): Promise<ICart> {
     const itemKey = productData.variantId
         ? `${productData.id}-${productData.variantId}`
@@ -352,7 +336,6 @@ cartSchema.methods.addItem = function (productData: any): Promise<ICart> {
     return this.save();
 };
 
-// Remove item from cart
 cartSchema.methods.removeItem = function (productId: Types.ObjectId, variantId?: Types.ObjectId): Promise<ICart> {
     this.items = this.items.filter((item: ICartItem) => {
         if (variantId) {
@@ -364,7 +347,6 @@ cartSchema.methods.removeItem = function (productId: Types.ObjectId, variantId?:
     return this.save();
 };
 
-// Update item quantity
 cartSchema.methods.updateItemQuantity = function (
     productId: Types.ObjectId,
     quantity: number,
@@ -403,14 +385,11 @@ cartSchema.methods.updateItemQuantity = function (
     return this.save();
 };
 
-// Apply coupon
 cartSchema.methods.applyCoupon = async function (couponCode: string): Promise<ICart> {
-    // Check if coupon already applied
     if (this.appliedCoupons.some((c: any) => c.code === couponCode.toUpperCase())) {
         throw new Error('Coupon already applied');
     }
 
-    // Fetch coupon from database (you need to implement Coupon model)
     const Coupon = mongoose.model('Coupon');
     const coupon = await Coupon.findOne({
         code: couponCode.toUpperCase(),
@@ -422,12 +401,10 @@ cartSchema.methods.applyCoupon = async function (couponCode: string): Promise<IC
         throw new Error('Invalid or expired coupon');
     }
 
-    // Check minimum purchase requirement
     if (coupon.minPurchase && this.subtotal < coupon.minPurchase) {
         throw new Error(`Minimum purchase of ₦${coupon.minPurchase} required`);
     }
 
-    // Add coupon
     this.appliedCoupons.push({
         code: coupon.code,
         discountType: coupon.discountType,
@@ -441,7 +418,6 @@ cartSchema.methods.applyCoupon = async function (couponCode: string): Promise<IC
     return this.save();
 };
 
-// Remove coupon
 cartSchema.methods.removeCoupon = function (couponCode: string): Promise<ICart> {
     this.appliedCoupons = this.appliedCoupons.filter(
         (c: any) => c.code !== couponCode.toUpperCase()
@@ -449,7 +425,6 @@ cartSchema.methods.removeCoupon = function (couponCode: string): Promise<ICart> 
     return this.save();
 };
 
-// Clear cart
 cartSchema.methods.clearCart = function (): Promise<ICart> {
     this.items = [];
     this.appliedCoupons = [];
@@ -457,7 +432,6 @@ cartSchema.methods.clearCart = function (): Promise<ICart> {
     return this.save();
 };
 
-// Validate stock availability
 cartSchema.methods.validateStock = async function (): Promise<{ valid: boolean; outOfStock: string[] }> {
     const Product = mongoose.model('Product');
     const outOfStock: string[] = [];
@@ -484,7 +458,6 @@ cartSchema.methods.validateStock = async function (): Promise<{ valid: boolean; 
     };
 };
 
-// Static: Find or create cart
 cartSchema.statics.findOrCreateCart = async function (userId: Types.ObjectId): Promise<ICart> {
     let cart = await this.findOne({ userId, isActive: true });
     if (!cart) {
@@ -494,7 +467,6 @@ cartSchema.statics.findOrCreateCart = async function (userId: Types.ObjectId): P
     return cart;
 };
 
-// Static: Get active cart
 cartSchema.statics.getActiveCart = function (userId: Types.ObjectId): Promise<ICart | null> {
     return this.findOne({ userId, isActive: true })
         .populate('items.productId', 'productName images status stockQuantity')

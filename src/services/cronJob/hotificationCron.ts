@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import NotificationController from '../../controllers/others/notification';
-import PushNotificationService from '../pushNotificationService';
-import SocketSession from '../../models/Auth/userSession';
+// import PushNotificationService from '../pushNotificationService';
+// import SocketSession from '../../models/Auth/userSession';
 import logger from '../../utils/logger';
 
 /**
@@ -21,18 +21,6 @@ function initializeNotificationCronJobs(): void {
     });
 
     /**
-     * Process push notification retry queue
-     * Runs every 2 minutes
-     */
-    cron.schedule('*/2 * * * *', async () => {
-        try {
-            await PushNotificationService.processRetryQueue();
-        } catch (error) {
-            logger.error('Retry queue cron error:', error);
-        }
-    });
-
-    /**
      * Clean up old notifications
      * Runs daily at 2 AM
      */
@@ -41,27 +29,6 @@ function initializeNotificationCronJobs(): void {
             await NotificationController.cleanupOldNotifications();
         } catch (error) {
             logger.error('Cleanup cron error:', error);
-        }
-    });
-
-    /**
-     * Clean up inactive socket sessions
-     * Runs every 30 minutes
-     */
-    cron.schedule('*/30 * * * *', async () => {
-        try {
-            const thirtyMinutesAgo = new Date();
-            thirtyMinutesAgo.setMinutes(thirtyMinutesAgo.getMinutes() - 30);
-
-            const result = await SocketSession.deleteMany({
-                lastActivity: { $lt: thirtyMinutesAgo }
-            });
-
-            if (result.deletedCount > 0) {
-                logger.info(`Cleaned up ${result.deletedCount} inactive socket sessions`);
-            }
-        } catch (error) {
-            logger.error('Socket cleanup cron error:', error);
         }
     });
 
@@ -77,10 +44,8 @@ function initializeNotificationCronJobs(): void {
         }
     });
 
-    /**
-     * Clean up expired notifications
-     * Runs every hour
-     */
+    //  Clean up expired notifications
+    //  Runs every hour
     cron.schedule('0 * * * *', async () => {
         try {
             const UserNotification = require('../models/user/notification');
@@ -101,15 +66,13 @@ function initializeNotificationCronJobs(): void {
     logger.info('✅ Notification cron jobs initialized');
 }
 
-/**
- * Send daily digest to users with unread notifications
- */
+
+// daily digest sender
 async function sendDailyDigest(): Promise<void> {
     try {
         const UserNotification = require('../models/user/notification');
         const UserSchema = require('../models/Auth/userModel');
 
-        // Get users with unread notifications
         const usersWithUnread = await UserNotification.aggregate([
             {
                 $match: {
@@ -139,12 +102,10 @@ async function sendDailyDigest(): Promise<void> {
                 .select('notification_pref email firstName')
                 .lean();
 
-            // Check if user wants digest emails
             if (!user?.notification_pref?.email_notification) {
                 continue;
             }
 
-            // Send digest notification
             await NotificationController.saveAndSendNotification({
                 userId,
                 title: 'Daily Summary',
@@ -165,9 +126,9 @@ async function sendDailyDigest(): Promise<void> {
     }
 }
 
-/**
- * Graceful shutdown - stop all cron jobs
- */
+
+
+// shutdown
 function stopNotificationCronJobs(): void {
     cron.getTasks().forEach(task => task.stop());
     logger.info('Notification cron jobs stopped');

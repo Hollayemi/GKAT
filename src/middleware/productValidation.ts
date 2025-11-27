@@ -42,7 +42,6 @@ const productValidationRules = {
     }
 };
 
-// Validate product creation
 export const validateProductCreate = (req: Request, res: Response, next: NextFunction) => {
     const errors: string[] = [];
     const { body } = req;
@@ -95,7 +94,7 @@ export const validateProductCreate = (req: Request, res: Response, next: NextFun
 
     if (body.stockQuantity === undefined || body.stockQuantity === null) {
         errors.push('Stock quantity is required');
-    } else if ( parseInt(body.stockQuantity) < 0) {
+    } else if (parseInt(body.stockQuantity) < 0) {
         errors.push('Stock quantity must be a non-negative number');
     }
 
@@ -116,7 +115,6 @@ export const validateProductCreate = (req: Request, res: Response, next: NextFun
     next();
 };
 
-// Validate product update
 export const validateProductUpdate = (req: Request, res: Response, next: NextFunction) => {
     const errors: string[] = [];
     const { body } = req;
@@ -178,7 +176,6 @@ export const validateProductUpdate = (req: Request, res: Response, next: NextFun
     next();
 };
 
-// Validate variant
 export const validateVariant = (req: Request, res: Response, next: NextFunction) => {
     const errors: string[] = [];
     const { body } = req;
@@ -224,7 +221,6 @@ export const validateVariant = (req: Request, res: Response, next: NextFunction)
     next();
 };
 
-// Validate stock update
 export const validateStockUpdate = (req: Request, res: Response, next: NextFunction) => {
     const errors: string[] = [];
     const { body } = req;
@@ -251,7 +247,6 @@ export const validateStockUpdate = (req: Request, res: Response, next: NextFunct
     next();
 };
 
-// Validate bulk update
 export const validateBulkUpdate = (req: Request, res: Response, next: NextFunction) => {
     const errors: string[] = [];
     const { productIds, updates } = req.body;

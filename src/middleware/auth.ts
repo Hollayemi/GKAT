@@ -3,7 +3,6 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User';
 import { AppError, asyncHandler } from './error';
 
-// Extend Express Request interface
 declare global {
     namespace Express {
         interface Request {
@@ -17,7 +16,6 @@ interface JwtPayload {
     role: string;
 }
 
-// Protect routes - verify JWT token
 export const protect = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     console.log(req.body)
     let token: string | undefined;
@@ -25,7 +23,6 @@ export const protect = asyncHandler(async (req: Request, res: Response, next: Ne
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
         token = req.headers.authorization.split(' ')[1];
     }
-    // Check for token in cookies
     else if (req.cookies?.token) {
         token = req.cookies.token;
     }
@@ -35,17 +32,14 @@ export const protect = asyncHandler(async (req: Request, res: Response, next: Ne
     }
 
     try {
-        // Verify token
         const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as JwtPayload;
 
-        // Get user from database
         const user = await User.findById(decoded.id);
 
         if (!user) {
             return next(new AppError('User no longer exists', 401));
         }
 
-        // Check if user verified phone
         if (!user.isPhoneVerified) {
             return next(new AppError('Please verify your phone number', 401));
         }
@@ -60,7 +54,6 @@ export const protect = asyncHandler(async (req: Request, res: Response, next: Ne
     }
 });
 
-// Grant access to specific roles
 export const authorize = (...roles: string[]) => {
     return (req: Request, res: Response, next: NextFunction): void => {
         if (!req.user) {
@@ -80,7 +73,6 @@ export const authorize = (...roles: string[]) => {
     };
 };
 
-// Optional authentication - IfAuth
 export const optionalAuth = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     let token: string | undefined;
 
@@ -99,7 +91,6 @@ export const optionalAuth = asyncHandler(async (req: Request, res: Response, nex
                 req.user = user;
             }
         } catch (error) {
-            // Token invalid, continue without user
         }
     }
 

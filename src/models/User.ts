@@ -28,38 +28,30 @@ export interface IUser extends Document {
     avatar?: string;
     role: 'user' | 'admin' | 'driver';
 
-    // Verification
     isPhoneVerified: boolean;
     isEmailVerified: boolean;
 
-    // Referral
     referralCode: string;
     referredBy?: string;
 
-    // Settings
     notification_pref: NotificationPreferences;
     biometricsEnabled: boolean;
 
-    // OTP
     otp?: string;
     otpExpiry?: Date;
 
-    // Tokens
     refreshToken?: string;
     fcmTokens: FCMToken[]; // Firebase Cloud Messaging tokens for push notifications
 
-    // Saved Addresses
     addresses: Types.ObjectId[];
     defaultAddress?: Types.ObjectId;
 
-    // Stats
     totalOrders: number;
     totalSpent: number;
 
     createdAt: Date;
     updatedAt: Date;
 
-    // Methods
     getSignedJwtToken(): string;
     getRefreshToken(): string;
     generateOTP(): string;
@@ -111,7 +103,6 @@ const UserSchema = new Schema<IUser>({
         index: true
     },
 
-    // Verification
     isPhoneVerified: {
         type: Boolean,
         default: false
@@ -121,7 +112,6 @@ const UserSchema = new Schema<IUser>({
         default: false
     },
 
-    // Referral
     referralCode: {
         type: String,
         unique: true,
@@ -132,7 +122,6 @@ const UserSchema = new Schema<IUser>({
         default: null
     },
 
-    // Notification Preferences
     notification_pref: {
         push_notification: {
             type: Boolean,
@@ -169,7 +158,6 @@ const UserSchema = new Schema<IUser>({
         default: false
     },
 
-    // OTP
     otp: {
         type: String,
         select: false
@@ -179,13 +167,11 @@ const UserSchema = new Schema<IUser>({
         select: false
     },
 
-    // Tokens
     refreshToken: {
         type: String,
         select: false
     },
 
-    // FCM Tokens for push notifications
     fcmTokens: [{
         token: {
             type: String,
@@ -206,7 +192,6 @@ const UserSchema = new Schema<IUser>({
         }
     }],
 
-    // Addresses
     addresses: [{
         type: Schema.Types.ObjectId,
         ref: 'Address'
@@ -216,7 +201,6 @@ const UserSchema = new Schema<IUser>({
         ref: 'Address'
     },
 
-    // User Stats
     totalOrders: {
         type: Number,
         default: 0,
@@ -242,13 +226,11 @@ const UserSchema = new Schema<IUser>({
     toObject: { virtuals: true }
 });
 
-// Indexes
 UserSchema.index({ phoneNumber: 1 });
 UserSchema.index({ email: 1 }, { sparse: true });
 UserSchema.index({ referralCode: 1 });
 UserSchema.index({ role: 1 });
 
-// Pre-save: Generate unique referral code
 UserSchema.pre('save', async function (next) {
     if (!this.referralCode) {
         this.referralCode = await generateUniqueReferralCode();
@@ -256,7 +238,6 @@ UserSchema.pre('save', async function (next) {
     next();
 });
 
-// Generate JWT token
 UserSchema.methods.getSignedJwtToken = function (): string {
     return jwt.sign(
         { id: this._id.toString(), role: this.role },
@@ -265,7 +246,6 @@ UserSchema.methods.getSignedJwtToken = function (): string {
     );
 };
 
-// Generate Refresh token
 UserSchema.methods.getRefreshToken = function (): string {
     const refreshToken = jwt.sign(
         { id: this._id.toString() },
@@ -277,7 +257,6 @@ UserSchema.methods.getRefreshToken = function (): string {
     return refreshToken;
 };
 
-// Generate OTP
 UserSchema.methods.generateOTP = function (): string {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -287,7 +266,6 @@ UserSchema.methods.generateOTP = function (): string {
     return otp;
 };
 
-// Verify OTP
 UserSchema.methods.verifyOTP = function (otp: string): boolean {
     if (!this.otp || !this.otpExpiry) return false;
 
@@ -299,7 +277,6 @@ UserSchema.methods.verifyOTP = function (otp: string): boolean {
     return false;
 };
 
-// Helper function to generate unique referral code
 async function generateUniqueReferralCode(): Promise<string> {
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let code = '';
@@ -308,7 +285,6 @@ async function generateUniqueReferralCode(): Promise<string> {
         code += characters.charAt(Math.floor(Math.random() * characters.length));
     }
 
-    // Check if code exists
     const existingUser = await mongoose.model('User').findOne({ referralCode: code });
     if (existingUser) {
         return generateUniqueReferralCode(); // Recursive call if code exists

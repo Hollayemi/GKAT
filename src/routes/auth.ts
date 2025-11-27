@@ -25,7 +25,8 @@ router.post('/resend-otp', resendOTP);
 router.post('/refresh-token', refreshToken);
 
 // Protected routes
-router.use(protect); // All routes below this will be protected
+router.use(protect);
+
 
 router.get('/me', getMe);
 router.post('/logout', logout);

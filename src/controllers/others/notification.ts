@@ -65,7 +65,6 @@ class NotificationController {
             const NotificationModel = UserNotification
 
 
-            // Create notification in database
             const notification = await NotificationModel.create({
                 ...data,
                 status: 'pending',
@@ -77,13 +76,11 @@ class NotificationController {
 
             logger.info(`Notification created: ${notification._id}`);
 
-            // If scheduled for later, don't send now
             if (options.scheduledAt && new Date(options.scheduledAt) > new Date()) {
                 logger.info(`Notification scheduled for: ${options.scheduledAt}`);
                 return notification;
             }
 
-            // Send immediately
             await this.sendNotification(notification, accountType, options);
 
             return notification;
@@ -104,17 +101,14 @@ class NotificationController {
     ): Promise<any> {
         const userId = accountType === 'user' ? notification.userId : notification.branchId;
 
-        // Send in-app notification
         if (!options.skipInApp) {
             await this.sendInAppNotification(notification, userId, accountType);
         }
 
-        // Send push notification
         if (options.push_notification) {
             await this.sendPushNotification(notification, userId, accountType);
         }
 
-        // Send email notification (if configured)
         if (options.email_notification) {
             await this.sendEmailNotification(notification, userId, accountType);
         }
@@ -133,21 +127,18 @@ class NotificationController {
         try {
             const io = getSocketIo().myIo;
 
-            // Get user's active socket sessions
             // const sessions = await SocketSession.find({ accountId: userId });
 
             // if (sessions.length === 0) {
             //     logger.info(`User ${userId} not connected - notification saved for later`);
             //     return;
             // }
-            // Get updated notification list
             const filter = accountType === 'user'
                 ? { userId }
                 : { store: notification.store, branch: notification.branch };
 
             const notifications = await NotificationController.getNotificationList(filter, accountType);
 
-            // Send to all connected devices
             // sessions.forEach(session => {
             //     io.to(session.socketId).emit('notification:new', {
             //         notification: this._formatNotification(notification),
@@ -155,7 +146,6 @@ class NotificationController {
             //     });
             // });
 
-            // Update delivery status
             await UserNotification.updateOne(
                 { _id: notification._id },
                 {
@@ -205,8 +195,6 @@ class NotificationController {
         try {
             const EmailService = require('../../services/emailService');
 
-            // Implementation depends on your email service
-            // This is a placeholder
             await EmailService.singleEmail({
                 userId,
                 notification
@@ -227,9 +215,7 @@ class NotificationController {
         }
     }
 
-    /**
-     * Get notification list with pagination
-     */
+    
     static async getNotificationList(
         filter: NotificationFilter,
         accountType: string = 'user',
@@ -265,7 +251,6 @@ class NotificationController {
             NotificationModel.countDocuments({ ...filter, unread: 1, archived: false })
         ]);
 
-        // Group by time periods
         const grouped = this._groupByTimePeriod(notifications);
 
         return {
@@ -356,7 +341,6 @@ class NotificationController {
 
             await notification.markAsRead();
 
-            // Emit update via socket
             await this._emitNotificationUpdate(userId);
 
             return { success: true };
@@ -376,7 +360,6 @@ class NotificationController {
 
             await NotificationModel.markAllAsRead(userId);
 
-            // Emit update via socket
             await this._emitNotificationUpdate(userId);
 
             return { success: true };
@@ -441,7 +424,6 @@ class NotificationController {
             if (notification) {
                 await notification.trackClick();
 
-                // Mark as read if not already
                 if (notification.unread === 1) {
                     await notification.markAsRead();
                 }
@@ -488,7 +470,6 @@ class NotificationController {
                 return res.status(400).json({ error: 'Subscription and deviceId required' });
             }
 
-            // FCM subscription object
 
             return res.status(200).json({ message: 'Subscribed successfully' });
 
@@ -511,7 +492,6 @@ class NotificationController {
                 return res.status(400).json({ error: 'DeviceId required' });
             }
 
-            // FCM unsubscription logic
 
             return res.status(200).json({ message: 'Unsubscribed successfully' });
 
@@ -615,7 +595,6 @@ class NotificationController {
         try {
             const now = new Date();
 
-            // Find notifications scheduled for now
             const notifications = await UserNotification.find({
                 status: 'pending',
                 scheduledAt: { $lte: now }
@@ -640,7 +619,6 @@ class NotificationController {
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-            // Delete read notifications older than 30 days
             const result = await UserNotification.deleteMany({
                 unread: 0,
                 createdAt: { $lt: thirtyDaysAgo }
@@ -680,10 +658,7 @@ class NotificationController {
     }
 }
 
-// Helper function to get Socket.IO instance (you'll need to implement this based on your setup)
 function getSocketIo(): any {
-    // This should return your Socket.IO instance
-    // You'll need to implement this based on your application setup
     return require('../../server');
 }
 

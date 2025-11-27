@@ -60,7 +60,7 @@ export interface IOrder extends Document {
     items: IOrderItem[];
 
     // Delivery Information
-    shippingAddress: IShippingAddress;
+    shippingAddress: string; // IShippingAddress
     deliveryMethod: 'pickup' | 'delivery';
 
     // Payment Information
@@ -328,8 +328,9 @@ const orderSchema = new Schema<IOrder, IOrderModel>({
     items: [orderItemSchema],
 
     shippingAddress: {
-        type: shippingAddressSchema,
-        required: true
+        type: String,  // shippingAddressSchema
+        required: true,
+        ref: 'Address'
     },
     deliveryMethod: {
         type: String,
@@ -454,7 +455,6 @@ const orderSchema = new Schema<IOrder, IOrderModel>({
     toObject: { virtuals: true }
 });
 
-// Indexes
 orderSchema.index({ userId: 1, createdAt: -1 });
 orderSchema.index({ orderNumber: 1 });
 orderSchema.index({ orderSlug: 1 });
@@ -463,20 +463,15 @@ orderSchema.index({ 'paymentInfo.paymentStatus': 1 });
 orderSchema.index({ createdAt: -1 });
 orderSchema.index({ 'paymentInfo.reference': 1 });
 
-// Pre-save: Calculate totals and initialize status history
 orderSchema.pre('save', async function (next) {
-    // Calculate item totals
     this.items.forEach(item => {
         item.totalPrice = item.price * item.quantity;
     });
 
-    // Calculate subtotal
     this.subtotal = this.items.reduce((sum, item) => sum + item.totalPrice, 0);
 
-    // Calculate total
     this.totalAmount = this.subtotal + this.deliveryFee + this.serviceCharge + this.tax - this.discount;
 
-    // Initialize status history if new order
     if (this.isNew && this.statusHistory.length === 0) {
         this.statusHistory.push({
             status: this.orderStatus,
@@ -488,33 +483,27 @@ orderSchema.pre('save', async function (next) {
     next();
 });
 
-// Virtual: Order Age (in days)
 orderSchema.virtual('orderAge').get(function () {
     return Math.floor((Date.now() - this.createdAt.getTime()) / (1000 * 60 * 60 * 24));
 });
 
-// Virtual: Is Recent (within 30 days)
 orderSchema.virtual('isRecent').get(function () {
     const thirtyDaysAgo = new Date(Date.now() - (30 * 24 * 60 * 60 * 1000));
     return this.createdAt > thirtyDaysAgo;
 });
 
-// Virtual: Can Cancel
 orderSchema.virtual('canCancel').get(function () {
     return ['pending', 'confirmed'].includes(this.orderStatus) &&
         this.paymentInfo.paymentStatus !== 'completed';
 });
 
-// Virtual: Can Return
 orderSchema.virtual('canReturn').get(function () {
     if (this.orderStatus !== 'delivered') return false;
 
-    // Allow returns within 7 days of delivery
     const sevenDaysAgo = new Date(Date.now() - (7 * 24 * 60 * 60 * 1000));
     return this.actualDelivery ? this.actualDelivery > sevenDaysAgo : false;
 });
 
-// Method: Update Status
 orderSchema.methods.updateStatus = function (
     newStatus: OrderStatus,
     note: string = '',
@@ -528,12 +517,10 @@ orderSchema.methods.updateStatus = function (
         updatedBy
     });
 
-    // Auto-update delivery date
     if (newStatus === 'delivered' && !this.actualDelivery) {
         this.actualDelivery = new Date();
     }
 
-    // Set estimated delivery for shipped orders
     if (newStatus === 'shipped' && !this.estimatedDelivery) {
         this.estimatedDelivery = new Date(Date.now() + (3 * 24 * 60 * 60 * 1000)); // 3 days
     }
@@ -541,7 +528,6 @@ orderSchema.methods.updateStatus = function (
     return this.save();
 };
 
-// Method: Add Tracking Info
 orderSchema.methods.addTrackingInfo = function (
     trackingNumber: string,
     carrier: string,
@@ -555,7 +541,6 @@ orderSchema.methods.addTrackingInfo = function (
     return this.save();
 };
 
-// Method: Process Payment
 orderSchema.methods.processPayment = function (
     reference: string,
     transactionId: string,
@@ -567,7 +552,6 @@ orderSchema.methods.processPayment = function (
     this.paymentInfo.paidAt = new Date();
     this.paymentInfo.amount = paidAmount;
 
-    // Update order status to confirmed
     if (this.orderStatus === 'pending') {
         this.orderStatus = 'confirmed';
         this.statusHistory.push({
@@ -580,7 +564,6 @@ orderSchema.methods.processPayment = function (
     return this.save();
 };
 
-// Method: Cancel Order
 orderSchema.methods.cancelOrder = function (
     reason: string,
     cancelledBy?: Types.ObjectId
@@ -594,7 +577,6 @@ orderSchema.methods.cancelOrder = function (
         updatedBy: cancelledBy
     });
 
-    // Process refund if payment was completed
     if (this.paymentInfo.paymentStatus === 'completed') {
         this.paymentInfo.paymentStatus = 'refunded';
         this.refundAmount = this.totalAmount;
@@ -604,7 +586,6 @@ orderSchema.methods.cancelOrder = function (
     return this.save();
 };
 
-// Method: Return Order
 orderSchema.methods.returnOrder = function (reason: string): Promise<IOrder> {
     if (!this.canReturn) {
         throw new Error('Order cannot be returned');
@@ -621,7 +602,6 @@ orderSchema.methods.returnOrder = function (reason: string): Promise<IOrder> {
     return this.save();
 };
 
-// Method: Add Rating
 orderSchema.methods.addRating = function (rating: number, review?: string): Promise<IOrder> {
     if (this.orderStatus !== 'delivered') {
         throw new Error('Can only rate delivered orders');
@@ -636,7 +616,6 @@ orderSchema.methods.addRating = function (rating: number, review?: string): Prom
     return this.save();
 };
 
-// Static: Get Order Stats
 orderSchema.statics.getOrderStats = async function (userId?: Types.ObjectId) {
     const matchStage = userId ? { userId } : {};
 
@@ -654,7 +633,6 @@ orderSchema.statics.getOrderStats = async function (userId?: Types.ObjectId) {
     return stats;
 };
 
-// Static: Generate Order Number
 orderSchema.statics.generateOrderNumber = async function (): Promise<string> {
     const date = new Date();
     const year = date.getFullYear().toString().slice(-2);
@@ -677,7 +655,6 @@ orderSchema.statics.generateOrderNumber = async function (): Promise<string> {
     return orderNumber;
 };
 
-// Static: Generate Order Slug (short display ID)
 orderSchema.statics.generateOrderSlug = async function (): Promise<string> {
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let isUnique = false;
