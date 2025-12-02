@@ -118,8 +118,8 @@ class PaymentGateway extends PaymentLogging {
                     amount: paymentData.amount * 100, // Convert to kobo
                     reference: paymentData.reference,
                     currency: paymentData.currency || 'NGN',
-                    callback_url: `${process.env.API_URL}/payment/callback?provider=paystack&platform=mobile`,
-                    return_url: `${process.env.API_URL}/payment/callback?provider=paystack&platform=mobile`,
+                    callback_url: `${process.env.API_URL}/payment/callback?provider=paystack&platform=browser`,
+                    return_url: `${process.env.API_URL}/payment/callback?provider=paystack&platform=browser`,
                     metadata: {
                         type: 'purchase',
                         orderId: paymentData.orderId,
@@ -270,36 +270,85 @@ class PaymentGateway extends PaymentLogging {
         }
     }
 
+    // Add this method to your PaymentGateway class in src/services/payment.ts
+    // This is just the verifyPaystackPayment method with enhanced error handling
+
     async verifyPaystackPayment(reference: string): Promise<PaymentResponse> {
-        return new Promise(async (resolve, reject) => {
-            try {
-                const response: AxiosResponse = await axios.get(
-                    `${this.paystack.baseURL}/transaction/verify/${reference}`,
-                    {
-                        headers: {
-                            Authorization: `Bearer ${this.paystack.secretKey}`
-                        }
+        try {
+            const response: AxiosResponse = await axios.get(
+                `${this.paystack.baseURL}/transaction/verify/${reference}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${this.paystack.secretKey}`
                     }
-                );
+                }
+            );
 
-                const { ...metadata } = response.data.data.metadata;
-                console.log(response.data.data);
-
-                const verified = await this.VerifyPaymentLogging({ metadata, response });
-                console.log(verified);
-
-                resolve({
-                    success: verified,
-                    data: metadata,
+            if (!response.data || !response.data.data) {
+                return {
+                    success: false,
+                    error: 'Invalid response from payment gateway',
                     provider: 'paystack'
-                });
-            } catch (error: any) {
-                console.error('Paystack verification error:', error.response?.data || error.message);
-                reject(error);
+                };
             }
-        });
+
+            const transactionData = response.data.data;
+
+            // Check if transaction was successful
+            if (transactionData.status !== 'success') {
+                return {
+                    success: false,
+                    error: `Payment ${transactionData.status}`,
+                    provider: 'paystack',
+                    data: {
+                        status: transactionData.status,
+                        message: transactionData.gateway_response
+                    }
+                };
+            }
+
+            // Extract metadata
+            const metadata = transactionData.metadata || {};
+
+            // Verify the payment in our database
+            const verified = await this.VerifyPaymentLogging({
+                metadata,
+                response: transactionData
+            });
+
+            if (!verified) {
+                return {
+                    success: false,
+                    error: 'Payment verification failed',
+                    provider: 'paystack'
+                };
+            }
+
+            return {
+                success: true,
+                data: {
+                    ...metadata,
+                    orderSlugs: metadata.orderSlugs || [],
+                    reference: transactionData.reference,
+                    amount: transactionData.amount / 100, // Convert from kobo
+                    paidAt: transactionData.paid_at,
+                    channel: transactionData.channel
+                },
+                provider: 'paystack'
+            };
+
+        } catch (error: any) {
+            console.error('Paystack verification error:', error.response?.data || error.message);
+            return {
+                success: false,
+                error: error.response?.data?.message || 'Payment verification failed',
+                provider: 'paystack'
+            };
+        }
     }
 
+
+    
     async verifyPalmPayPayment(reference: string): Promise<PaymentResponse> {
         try {
             const timestamp = Date.now().toString();

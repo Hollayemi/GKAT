@@ -1,87 +1,191 @@
 import { Request, Response } from 'express';
 import PaymentGateway from '../../services/payment';
-import PaystackService from '../../services/PaystackService';
+import Order from '../../models/Orders';
+import Cart from '../../models/Cart';
+import logger from '../../utils/logger';
 
 class PurchaseController {
-    static async subscribe(req: Request, res: Response): Promise<Response> {
-        try {
-            const { gateWayId } = req.body;
-            switch (gateWayId) {
-                case 'GATEWAY_OO501':
-                    return PaystackService.payWithPaystack(req, res);
-
-                default:
-                    return res.status(404).send({ message: 'Invalid payment Gateway' });
-            }
-        } catch (error) {
-            return res.status(500).send({ message: 'internal server error' });
-        }
-    }
-
-    static async paystackCallBackVerify2(req: Request, res: Response): Promise<void> {
-        try {
-            console.log('asdasda', req.query.reference);
-            const billing = await PaystackService.verifyTransaction(
-                req.query.reference as string
-            );
-
-            if (process.env.WEB_PURCHASE_CALLBACK && req.query.platform === 'browser') {
-                return res.redirect(
-                    `${process.env.WEB_PURCHASE_CALLBACK}?reference=${req.query.reference}&success=true}`
-                );
-            }
-
-            return res.redirect(
-                `${process.env.WEB_PURCHASE_CALLBACK}?reference=${req.query.reference}&success=true}`
-            );
-
-        } catch (error) {
-            console.log(error);
-            if (process.env.PAYMENT_FAILURE_CALLBACK) {
-                return res.redirect(
-                    `${process.env.PAYMENT_FAILURE_CALLBACK}?reference=${req.query.reference}`
-                );
-            }
-            return res
-                .status(500)
-                .send({ message: 'Payment verification failed', description: error });
-        }
-    }
-
+    /**
+     * Handle payment callback from gateway
+     */
     static async paystackCallBackVerify(req: Request, res: Response): Promise<void> {
-        const { reference, provider, platform } = req.query;
-        console.log(reference, provider, platform);
+        const { reference, provider = 'paystack', platform = 'browser' } = req.query;
+
+        logger.info('Payment callback received:', { reference, provider, platform });
 
         const redirectTo = platform === "mobile"
-            ? 'https://corisio-app.app:/'
-            : process.env.FRONTEND_URL || 'https://corisio.com';
+            ? 'corisio-app://'
+            : process.env.FRONTEND_URL || 'http://localhost:3000';
+
+        try {
+            if (!reference) {
+                logger.error('Payment callback: No reference provided');
+                return res.redirect(`${redirectTo}/cart?payment=error&message=No payment reference provided`);
+            }
+
+            const paymentGateway = new PaymentGateway();
+            const verificationResult = await paymentGateway.verifyPayment(
+                provider as string,
+                reference as string
+            );
+
+            logger.info('Payment verification result:', verificationResult);
+
+            if (verificationResult.success) {
+                // Get order slugs from the verification result
+                const orderSlugs = verificationResult.data?.orderSlugs || [];
+                const slugsParam = orderSlugs.length > 0 ? `&slugs=${orderSlugs.join("-")}` : '';
+
+                return res.redirect(
+                    `${redirectTo}/checkout/completed?payment=success&message=Payment verified successfully${slugsParam}`
+                );
+            } else {
+                logger.error('Payment verification failed:', verificationResult.error);
+                return res.redirect(
+                    `${redirectTo}/cart?payment=error&message=${encodeURIComponent(verificationResult.error || 'Payment verification failed')}`
+                );
+            }
+        } catch (error: any) {
+            logger.error('Payment callback error:', error);
+            return res.redirect(
+                `${redirectTo}/cart?payment=error&message=${encodeURIComponent(error.message || 'Server Error')}`
+            );
+        }
+    }
+
+    /**
+     * Handle webhook notifications from payment gateways
+     */
+    static async handleWebhook(req: Request, res: Response): Promise<Response> {
+        const { provider } = req.params;
+        const signature = req.headers['x-paystack-signature'] as string;
 
         try {
             const paymentGateway = new PaymentGateway();
-            const verificationResult = await paymentGateway.verifyPayment(provider as string, reference as string);
 
-            console.log("verificationResult", verificationResult);
-
-            if (verificationResult.success) {
-                return res.redirect(`${redirectTo}/checkout/completed?payment=completed&message=Payment verified successfully&slugs=${verificationResult.data.orderSlugs.join("-")}`);
-            } else {
-                return res.redirect(`${redirectTo}/cart?paymant=error&message=Payment verification failed`);
+            // Verify webhook signature
+            let isValid = false;
+            switch (provider.toLowerCase()) {
+                case 'paystack':
+                    isValid = paymentGateway.verifyPaystackWebhook(req.body, signature);
+                    break;
+                case 'palmpay':
+                    const timestamp = req.headers['x-timestamp'] as string;
+                    isValid = paymentGateway.verifyPalmPayWebhook(req.body, signature, timestamp);
+                    break;
+                case 'opay':
+                    const opayTimestamp = req.headers['authorization-timestamp'] as string;
+                    isValid = paymentGateway.verifyOpayWebhook(req.body, signature, opayTimestamp);
+                    break;
+                default:
+                    return res.status(400).json({ error: 'Unsupported provider' });
             }
-        } catch (error) {
-            console.log(error);
-            return res.redirect(`${redirectTo}/cart?paymant=error&message=Server Error`);
+
+            if (!isValid) {
+                logger.warn(`Invalid webhook signature for ${provider}`);
+                return res.status(401).json({ error: 'Invalid signature' });
+            }
+
+            // Process the webhook event
+            const event = req.body;
+            if (event.event === 'charge.success') {
+                const reference = event.data.reference;
+                await paymentGateway.verifyPayment(provider, reference);
+            }
+
+            return res.status(200).json({ status: 'success' });
+
+        } catch (error: any) {
+            logger.error('Webhook processing error:', error);
+            return res.status(500).json({ error: 'Webhook processing failed' });
         }
     }
 
+    /**
+     * Get service charge for a payment method
+     */
     static async getServiceCharge(req: Request, res: Response, next: any): Promise<Response | void> {
         try {
             const { subTotal, provider } = req.query;
-            const paymentGateway = new PaymentGateway();
-            const gateWayFee = await paymentGateway.getPaymentFees(provider as string, parseInt(subTotal as string));
 
-            return res.status(200).json(gateWayFee);
+            if (!subTotal || !provider) {
+                return res.status(400).json({
+                    error: 'subTotal and provider are required'
+                });
+            }
+
+            const paymentGateway = new PaymentGateway();
+            const gateWayFee = paymentGateway.getPaymentFees(
+                provider as string,
+                parseInt(subTotal as string)
+            );
+
+            return res.status(200).json({
+                provider,
+                subTotal: parseInt(subTotal as string),
+                serviceCharge: gateWayFee,
+                total: parseInt(subTotal as string) + gateWayFee
+            });
         } catch (err) {
             return next(err);
+        }
+    }
+
+    /**
+     * Manually verify a payment by reference
+     */
+    static async verifyPayment(req: Request, res: Response): Promise<Response> {
+        try {
+            const { reference, provider = 'paystack' } = req.body;
+
+            if (!reference) {
+                return res.status(400).json({ error: 'Reference is required' });
+            }
+
+            const paymentGateway = new PaymentGateway();
+            const verificationResult = await paymentGateway.verifyPayment(
+                provider as string,
+                reference as string
+            );
+
+            if (verificationResult.success) {
+                return res.status(200).json({
+                    success: true,
+                    message: 'Payment verified successfully',
+                    data: verificationResult.data
+                });
+            } else {
+                return res.status(400).json({
+                    success: false,
+                    error: verificationResult.error
+                });
+            }
+        } catch (error: any) {
+            logger.error('Payment verification error:', error);
+            return res.status(500).json({
+                error: 'Payment verification failed',
+                message: error.message
+            });
+        }
+    }
+
+    /**
+     * Get supported payment methods
+     */
+    static async getPaymentMethods(req: Request, res: Response): Promise<Response> {
+        try {
+            const paymentGateway = new PaymentGateway();
+            const methods = paymentGateway.getSupportedPaymentMethods();
+
+            return res.status(200).json({
+                success: true,
+                data: methods
+            });
+        } catch (error: any) {
+            logger.error('Get payment methods error:', error);
+            return res.status(500).json({
+                error: 'Failed to get payment methods'
+            });
         }
     }
 }

@@ -132,17 +132,17 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
     const paymentResult = await paymentGateway.initializePayment(paymentMethod, paymentData);
     console.log('Payment Result:', paymentResult);
 
-    // await NotificationController.saveAndSendNotification({
-    //     userId: req.user.id,
-    //     title: 'Order Placed Successfully',
-    //     body: `Your order #${orderSlug} has been placed. Total: ₦${order.totalAmount.toLocaleString()}`,
-    //     type: 'order',
-    //     typeId: order._id.toString(),
-    //     clickUrl: `/orders/${order._id}`,
-    //     priority: 'high'
-    // }, 'user', {
-    //     push_notification: true
-    // });
+    await NotificationController.saveAndSendNotification({
+        userId: req.user.id,
+        title: 'Order Placed Successfully',
+        body: `Your order #${orderSlug} has been placed. Total: ₦${order.totalAmount.toLocaleString()}`,
+        type: 'order',
+        typeId: { orderId: order._id },
+        clickUrl: `/orders/${order._id}`,
+        priority: 'high'
+    }, 'user', {
+        push_notification: true
+    });
 
     (res as AppResponse).data({ order, payment: paymentResult }, 'Order created successfully', 201);
 });
@@ -237,7 +237,7 @@ export const cancelOrder = asyncHandler(async (req: Request, res: Response, next
         title: 'Order Cancelled',
         body: `Your order #${order.orderSlug} has been cancelled`,
         type: 'order',
-        typeId: order._id.toString(),
+        typeId: { orderId: order._id },
         clickUrl: `/orders/${order._id}`,
         priority: 'medium'
     }, 'user', {

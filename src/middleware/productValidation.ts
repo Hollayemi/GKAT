@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from './error';
+import { parse } from 'path';
 
 const productValidationRules = {
     productName: {
@@ -153,7 +154,7 @@ export const validateProductUpdate = (req: Request, res: Response, next: NextFun
         }
     }
 
-    if (body.salesPrice !== undefined && (typeof body.salesPrice !== 'number' || body.salesPrice < 0)) {
+    if (body.salesPrice !== undefined && parseInt(body.salesPrice) < 0) {
         errors.push('Sales price must be a positive number');
     }
 
@@ -161,7 +162,7 @@ export const validateProductUpdate = (req: Request, res: Response, next: NextFun
         errors.push('Invalid unit type');
     }
 
-    if (body.stockQuantity !== undefined && (typeof body.stockQuantity !== 'number' || body.stockQuantity < 0)) {
+    if (body.stockQuantity !== undefined && parseInt(body.stockQuantity) < 0) {
         errors.push('Stock quantity must be a non-negative number');
     }
 

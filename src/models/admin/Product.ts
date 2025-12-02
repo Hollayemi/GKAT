@@ -8,7 +8,7 @@ interface IProductVariant {
     productId: string;
     salesPrice: number;
     unitType: string;
-    unitQuantity: string;
+    unitQuantity: number;
     stockQuantity: number;
     images?: string[];
 }
@@ -38,7 +38,7 @@ export interface IProduct extends Document {
     // Pricing & Inventory
     salesPrice: number;
     unitType: 'single' | 'pack' | 'carton' | 'kg' | 'litre';
-    unitQuantity: string;
+    unitQuantity: number;
     stockQuantity: number;
     minimumStockAlert: number;
 
@@ -77,7 +77,7 @@ const ProductVariantSchema = new Schema<IProductVariant>({
         enum: ['single', 'pack', 'carton', 'kg', 'litre', 'box']
     },
     unitQuantity: {
-        type: String,
+        type: Number,
         required: true
     },
     stockQuantity: {
@@ -177,7 +177,7 @@ const ProductSchema = new Schema<IProduct>({
         enum: ['single', 'pack', 'carton', 'kg', 'litre', 'box']
     },
     unitQuantity: {
-        type: String,
+        type: Number,
         required: true
     },
     stockQuantity: {

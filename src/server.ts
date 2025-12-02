@@ -31,7 +31,7 @@ const limiter = rateLimit({
     legacyHeaders: false,
 });
 
-app.use('/api/', limiter);
+// app.use('/api/', limiter);
 
 app.use(cors({
     origin: process.env.CLIENT_URL || 'http://localhost:3000',
@@ -67,12 +67,15 @@ import productRoutes from './routes/products';
 import cartRoutes from './routes/cart';
 import orderRoutes from './routes/order';
 import addressRoutes from './routes/address';
+import paymentRoutes from './routes/payment';
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/product', productRoutes);
 app.use('/api/v1/cart', cartRoutes);
 app.use('/api/v1/order', orderRoutes);
 app.use('/api/v1/addresses', addressRoutes);
+app.use('/api/v1/payment', paymentRoutes);
+
 app.use('*', handle404);
 
 app.use(errorHandler);

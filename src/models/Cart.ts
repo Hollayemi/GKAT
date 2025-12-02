@@ -12,7 +12,7 @@ export interface ICartItem {
     quantity: number;
     image?: string;
     unitType: string;
-    unitQuantity: string;
+    unitQuantity: number;
     maxQuantity: number; // Stock limit
     totalPrice: number;
 }
@@ -71,7 +71,7 @@ export interface ICart extends Document {
         quantity?: number;
         image?: string;
         unitType: string;
-        unitQuantity: string;
+        unitQuantity: number;
         maxQuantity: number;
     }): Promise<ICart>;
 
@@ -128,7 +128,7 @@ const cartItemSchema = new Schema<ICartItem>({
         required: true
     },
     unitQuantity: {
-        type: String,
+        type: Number,
         required: true
     },
     maxQuantity: {

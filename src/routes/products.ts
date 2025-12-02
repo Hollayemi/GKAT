@@ -12,7 +12,9 @@ import {
     deleteVariant,
     updateRegionalDistribution,
     getLowStockProducts,
-    bulkUpdateProducts
+    bulkUpdateProducts,
+    getProductPreview,
+    getStockHistory
 } from '../controllers/admin/ProductController';
 import { protect, authorize } from '../middleware/auth';
 import {
@@ -44,6 +46,16 @@ router.get('/low-stock', getLowStockProducts);
 // @route   GET /api/v1/products/bulk-update
 // @desc    update product
 router.patch('/bulk-update', validateBulkUpdate, bulkUpdateProducts);
+
+
+// @route   GET /api/v1/products/:id/preview
+// @desc    Get product preview with analytics
+router.get('/:id/preview', getProductPreview);
+
+// @route   GET /api/v1/products/:id/stock-history
+// @desc    Get stock movement history
+router.get('/:id/stock-history', getStockHistory);
+
 
 
 // @route   POST /api/v1/products

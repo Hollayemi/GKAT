@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import UserNotification from '../../models/Notification';
+import UserNotification, { ITypeId } from '../../models/Notification';
 // import BusinessNotification from '../../models/businesses/notification';
 // import SocketSession from '../../models/Auth/userSession';
 import logger from '../../utils/logger';
@@ -20,7 +20,7 @@ interface NotificationData {
     data?: Record<string, any>;
     actions?: Array<{ action: string; title: string }>;
     groupKey?: string;
-    typeId?: string;
+    typeId?: ITypeId;
 }
 
 interface SendOptions {

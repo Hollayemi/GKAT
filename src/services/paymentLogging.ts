@@ -1,6 +1,8 @@
 import { Types } from 'mongoose';
 import PurchaseLog from '../models/billing/productPurchaseLog';
-import orderSchema from '../models/Orders';
+import Order from '../models/Orders';
+import Cart from '../models/Cart';
+import logger from '../utils/logger';
 
 interface LogPurchaseParams {
     paymentChannel: string;
@@ -57,72 +59,195 @@ class PaymentLogging {
     }
 
     async logPurchasePending({ paymentChannel, userId, meta, amount, transaction_ref }: LogPurchaseParams): Promise<void> {
-        await PurchaseLog.create({
-            userId,
-            payment_status: 'PENDING_PAYMENT_CONFIRMATION',
-            amount,
-            meta,
-            date: Date.now(),
-            paymentChannel,
-            transaction_ref,
-        });
+        try {
+            await PurchaseLog.create({
+                userId,
+                payment_status: 'PENDING_PAYMENT_CONFIRMATION',
+                amount,
+                meta,
+                date: new Date(),
+                paymentChannel,
+                transaction_ref,
+            });
+            logger.info(`Payment log created: ${transaction_ref}`);
+        } catch (error) {
+            logger.error('Error logging purchase pending:', error);
+            throw error;
+        }
     }
 
     async initializationFailed({ meta }: { meta: any }): Promise<void> {
-        if (meta.orderIds && Array.isArray(meta.orderIds)) {
-            await Promise.all(
-                meta.orderIds.map(async (orderId: string) =>
-                    await orderSchema.findByIdAndUpdate(orderId, {
-                        $push: { statusHistory: { state: 'Unpaid', date: new Date() } },
+        try {
+            if (meta.orderIds && Array.isArray(meta.orderIds)) {
+                await Promise.all(
+                    meta.orderIds.map(async (orderId: string) => {
+                        await Order.findByIdAndUpdate(orderId, {
+                            $set: {
+                                orderStatus: 'cancelled',
+                                'paymentInfo.paymentStatus': 'failed'
+                            },
+                            $push: {
+                                statusHistory: {
+                                    status: 'cancelled',
+                                    timestamp: new Date(),
+                                    note: 'Payment initialization failed'
+                                }
+                            }
+                        });
                     })
-                )
-            );
+                );
+                logger.info('Orders marked as failed due to initialization failure');
+            }
+        } catch (error) {
+            logger.error('Error marking orders as failed:', error);
         }
     }
 
     async VerifyPaymentLogging({ metadata, response }: VerifyPaymentParams): Promise<boolean> {
         try {
-            console.log(metadata);
-            let fromLog: any;
-            const { new_plan = {}, type } = metadata;
+            logger.info('Verifying payment logging:', { metadata, responseData: response.data });
 
-            if (type === 'purchase') {
-                fromLog = await PurchaseLog.findOne({ transaction_ref: response.data.data.reference });
-            }
+            const { type, orderId, userId } = metadata;
+
+            // Find the purchase log by transaction reference
+            const fromLog = await PurchaseLog.findOne({
+                transaction_ref: response.reference
+            });
 
             if (!fromLog) {
-                console.log('No log found for transaction reference');
+                logger.error('No purchase log found for transaction reference:', response.reference);
                 return false;
             }
 
-            console.log(fromLog.amount, fromLog.amount * 100, response.data.data.amount);
+            // Verify the amount matches (Paystack returns amount in kobo)
+            const expectedAmount = fromLog.amount * 100;
+            const receivedAmount = response.amount;
 
-            const payment_status = 'PAYMENT_CONFIRMED';
-
-            console.log("fromLog===>", fromLog);
-
-            if (type === 'purchase') {
-                if (fromLog.meta?.orderIds && Array.isArray(fromLog.meta.orderIds)) {
-                    await Promise.all(
-                        fromLog.meta.orderIds.map(async (orderId: string) =>
-                            await orderSchema.findByIdAndUpdate(orderId, {
-                                $push: { statusHistory: { status: 'Paid', date: new Date() } },
-                            })
-                        )
-                    );
-                }
-
-                await PurchaseLog.updateOne(
-                    { userId: fromLog.userId },
-                    { $set: { payment_status } }
-                );
-
+            if (expectedAmount !== receivedAmount) {
+                logger.error('Amount mismatch:', {
+                    expected: expectedAmount,
+                    received: receivedAmount
+                });
+                return false;
             }
 
+            // Check if payment was successful
+            if (response.status !== 'success') {
+                logger.error('Payment status not successful:', response.status);
+                await this.handleFailedPayment(fromLog);
+                return false;
+            }
+
+            // Update purchase log
+            await PurchaseLog.updateOne(
+                { _id: fromLog._id },
+                {
+                    $set: {
+                        payment_status: 'PAYMENT_CONFIRMED',
+                        date: new Date()
+                    }
+                }
+            );
+
+            // Get order slugs for redirect
+            const orderSlugs: string[] = [];
+
+            // Update orders if this is a purchase
+            if (type === 'purchase' && fromLog.meta?.orderIds) {
+                const orderIds = fromLog.meta.orderIds;
+
+                for (const orderId of orderIds) {
+                    try {
+                        const order = await Order.findByIdAndUpdate(
+                            orderId,
+                            {
+                                $set: {
+                                    orderStatus: 'confirmed',
+                                    'paymentInfo.paymentStatus': 'completed',
+                                    'paymentInfo.paidAt': new Date(),
+                                    'paymentInfo.transactionId': response.id,
+                                    'paymentInfo.reference': response.reference
+                                },
+                                $push: {
+                                    statusHistory: {
+                                        status: 'confirmed',
+                                        timestamp: new Date(),
+                                        note: 'Payment confirmed'
+                                    }
+                                }
+                            },
+                            { new: true }
+                        );
+
+                        if (order) {
+                            orderSlugs.push(order.orderSlug);
+                            logger.info(`Order ${order.orderNumber} payment confirmed`);
+                        }
+                    } catch (error) {
+                        logger.error(`Error updating order ${orderId}:`, error);
+                    }
+                }
+
+                // Clear user's cart after successful payment
+                if (userId) {
+                    try {
+                        const cart = await Cart.findOne({ userId, isActive: true });
+                        if (cart) {
+                            await cart.clearCart();
+                            logger.info(`Cart cleared for user ${userId}`);
+                        }
+                    } catch (error) {
+                        logger.error('Error clearing cart:', error);
+                    }
+                }
+            }
+
+            metadata.orderSlugs = orderSlugs;
+
+            logger.info('Payment verification completed successfully');
             return true;
+
         } catch (error) {
-            console.log(error);
+            logger.error('Payment verification error:', error);
             return false;
+        }
+    }
+
+    private async handleFailedPayment(purchaseLog: any): Promise<void> {
+        try {
+            await PurchaseLog.updateOne(
+                { _id: purchaseLog._id },
+                {
+                    $set: {
+                        payment_status: 'FAILED',
+                        date: new Date()
+                    }
+                }
+            );
+
+            if (purchaseLog.meta?.orderIds) {
+                await Promise.all(
+                    purchaseLog.meta.orderIds.map(async (orderId: string) => {
+                        await Order.findByIdAndUpdate(orderId, {
+                            $set: {
+                                orderStatus: 'cancelled',
+                                'paymentInfo.paymentStatus': 'failed'
+                            },
+                            $push: {
+                                statusHistory: {
+                                    status: 'cancelled',
+                                    timestamp: new Date(),
+                                    note: 'Payment failed'
+                                }
+                            }
+                        });
+                    })
+                );
+            }
+
+            logger.info('Failed payment handled');
+        } catch (error) {
+            logger.error('Error handling failed payment:', error);
         }
     }
 }
