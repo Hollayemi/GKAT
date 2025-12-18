@@ -47,6 +47,8 @@ const sendTokenResponse = (user: IUser, statusCode: number, res: AppResponse, me
 export const login = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { phoneNumber, password } = req.body;
 
+    console.log('Login attempt for phone number:', phoneNumber, password);
+
     if (!phoneNumber) {
         return next(new AppError('Please provide phone number', 400));
     }
@@ -59,21 +61,21 @@ export const login = asyncHandler(async (req: Request, res: Response, next: Next
     }
 
     // If user is admin, verify password
-    if (user.role === 'admin') {
-        if (!password) {
-            return next(new AppError('Please provide password for admin login', 400));
-        }
+    // if (user.role === 'admin') {
+    //     if (!password) {
+    //         return next(new AppError('Please provide password for admin login', 400));
+    //     }
 
-        // Check if password is correct
-        const isPasswordMatch = await bcrypt.compare(password, user?.password || '');
-        if (!isPasswordMatch) {
-            return next(new AppError('Invalid password', 401));
-        }
+    //     // Check if password is correct
+    //     const isPasswordMatch = await bcrypt.compare(password, user?.password || '');
+    //     if (!isPasswordMatch) {
+    //         return next(new AppError('Invalid password', 401));
+    //     }
 
-        // For admin, send token immediately without OTP
-        sendTokenResponse(user, 200, res as AppResponse, 'Admin login successful');
-        return;
-    }
+    //     // For admin, send token immediately without OTP
+    //     sendTokenResponse(user, 200, res as AppResponse, 'Admin login successful');
+    //     return;
+    // }
 
     // For non-admin users, generate and send OTP
     const otp = user.generateOTP();
@@ -113,9 +115,9 @@ export const verifyLoginOTP = asyncHandler(async (req: Request, res: Response, n
     }
 
     // Skip OTP verification for admin users
-    if (user.role === 'admin') {
-        return next(new AppError('Admin users should use password login', 400));
-    }
+    // if (user.role === 'admin') {
+    //     return next(new AppError('Admin users should use password login', 400));
+    // }
 
     if (!user.verifyOTP(otp)) {
         return next(new AppError('Invalid or expired OTP', 401));

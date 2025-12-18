@@ -5,9 +5,7 @@ import Cart from '../../models/Cart';
 import logger from '../../utils/logger';
 
 class PurchaseController {
-    /**
-     * Handle payment callback from gateway
-     */
+   
     static async paystackCallBackVerify(req: Request, res: Response): Promise<void> {
         const { reference, provider = 'paystack', platform = 'browser' } = req.query;
 
@@ -53,9 +51,7 @@ class PurchaseController {
         }
     }
 
-    /**
-     * Handle webhook notifications from payment gateways
-     */
+   
     static async handleWebhook(req: Request, res: Response): Promise<Response> {
         const { provider } = req.params;
         const signature = req.headers['x-paystack-signature'] as string;
@@ -101,9 +97,7 @@ class PurchaseController {
         }
     }
 
-    /**
-     * Get service charge for a payment method
-     */
+   
     static async getServiceCharge(req: Request, res: Response, next: any): Promise<Response | void> {
         try {
             const { subTotal, provider } = req.query;
@@ -131,9 +125,7 @@ class PurchaseController {
         }
     }
 
-    /**
-     * Manually verify a payment by reference
-     */
+   
     static async verifyPayment(req: Request, res: Response): Promise<Response> {
         try {
             const { reference, provider = 'paystack' } = req.body;
@@ -169,9 +161,7 @@ class PurchaseController {
         }
     }
 
-    /**
-     * Get supported payment methods
-     */
+   
     static async getPaymentMethods(req: Request, res: Response): Promise<Response> {
         try {
             const paymentGateway = new PaymentGateway();

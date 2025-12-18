@@ -53,9 +53,7 @@ interface GetNotificationOptions {
 }
 
 class NotificationController {
-    /**
-     * Create and send notification (main entry point)
-     */
+
     static async saveAndSendNotification(
         data: NotificationData,
         accountType: string = 'user',
@@ -91,9 +89,8 @@ class NotificationController {
         }
     }
 
-    /**
-     * Send notification through all channels
-     */
+
+
     static async sendNotification(
         notification: any,
         accountType: string = 'user',
@@ -116,9 +113,9 @@ class NotificationController {
         return notification;
     }
 
-    /**
-     * Send in-app notification via Socket.IO
-     */
+
+    //  Send in-app notification via Socket.IO
+
     static async sendInAppNotification(
         notification: any,
         userId: string,
@@ -164,9 +161,8 @@ class NotificationController {
         }
     }
 
-    /**
-     * Send push notification
-     */
+    // Send push notification
+
     static async sendPushNotification(
         notification: any,
         userId: string,
@@ -184,9 +180,9 @@ class NotificationController {
         }
     }
 
-    /**
-     * Send email notification
-     */
+
+    //  Send email notification
+
     static async sendEmailNotification(
         notification: any,
         userId: string,
@@ -215,7 +211,7 @@ class NotificationController {
         }
     }
 
-    
+
     static async getNotificationList(
         filter: NotificationFilter,
         accountType: string = 'user',
@@ -265,9 +261,8 @@ class NotificationController {
         };
     }
 
-    /**
-     * Group notifications by time period
-     */
+    //    Group notifications by time period
+
     static _groupByTimePeriod(notifications: any[]): any[] {
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -305,9 +300,9 @@ class NotificationController {
         ].filter(group => group.notifications.length > 0);
     }
 
-    /**
-     * Format notification for client
-     */
+
+    // Format notification for client
+
     static _formatNotification(notification: any): any {
         return {
             id: notification._id,
@@ -325,9 +320,8 @@ class NotificationController {
         };
     }
 
-    /**
-     * Mark notification as read
-     */
+    // Mark notification as read
+
     static async markAsRead(notificationId: string, userId: string): Promise<{ success: boolean }> {
         try {
             const notification = await UserNotification.findOne({
@@ -351,9 +345,7 @@ class NotificationController {
         }
     }
 
-    /**
-     * Mark all notifications as read
-     */
+
     static async markAllAsRead(userId: string, accountType: string = 'user'): Promise<{ success: boolean }> {
         try {
             const NotificationModel = UserNotification;
@@ -370,9 +362,8 @@ class NotificationController {
         }
     }
 
-    /**
-     * Delete notification
-     */
+    // Delete notification
+
     static async deleteNotification(notificationId: string, userId: string): Promise<{ success: boolean }> {
         try {
             await UserNotification.updateOne(
@@ -395,9 +386,8 @@ class NotificationController {
         }
     }
 
-    /**
-     * Get unread count
-     */
+    //    Get unread count
+
     static async getUnreadCount(userId: string, accountType: string = 'user'): Promise<{ count: number }> {
         try {
             const NotificationModel = UserNotification;
@@ -411,9 +401,8 @@ class NotificationController {
         }
     }
 
-    /**
-     * Track notification click
-     */
+    //  Track notification click
+
     static async trackClick(notificationId: string, userId: string): Promise<{ success: boolean }> {
         try {
             const notification = await UserNotification.findOne({
@@ -439,9 +428,8 @@ class NotificationController {
         }
     }
 
-    /**
-     * Emit notification update via Socket.IO
-     */
+    //Emit notification update via Socket.IO
+
     static async _emitNotificationUpdate(userId: string): Promise<void> {
         try {
             // const io = getSocketIo();
@@ -457,9 +445,8 @@ class NotificationController {
         }
     }
 
-    /**
-     * Subscribe to push notifications
-     */
+    //    Subscribe to push notifications
+
     static async subscribe(req: Request, res: Response): Promise<Response> {
         try {
             const { subscription, deviceId } = req.body;
@@ -479,9 +466,9 @@ class NotificationController {
         }
     }
 
-    /**
-     * Unsubscribe from push notifications
-     */
+
+    //   Unsubscribe from push notifications
+
     static async unsubscribe(req: Request, res: Response): Promise<Response> {
         try {
             const { deviceId } = req.body;
@@ -501,9 +488,8 @@ class NotificationController {
         }
     }
 
-    /**
-     * Get notification preferences
-     */
+    // Get notification preferences
+
     static async getPreferences(req: Request, res: Response): Promise<Response> {
         try {
             const UserSchema = require('../models/Auth/userModel');
@@ -519,9 +505,8 @@ class NotificationController {
         }
     }
 
-    /**
-     * Update notification preferences
-     */
+    //    Update notification preferences
+
     static async updatePreferences(req: Request, res: Response): Promise<Response> {
         try {
             const {
@@ -559,9 +544,8 @@ class NotificationController {
         }
     }
 
-    /**
-     * Get notifications (REST endpoint)
-     */
+    //  Get notifications (REST endpoint)
+
     static async getNotifications(req: Request, res: Response): Promise<Response> {
         try {
             const userId = (req as any).user._id;
@@ -588,9 +572,9 @@ class NotificationController {
         }
     }
 
-    /**
-     * Process scheduled notifications (run by cron)
-     */
+    // 
+    //  Process scheduled notifications (run by cron)
+
     static async processScheduledNotifications(): Promise<void> {
         try {
             const now = new Date();
@@ -611,9 +595,8 @@ class NotificationController {
         }
     }
 
-    /**
-     * Clean up old notifications (run by cron)
-     */
+    // Clean up old notifications (run by cron)
+
     static async cleanupOldNotifications(): Promise<void> {
         try {
             const thirtyDaysAgo = new Date();
@@ -625,16 +608,15 @@ class NotificationController {
             });
 
             logger.info(`Cleaned up ${result.deletedCount} old notifications`);
-    
+
 
         } catch (error) {
             logger.error('Cleanup notifications error:', error);
         }
     }
 
-    /**
-     * Send test notification (for testing purposes)
-     */
+    //  Send test notification (for testing purposes)
+
     static async sendTestNotification(req: Request, res: Response): Promise<Response> {
         try {
             const notification = await this.saveAndSendNotification({

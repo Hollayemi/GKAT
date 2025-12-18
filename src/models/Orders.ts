@@ -48,28 +48,25 @@ export interface IStatusHistory {
 
 export interface IAppliedCoupon {
     code: string;
-    discountType: 'percentage' | 'fixed';
+    promotionName: string; 
+    promoType: string;
     discountValue: number;
     discountAmount: number;
 }
 
 export interface IOrder extends Document {
     orderNumber: string;
-    orderSlug: string; // Short unique identifier for display
+    orderSlug: string;
     userId: Types.ObjectId;
     items: IOrderItem[];
 
-    // Delivery Information
-    shippingAddress: string; // IShippingAddress
+    shippingAddress: string;
     deliveryMethod: 'pickup' | 'delivery';
 
-    // Payment Information
     paymentInfo: IPaymentInfo;
 
-    // Order Status
     orderStatus: OrderStatus;
 
-    // Pricing Breakdown
     subtotal: number;
     deliveryFee: number;
     serviceCharge: number;
@@ -77,29 +74,23 @@ export interface IOrder extends Document {
     discount: number;
     totalAmount: number;
 
-    // Coupon Information
     appliedCoupons: IAppliedCoupon[];
 
-    // Tracking Information
     trackingNumber?: string;
     carrier?: string;
     estimatedDelivery?: Date;
     actualDelivery?: Date;
 
-    // Additional Information
     notes?: string;
     adminNotes?: string;
 
-    // Status History
     statusHistory: IStatusHistory[];
 
-    // Cancellation/Return
     cancellationReason?: string;
     returnReason?: string;
     refundAmount: number;
     refundedAt?: Date;
 
-    // Ratings & Review
     rating?: number;
     review?: string;
     reviewedAt?: Date;
@@ -107,13 +98,11 @@ export interface IOrder extends Document {
     createdAt: Date;
     updatedAt: Date;
 
-    // Virtuals
     orderAge: number;
     isRecent: boolean;
     canCancel: boolean;
     canReturn: boolean;
 
-    // Instance Methods
     updateStatus(newStatus: OrderStatus, note?: string, updatedBy?: Types.ObjectId): Promise<IOrder>;
     addTrackingInfo(trackingNumber: string, carrier: string, estimatedDelivery?: Date): Promise<IOrder>;
     processPayment(reference: string, transactionId: string, paidAmount: number): Promise<IOrder>;
@@ -132,7 +121,6 @@ interface IOrderModel extends Model<IOrder> {
     generateOrderSlug(): Promise<string>;
 }
 
-// Order Item Schema
 const orderItemSchema = new Schema<IOrderItem>({
     productId: {
         type: Schema.Types.ObjectId,
@@ -181,7 +169,6 @@ const orderItemSchema = new Schema<IOrderItem>({
     }
 }, { _id: false });
 
-// Shipping Address Schema
 const shippingAddressSchema = new Schema<IShippingAddress>({
     label: {
         type: String,
@@ -227,7 +214,7 @@ const shippingAddressSchema = new Schema<IShippingAddress>({
     }
 }, { _id: false });
 
-// Payment Info Schema
+
 const paymentInfoSchema = new Schema<IPaymentInfo>({
     method: {
         type: String,
@@ -258,7 +245,7 @@ const paymentInfoSchema = new Schema<IPaymentInfo>({
     }
 }, { _id: false });
 
-// Status History Schema
+
 const statusHistorySchema = new Schema<IStatusHistory>({
     status: {
         type: String,
@@ -279,16 +266,18 @@ const statusHistorySchema = new Schema<IStatusHistory>({
     }
 }, { _id: false });
 
-// Applied Coupon Schema
 const appliedCouponSchema = new Schema<IAppliedCoupon>({
     code: {
         type: String,
         required: true,
         uppercase: true
     },
-    discountType: {
+    promotionName: {
         type: String,
-        enum: ['percentage', 'fixed'],
+        required: true
+    },
+    promoType: {
+        type: String,
         required: true
     },
     discountValue: {
@@ -303,7 +292,7 @@ const appliedCouponSchema = new Schema<IAppliedCoupon>({
     }
 }, { _id: false });
 
-// Order Schema
+
 const orderSchema = new Schema<IOrder, IOrderModel>({
     orderNumber: {
         type: String,
@@ -328,7 +317,7 @@ const orderSchema = new Schema<IOrder, IOrderModel>({
     items: [orderItemSchema],
 
     shippingAddress: {
-        type: String,  // shippingAddressSchema
+        type: String,  
         required: true,
         ref: 'Address'
     },
@@ -352,7 +341,6 @@ const orderSchema = new Schema<IOrder, IOrderModel>({
         index: true
     },
 
-    // Pricing
     subtotal: {
         type: Number,
         required: true,
@@ -389,7 +377,6 @@ const orderSchema = new Schema<IOrder, IOrderModel>({
 
     appliedCoupons: [appliedCouponSchema],
 
-    // Tracking
     trackingNumber: {
         type: String,
         trim: true
@@ -435,7 +422,6 @@ const orderSchema = new Schema<IOrder, IOrderModel>({
         type: Date
     },
 
-    // Rating & Review
     rating: {
         type: Number,
         min: 1,

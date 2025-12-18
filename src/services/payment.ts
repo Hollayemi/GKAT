@@ -1,4 +1,3 @@
-// paymentGateway.ts
 import axios, { AxiosResponse } from 'axios';
 import crypto from 'crypto';
 import PaymentLogging from './paymentLogging';
@@ -51,10 +50,6 @@ class PaymentGateway extends PaymentLogging {
         privateKey: string;
         baseURL: string;
     };
-
-    // private palmpay: PaymentConfig;
-    // private paystack: PaymentConfig;
-    // private opay: PaymentConfig;
 
     constructor() {
         super();
@@ -270,9 +265,7 @@ class PaymentGateway extends PaymentLogging {
         }
     }
 
-    // Add this method to your PaymentGateway class in src/services/payment.ts
-    // This is just the verifyPaystackPayment method with enhanced error handling
-
+   
     async verifyPaystackPayment(reference: string): Promise<PaymentResponse> {
         try {
             const response: AxiosResponse = await axios.get(

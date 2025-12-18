@@ -435,8 +435,8 @@ export const getProductPreview = asyncHandler(async (req: Request, res: Response
     const regionalInventory = product.regionalDistribution?.map(region => ({
         region: region.region,
         currentStock: region.mainProduct,
-        lastRestocked: null, // You can add this field to schema if needed
-        manager: null, // You can add this field to schema if needed
+        lastRestocked: null,
+        manager: null,
         status: region.mainProduct === 0 ? 'Out of Stock' :
             region.mainProduct <= 10 ? 'Low Stock' :
                 region.mainProduct <= 50 ? 'Stable' : 'Balanced',
@@ -499,9 +499,9 @@ export const getProductPreview = asyncHandler(async (req: Request, res: Response
 
         pricing: {
             salesPrice: product.salesPrice,
-            costPerItem: 0, // Add cost field to your schema if needed
-            profit: 0, // Calculate based on cost
-            grossMargin: 0 // Calculate based on cost and price
+            costPerItem: 0,
+            profit: 0, 
+            grossMargin: 0
         },
 
         inventory: {

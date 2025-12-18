@@ -7,6 +7,8 @@ yarn-error.log*
 # Production build
 dist/
 
+config/firebase-service-account.json
+
 # Environment variables
 .env
 .env.local
@@ -34,3 +36,9 @@ coverage/
 # OS
 .DS_Store
 Thumbs.db
+
+
+# Firebase
+FIREBASE_PROJECT_ID=your-project-id
+FIREBASE_CLIENT_EMAIL=your-client-email
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n..."

@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
-// Enums for better type safety
+
 export enum PaymentStatus {
     PENDING_PAYMENT_CONFIRMATION = 'PENDING_PAYMENT_CONFIRMATION',
     PAYMENT_CONFIRMED = 'PAYMENT_CONFIRMED',
@@ -15,7 +15,7 @@ export enum PaymentChannel {
     CASH_ON_DELIVERY = 'CASH_ON_DELIVERY'
 }
 
-// Interface for meta data
+
 export interface IPurchaseMeta {
     orderIds?: Types.ObjectId[];
     coin?: number;
@@ -35,7 +35,7 @@ export interface IPurchaseMeta {
     [key: string]: any;
 }
 
-// Main interface for the PurchaseLog document
+
 export interface IPurchaseLog extends Document {
     userId: Types.ObjectId;
     amount: number;
@@ -46,17 +46,12 @@ export interface IPurchaseLog extends Document {
     date?: Date;
     createdAt: Date;
     updatedAt: Date;
-
-    // Virtuals
     formattedDate?: string;
-
-    // Instance methods
     updateStatus(newStatus: PaymentStatus): Promise<IPurchaseLog>;
     isSuccessful(): boolean;
     isPending(): boolean;
 }
 
-// Interface for the PurchaseLog model with static methods
 interface IPurchaseLogModel extends Model<IPurchaseLog> {
     findByUserId(userId: Types.ObjectId | string): Promise<IPurchaseLog[]>;
     findByTransactionRef(transaction_ref: string): Promise<IPurchaseLog | null>;
@@ -67,7 +62,6 @@ interface IPurchaseLogModel extends Model<IPurchaseLog> {
     getRevenueByChannel(): Promise<Array<{ channel: PaymentChannel; total: number }>>;
 }
 
-// PurchaseLog Schema
 const PurchaseLogSchema: Schema<IPurchaseLog> = new Schema(
     {
         userId: {
@@ -135,7 +129,8 @@ const PurchaseLogSchema: Schema<IPurchaseLog> = new Schema(
     }
 );
 
-// Indexes for better query performance
+
+
 PurchaseLogSchema.index({ userId: 1, createdAt: -1 });
 PurchaseLogSchema.index({ transaction_ref: 1 }, { unique: true });
 PurchaseLogSchema.index({ payment_status: 1 });
@@ -144,7 +139,8 @@ PurchaseLogSchema.index({ createdAt: -1 });
 PurchaseLogSchema.index({ userId: 1, payment_status: 1 });
 PurchaseLogSchema.index({ 'meta.orderIds': 1 });
 
-// Static methods
+
+
 PurchaseLogSchema.statics.findByUserId = function (userId: Types.ObjectId | string): Promise<IPurchaseLog[]> {
     return this.find({ userId })
         .sort({ createdAt: -1 })
@@ -203,7 +199,8 @@ PurchaseLogSchema.statics.getRevenueByChannel = function (): Promise<Array<{ cha
     ]);
 };
 
-// Instance methods
+
+
 PurchaseLogSchema.methods.updateStatus = function (newStatus: PaymentStatus): Promise<IPurchaseLog> {
     this.payment_status = newStatus;
     return this.save();
@@ -217,7 +214,8 @@ PurchaseLogSchema.methods.isPending = function (): boolean {
     return this.payment_status === PaymentStatus.PENDING_PAYMENT_CONFIRMATION;
 };
 
-// Virtuals
+
+
 PurchaseLogSchema.virtual('formattedDate').get(function (this: IPurchaseLog) {
     return this.date?.toLocaleDateString('en-US', {
         year: 'numeric',
@@ -230,13 +228,12 @@ PurchaseLogSchema.virtual('isDigitalPayment').get(function (this: IPurchaseLog) 
     return this.paymentChannel !== PaymentChannel.CASH_ON_DELIVERY;
 });
 
-// Pre-save middleware
+
+
 PurchaseLogSchema.pre<IPurchaseLog>('save', function (next) {
     if (!this.date) {
         this.date = new Date();
     }
-
-    // Validate transaction_ref format
     if (!this.transaction_ref.startsWith('PAY_')) {
         next(new Error('Transaction reference must start with PAY_'));
         return;
@@ -245,12 +242,14 @@ PurchaseLogSchema.pre<IPurchaseLog>('save', function (next) {
     next();
 });
 
-// Post-save middleware
+
+
 PurchaseLogSchema.post<IPurchaseLog>('save', function (doc) {
     console.log(`Purchase log saved for user ${doc.userId} with ref ${doc.transaction_ref}`);
 });
 
-// Create and export the model
+
+
 const PurchaseLog: IPurchaseLogModel = mongoose.model<IPurchaseLog, IPurchaseLogModel>('purchase_log', PurchaseLogSchema);
 
 export default PurchaseLog;

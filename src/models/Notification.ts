@@ -71,71 +71,39 @@ export interface ITypeId {
     [key: string]: any;
 }
 
-// Main Document Interface
 export interface IUserNotification extends Document {
     userId: Types.ObjectId;
-
-    // Notification Content
     title: string;
     body: string;
     image?: string;
     icon: string;
-
-    // Metadata
     type: NotificationType;
     typeId?: ITypeId;
-
-    // Status Tracking
     status: NotificationStatus;
     unread: number;
-
-    // Delivery Tracking
     delivery: IDelivery;
-
-    // Priority & Scheduling
     priority: NotificationPriority;
     scheduledAt?: Date;
     expiresAt?: Date;
-
-    // Retry Logic
     retryCount: number;
     lastRetryAt?: Date;
-
-    // Actions
     actions: INotificationAction[];
-
-    // Click tracking
     clicked: boolean;
     clickedAt?: Date;
     clickUrl?: string;
-
-    // Grouping
     groupKey?: string;
-
-    // Silent notification
     silent: boolean;
-
-    // Custom data
     data: Map<string, string>;
-
-    // Archived/Deleted
     archived: boolean;
     deletedAt?: Date;
-
-    // Virtuals
     isExpired: boolean;
-
-    // Timestamps
     createdAt: Date;
     updatedAt: Date;
-
-    // Methods
     markAsRead(): Promise<IUserNotification>;
     trackClick(): Promise<IUserNotification>;
     isActionable(): boolean;
 }
 
-// Static Methods Interface
 interface IUserNotificationModel extends Model<IUserNotification> {
     getUnreadCount(userId: Types.ObjectId | string): Promise<number>;
     markAllAsRead(userId: Types.ObjectId | string): Promise<any>;
@@ -152,7 +120,6 @@ interface IUserNotificationModel extends Model<IUserNotification> {
     cleanupOldNotifications(days?: number): Promise<any>;
 }
 
-// Schema Definition
 const UserNotificationSchema: Schema<IUserNotification> = new Schema(
     {
         userId: {
@@ -162,7 +129,6 @@ const UserNotificationSchema: Schema<IUserNotification> = new Schema(
             index: true
         },
 
-        // Notification Content
         title: {
             type: String,
             required: [true, 'Notification title is required'],
@@ -195,7 +161,6 @@ const UserNotificationSchema: Schema<IUserNotification> = new Schema(
             }
         },
 
-        // Metadata
         type: {
             type: String,
             enum: {
@@ -215,7 +180,6 @@ const UserNotificationSchema: Schema<IUserNotification> = new Schema(
             }
         },
 
-        // Status Tracking
         status: {
             type: String,
             enum: {
@@ -232,7 +196,6 @@ const UserNotificationSchema: Schema<IUserNotification> = new Schema(
             max: [1, 'Unread must be 0 or 1']
         },
 
-        // Delivery Tracking
         delivery: {
             push: {
                 sent: { type: Boolean, default: false },
@@ -257,7 +220,6 @@ const UserNotificationSchema: Schema<IUserNotification> = new Schema(
             }
         },
 
-        // Priority & Scheduling
         priority: {
             type: String,
             enum: {
@@ -286,7 +248,6 @@ const UserNotificationSchema: Schema<IUserNotification> = new Schema(
             }
         },
 
-        // Retry Logic
         retryCount: {
             type: Number,
             default: 0,
@@ -295,7 +256,6 @@ const UserNotificationSchema: Schema<IUserNotification> = new Schema(
         },
         lastRetryAt: { type: Date },
 
-        // Actions
         actions: [{
             action: {
                 type: String,
@@ -318,7 +278,6 @@ const UserNotificationSchema: Schema<IUserNotification> = new Schema(
             }
         }],
 
-        // Click tracking
         clicked: { type: Boolean, default: false },
         clickedAt: { type: Date },
         clickUrl: {
@@ -330,25 +289,17 @@ const UserNotificationSchema: Schema<IUserNotification> = new Schema(
                 message: 'Click URL must be a valid URL or path'
             }
         },
-
-        // Grouping
         groupKey: {
             type: String,
             index: true,
             trim: true
         },
-
-        // Silent notification
         silent: { type: Boolean, default: false },
-
-        // Custom data
         data: {
             type: Map,
             of: String,
             default: new Map()
         },
-
-        // Archived/Deleted
         archived: { type: Boolean, default: false },
         deletedAt: { type: Date }
     },

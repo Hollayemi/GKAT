@@ -68,6 +68,9 @@ import cartRoutes from './routes/cart';
 import orderRoutes from './routes/order';
 import addressRoutes from './routes/address';
 import paymentRoutes from './routes/payment';
+import couponRoutes from './routes/coupon';
+import categoryRoutes from './routes/category';
+import regionRoutes from './routes/region';
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/product', productRoutes);
@@ -75,6 +78,9 @@ app.use('/api/v1/cart', cartRoutes);
 app.use('/api/v1/order', orderRoutes);
 app.use('/api/v1/addresses', addressRoutes);
 app.use('/api/v1/payment', paymentRoutes);
+app.use('/api/v1/admin/coupons', couponRoutes);
+app.use('/api/v1/categories', categoryRoutes);
+app.use('/api/v1/regions', regionRoutes);
 
 app.use('*', handle404);
 

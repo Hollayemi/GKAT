@@ -1,7 +1,7 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 import PaymentGateway from '../services/payment';
 
-// Interface for Cart Item with detailed product info
+
 export interface ICartItem {
     productId: Types.ObjectId;
     variantId?: Types.ObjectId;
@@ -13,18 +13,17 @@ export interface ICartItem {
     image?: string;
     unitType: string;
     unitQuantity: number;
-    maxQuantity: number; // Stock limit
+    maxQuantity: number; 
     totalPrice: number;
 }
 
 // Interface for Applied Coupon
 export interface IAppliedCoupon {
     code: string;
-    discountType: 'percentage' | 'fixed';
+    promotionName: string;
+    promoType: string; // promoType (percentage, fixed, etc.)
     discountValue: number;
     discountAmount: number;
-    minPurchase?: number;
-    maxDiscount?: number;
     appliedAt: Date;
 }
 
@@ -41,7 +40,7 @@ export interface ICart extends Document {
 
     // Coupon management
     appliedCoupons: IAppliedCoupon[];
-    availableCoupons: string[]; 
+    availableCoupons: string[];
 
     // Delivery info
     deliveryMethod?: 'pickup' | 'delivery';
@@ -150,7 +149,7 @@ const appliedCouponSchema = new Schema<IAppliedCoupon>({
         required: true,
         uppercase: true
     },
-    discountType: {
+    promoType: {
         type: String,
         enum: ['percentage', 'fixed'],
         required: true
@@ -165,14 +164,14 @@ const appliedCouponSchema = new Schema<IAppliedCoupon>({
         required: true,
         min: 0
     },
-    minPurchase: {
-        type: Number,
-        min: 0
-    },
-    maxDiscount: {
-        type: Number,
-        min: 0
-    },
+    // minPurchase: {
+    //     type: Number,
+    //     min: 0
+    // },
+    // maxDiscount: {
+    //     type: Number,
+    //     min: 0
+    // },
     appliedAt: {
         type: Date,
         default: Date.now
@@ -269,22 +268,28 @@ cartSchema.pre('save', function (next) {
 });
 
 cartSchema.methods.calculateTotals = function (): void {
+    // Calculate subtotal from items
     this.subtotal = this.items.reduce((total: number, item: any) => {
         item.totalPrice = item.price * item.quantity;
         return total + item.totalPrice;
     }, 0);
 
+    // Calculate discount from coupons
     let totalCouponDiscount = 0;
     this.appliedCoupons.forEach((coupon: any) => {
-        if (coupon.discountType === 'percentage') {
+        const promoType = coupon.promoType.toLowerCase();
+
+        if (promoType.includes('percentage') || promoType.includes('%')) {
             let discount = (this.subtotal * coupon.discountValue) / 100;
-            if (coupon.maxDiscount) {
-                discount = Math.min(discount, coupon.maxDiscount);
-            }
             coupon.discountAmount = discount;
+        } else if (promoType.includes('fixed') || promoType.includes('flat')) {
+            coupon.discountAmount = Math.min(coupon.discountValue, this.subtotal - totalCouponDiscount);
         } else {
-            coupon.discountAmount = coupon.discountValue;
+            // Default to percentage
+            let discount = (this.subtotal * coupon.discountValue) / 100;
+            coupon.discountAmount = discount;
         }
+
         totalCouponDiscount += coupon.discountAmount;
     });
 
@@ -386,32 +391,72 @@ cartSchema.methods.updateItemQuantity = function (
 };
 
 cartSchema.methods.applyCoupon = async function (couponCode: string): Promise<ICart> {
+    // Check if coupon is already applied
     if (this.appliedCoupons.some((c: any) => c.code === couponCode.toUpperCase())) {
         throw new Error('Coupon already applied');
     }
 
     const Coupon = mongoose.model('Coupon');
+
+    // Find the coupon using the new field names
     const coupon = await Coupon.findOne({
-        code: couponCode.toUpperCase(),
+        couponCode: couponCode.toUpperCase(),
         isActive: true,
-        expiresAt: { $gt: new Date() }
+        endDateTime: { $gt: new Date() },
+        startDateTime: { $lte: new Date() }
     });
+
+    console.log('Applying coupon:', couponCode, coupon);
 
     if (!coupon) {
         throw new Error('Invalid or expired coupon');
     }
 
-    if (coupon.minPurchase && this.subtotal < coupon.minPurchase) {
-        throw new Error(`Minimum purchase of ₦${coupon.minPurchase} required`);
+    // Check if coupon has reached usage limit
+    if (coupon.currentUsage >= coupon.usageLimit) {
+        throw new Error('Coupon usage limit reached');
     }
 
+    // Check minimum order value
+    if (coupon.minimumOrderValue && this.subtotal < coupon.minimumOrderValue) {
+        throw new Error(`Minimum order value of ₦${coupon.minimumOrderValue} required`);
+    }
+
+    // Check applicable categories
+    if (coupon.applicableCategories && coupon.applicableCategories.length > 0) {
+        const hasApplicableCategory = this.items.some((item: any) =>
+            coupon.applicableCategories.includes(item.category)
+        );
+
+        if (!hasApplicableCategory) {
+            throw new Error('Coupon not applicable to cart items');
+        }
+    }
+
+    // Calculate discount amount based on promo type
+    let discountAmount = 0;
+    const promoType = coupon.promoType.toLowerCase();
+
+    if (promoType.includes('percentage') || promoType.includes('%')) {
+        // Percentage discount
+        discountAmount = (this.subtotal * coupon.discountValue) / 100;
+    } else if (promoType.includes('fixed') || promoType.includes('flat')) {
+        // Fixed amount discount
+        discountAmount = coupon.discountValue;
+    } else {
+        // Default to percentage
+        discountAmount = (this.subtotal * coupon.discountValue) / 100;
+    }
+
+    // Ensure discount doesn't exceed subtotal
+    discountAmount = Math.min(discountAmount, this.subtotal);
+
     this.appliedCoupons.push({
-        code: coupon.code,
-        discountType: coupon.discountType,
+        code: coupon.couponCode,
+        promotionName: coupon.promotionName,
+        promoType: coupon.promoType,
         discountValue: coupon.discountValue,
-        discountAmount: 0, // Will be calculated in calculateTotals
-        minPurchase: coupon.minPurchase,
-        maxDiscount: coupon.maxDiscount,
+        discountAmount: discountAmount,
         appliedAt: new Date()
     });
 

@@ -25,15 +25,11 @@ export const getCart = asyncHandler(async (req: Request, res: Response, next: Ne
     (res as AppResponse).data({
         cart,
         availableCoupons: availableCoupons.map(c => ({
-            code: c.code,
-            title: c.title,
+            code: c.couponCode,
+            title: c.promotionName,
             description: c.description,
-            discountType: c.discountType,
+            discountType: c.promoType,
             discountValue: c.discountValue,
-            minPurchase: c.minPurchase,
-            expiresAt: c.expiresAt,
-            backgroundColor: c.backgroundColor,
-            icon: c.icon
         }))
     }, 'Cart retrieved successfully');
 });
