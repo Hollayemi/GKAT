@@ -1,0 +1,19 @@
+import { Request, Response, NextFunction } from 'express';
+export declare const getAllDrivers: (req: Request, res: Response, next: NextFunction) => void;
+export declare const getDriverById: (req: Request, res: Response, next: NextFunction) => void;
+export declare const createDriver: (req: Request, res: Response, next: NextFunction) => void;
+export declare const updateDriver: (req: Request, res: Response, next: NextFunction) => void;
+export declare const deleteDriver: (req: Request, res: Response, next: NextFunction) => void;
+export declare const verifyDriver: (req: Request, res: Response, next: NextFunction) => void;
+export declare const rejectDriver: (req: Request, res: Response, next: NextFunction) => void;
+export declare const suspendDriver: (req: Request, res: Response, next: NextFunction) => void;
+export declare const unsuspendDriver: (req: Request, res: Response, next: NextFunction) => void;
+export declare const disableDriver: (req: Request, res: Response, next: NextFunction) => void;
+export declare const enableDriver: (req: Request, res: Response, next: NextFunction) => void;
+export declare const resendPasswordLink: (req: Request, res: Response, next: NextFunction) => void;
+export declare const bulkSuspend: (req: Request, res: Response, next: NextFunction) => void;
+export declare const bulkDelete: (req: Request, res: Response, next: NextFunction) => void;
+export declare const getActivityLogs: (req: Request, res: Response, next: NextFunction) => void;
+export declare const getDriverStatistics: (req: Request, res: Response, next: NextFunction) => void;
+export declare const getDashboardSummary: (req: Request, res: Response, next: NextFunction) => void;
+//# sourceMappingURL=driver.d.ts.map

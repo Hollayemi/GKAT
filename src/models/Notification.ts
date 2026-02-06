@@ -1,0 +1,510 @@
+import mongoose, { Schema, Document, Model, Types } from 'mongoose';
+
+// Enums for type safety
+export enum NotificationType {
+    ORDER = 'order',
+    PROMOTION = 'promotion',
+    SYSTEM = 'system',
+    MESSAGE = 'message',
+    PAYMENT = 'payment',
+    REVIEW = 'review'
+}
+
+export enum NotificationStatus {
+    PENDING = 'pending',
+    SENT = 'sent',
+    DELIVERED = 'delivered',
+    FAILED = 'failed',
+    READ = 'read'
+}
+
+export enum NotificationPriority {
+    LOW = 'low',
+    MEDIUM = 'medium',
+    HIGH = 'high',
+    URGENT = 'urgent'
+}
+
+// Interfaces
+export interface INotificationAction {
+    action: string;
+    title: string;
+    icon?: string;
+}
+
+export interface IDeliveryTracking {
+    sent: boolean;
+    sentAt?: Date;
+    delivered?: boolean;
+    deliveredAt?: Date;
+    failed?: boolean;
+    failedAt?: Date;
+    error?: string;
+}
+
+export interface IInAppDelivery {
+    sent: boolean;
+    sentAt?: Date;
+    viewed: boolean;
+    viewedAt?: Date;
+}
+
+export interface IEmailDelivery {
+    sent: boolean;
+    sentAt?: Date;
+    opened: boolean;
+    openedAt?: Date;
+}
+
+export interface IDelivery {
+    push: IDeliveryTracking;
+    inApp: IInAppDelivery;
+    email: IEmailDelivery;
+}
+
+export interface ITypeId {
+    orderId?: Types.ObjectId;
+    productId?: Types.ObjectId;
+    messageId?: Types.ObjectId;
+    paymentId?: Types.ObjectId;
+    reviewId?: Types.ObjectId;
+    [key: string]: any;
+}
+
+export interface IUserNotification extends Document {
+    userId: Types.ObjectId;
+    title: string;
+    body: string;
+    image?: string;
+    icon: string;
+    type: NotificationType;
+    typeId?: ITypeId;
+    status: NotificationStatus;
+    unread: number;
+    delivery: IDelivery;
+    priority: NotificationPriority;
+    scheduledAt?: Date;
+    expiresAt?: Date;
+    retryCount: number;
+    lastRetryAt?: Date;
+    actions: INotificationAction[];
+    clicked: boolean;
+    clickedAt?: Date;
+    clickUrl?: string;
+    groupKey?: string;
+    silent: boolean;
+    data: Map<string, string>;
+    archived: boolean;
+    deletedAt?: Date;
+    isExpired: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+    markAsRead(): Promise<IUserNotification>;
+    trackClick(): Promise<IUserNotification>;
+    isActionable(): boolean;
+}
+
+interface IUserNotificationModel extends Model<IUserNotification> {
+    getUnreadCount(userId: Types.ObjectId | string): Promise<number>;
+    markAllAsRead(userId: Types.ObjectId | string): Promise<any>;
+    findByUserId(
+        userId: Types.ObjectId | string,
+        options?: {
+            limit?: number;
+            skip?: number;
+            unreadOnly?: boolean;
+            type?: NotificationType;
+        }
+    ): Promise<IUserNotification[]>;
+    findExpired(): Promise<IUserNotification[]>;
+    cleanupOldNotifications(days?: number): Promise<any>;
+}
+
+const UserNotificationSchema: Schema<IUserNotification> = new Schema(
+    {
+        userId: {
+            type: Schema.Types.ObjectId,
+            required: [true, 'User ID is required'],
+            ref: 'users',
+            index: true
+        },
+
+        title: {
+            type: String,
+            required: [true, 'Notification title is required'],
+            maxlength: [100, 'Title cannot exceed 100 characters'],
+            trim: true
+        },
+        body: {
+            type: String,
+            required: [true, 'Notification body is required'],
+            maxlength: [500, 'Body cannot exceed 500 characters'],
+            trim: true
+        },
+        image: {
+            type: String,
+            validate: {
+                validator: function (v: string) {
+                    return !v || v.startsWith('http') || v.startsWith('/');
+                },
+                message: 'Image must be a valid URL or path'
+            }
+        },
+        icon: {
+            type: String,
+            default: '/icons/notification-icon.png',
+            validate: {
+                validator: function (v: string) {
+                    return v.startsWith('http') || v.startsWith('/');
+                },
+                message: 'Icon must be a valid URL or path'
+            }
+        },
+
+        type: {
+            type: String,
+            enum: {
+                values: Object.values(NotificationType),
+                message: 'Invalid notification type'
+            },
+            required: [true, 'Notification type is required'],
+            index: true
+        },
+        typeId: {
+            type: Schema.Types.Mixed,
+            validate: {
+                validator: function (v: any) {
+                    return !v || typeof v === 'object';
+                },
+                message: 'TypeId must be an object'
+            }
+        },
+
+        status: {
+            type: String,
+            enum: {
+                values: Object.values(NotificationStatus),
+                message: 'Invalid notification status'
+            },
+            default: NotificationStatus.PENDING,
+            index: true
+        },
+        unread: {
+            type: Number,
+            default: 1,
+            min: [0, 'Unread must be 0 or 1'],
+            max: [1, 'Unread must be 0 or 1']
+        },
+
+        delivery: {
+            push: {
+                sent: { type: Boolean, default: false },
+                sentAt: { type: Date },
+                delivered: { type: Boolean, default: false },
+                deliveredAt: { type: Date },
+                failed: { type: Boolean, default: false },
+                failedAt: { type: Date },
+                error: { type: String }
+            },
+            inApp: {
+                sent: { type: Boolean, default: false },
+                sentAt: { type: Date },
+                viewed: { type: Boolean, default: false },
+                viewedAt: { type: Date }
+            },
+            email: {
+                sent: { type: Boolean, default: false },
+                sentAt: { type: Date },
+                opened: { type: Boolean, default: false },
+                openedAt: { type: Date }
+            }
+        },
+
+        priority: {
+            type: String,
+            enum: {
+                values: Object.values(NotificationPriority),
+                message: 'Invalid notification priority'
+            },
+            default: NotificationPriority.MEDIUM,
+            index: true
+        },
+        scheduledAt: {
+            type: Date,
+            validate: {
+                validator: function (v: Date) {
+                    return !v || v > new Date();
+                },
+                message: 'Scheduled date must be in the future'
+            }
+        },
+        expiresAt: {
+            type: Date,
+            validate: {
+                validator: function (v: Date) {
+                    return !v || v > new Date();
+                },
+                message: 'Expiry date must be in the future'
+            }
+        },
+
+        retryCount: {
+            type: Number,
+            default: 0,
+            min: [0, 'Retry count cannot be negative'],
+            max: [3, 'Maximum retry count is 3']
+        },
+        lastRetryAt: { type: Date },
+
+        actions: [{
+            action: {
+                type: String,
+                required: [true, 'Action type is required'],
+                trim: true
+            },
+            title: {
+                type: String,
+                required: [true, 'Action title is required'],
+                trim: true
+            },
+            icon: {
+                type: String,
+                validate: {
+                    validator: function (v: string) {
+                        return !v || v.startsWith('http') || v.startsWith('/');
+                    },
+                    message: 'Action icon must be a valid URL or path'
+                }
+            }
+        }],
+
+        clicked: { type: Boolean, default: false },
+        clickedAt: { type: Date },
+        clickUrl: {
+            type: String,
+            validate: {
+                validator: function (v: string) {
+                    return !v || v.startsWith('http') || v.startsWith('/');
+                },
+                message: 'Click URL must be a valid URL or path'
+            }
+        },
+        groupKey: {
+            type: String,
+            index: true,
+            trim: true
+        },
+        silent: { type: Boolean, default: false },
+        data: {
+            type: Map,
+            of: String,
+            default: new Map()
+        },
+        archived: { type: Boolean, default: false },
+        deletedAt: { type: Date }
+    },
+    {
+        timestamps: true,
+        toJSON: {
+            virtuals: true,
+            transform: function (doc, ret: any) {
+                ret.id = ret._id.toString();
+                delete ret._id;
+                delete ret.__v;
+                return ret;
+            }
+        },
+        toObject: { virtuals: true }
+    }
+);
+
+UserNotificationSchema.index({ userId: 1, createdAt: -1 });
+UserNotificationSchema.index({ userId: 1, status: 1, unread: 1 });
+UserNotificationSchema.index({ userId: 1, type: 1 });
+UserNotificationSchema.index({ scheduledAt: 1 }, { sparse: true });
+UserNotificationSchema.index({ expiresAt: 1 }, {
+    sparse: true,
+    expireAfterSeconds: 0
+});
+UserNotificationSchema.index({ status: 1, scheduledAt: 1 });
+UserNotificationSchema.index({ archived: 1, deletedAt: 1 });
+
+UserNotificationSchema.virtual('isExpired').get(function (this: IUserNotification) {
+    return this.expiresAt && this.expiresAt < new Date();
+});
+
+UserNotificationSchema.virtual('isScheduled').get(function (this: IUserNotification) {
+    return this.scheduledAt && this.scheduledAt > new Date();
+});
+
+UserNotificationSchema.virtual('hasActions').get(function (this: IUserNotification) {
+    return this.actions && this.actions.length > 0;
+});
+
+UserNotificationSchema.virtual('deliveryStatus').get(function (this: IUserNotification) {
+    if (this.delivery.push.delivered) return 'delivered';
+    if (this.delivery.push.sent) return 'sent';
+    if (this.delivery.push.failed) return 'failed';
+    return 'pending';
+});
+
+UserNotificationSchema.methods.markAsRead = async function (): Promise<IUserNotification> {
+    this.unread = 0;
+    this.status = NotificationStatus.READ;
+    this.delivery.inApp.viewed = true;
+    this.delivery.inApp.viewedAt = new Date();
+    return await this.save();
+};
+
+UserNotificationSchema.methods.trackClick = async function (): Promise<IUserNotification> {
+    this.clicked = true;
+    this.clickedAt = new Date();
+
+    if (this.unread === 1) {
+        await this.markAsRead();
+    }
+
+    return await this.save();
+};
+
+UserNotificationSchema.methods.isActionable = function (): boolean {
+    return this.hasActions || !!this.clickUrl;
+};
+
+UserNotificationSchema.methods.markAsSent = async function (channel: keyof IDelivery = 'push'): Promise<IUserNotification> {
+    this.delivery[channel].sent = true;
+    this.delivery[channel].sentAt = new Date();
+    this.status = NotificationStatus.SENT;
+    return await this.save();
+};
+
+UserNotificationSchema.methods.markAsDelivered = async function (channel: keyof IDelivery = 'push'): Promise<IUserNotification> {
+    this.delivery[channel].delivered = true;
+    this.delivery[channel].deliveredAt = new Date();
+    this.status = NotificationStatus.DELIVERED;
+    return await this.save();
+};
+
+UserNotificationSchema.methods.markAsFailed = async function (error: string, channel: keyof IDelivery = 'push'): Promise<IUserNotification> {
+    this.delivery[channel].failed = true;
+    this.delivery[channel].failedAt = new Date();
+    this.delivery[channel].error = error;
+    this.status = NotificationStatus.FAILED;
+    return await this.save();
+};
+
+UserNotificationSchema.statics.getUnreadCount = function (userId: Types.ObjectId | string): Promise<number> {
+    return this.countDocuments({
+        userId,
+        unread: 1,
+        archived: false,
+        deletedAt: null
+    });
+};
+
+UserNotificationSchema.statics.markAllAsRead = function (userId: Types.ObjectId | string) {
+    return this.updateMany(
+        {
+            userId,
+            unread: 1,
+            archived: false,
+            deletedAt: null
+        },
+        {
+            $set: {
+                unread: 0,
+                status: NotificationStatus.READ,
+                'delivery.inApp.viewed': true,
+                'delivery.inApp.viewedAt': new Date()
+            }
+        }
+    );
+};
+
+UserNotificationSchema.statics.findByUserId = function (
+    userId: Types.ObjectId | string,
+    options: {
+        limit?: number;
+        skip?: number;
+        unreadOnly?: boolean;
+        type?: NotificationType;
+    } = {}
+): Promise<IUserNotification[]> {
+    const { limit = 50, skip = 0, unreadOnly = false, type } = options;
+
+    const query: any = {
+        userId,
+        archived: false,
+        deletedAt: null
+    };
+
+    if (unreadOnly) {
+        query.unread = 1;
+    }
+
+    if (type) {
+        query.type = type;
+    }
+
+    return this.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec();
+};
+
+UserNotificationSchema.statics.findExpired = function (): Promise<IUserNotification[]> {
+    return this.find({
+        expiresAt: { $lt: new Date() },
+        archived: false,
+        deletedAt: null
+    }).exec();
+};
+
+UserNotificationSchema.statics.cleanupOldNotifications = function (days: number = 30) {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+
+    return this.updateMany(
+        {
+            createdAt: { $lt: cutoffDate },
+            unread: 0,
+            archived: false,
+            deletedAt: null
+        },
+        {
+            $set: {
+                archived: true,
+                deletedAt: new Date()
+            }
+        }
+    );
+};
+
+UserNotificationSchema.pre<IUserNotification>('save', function (next) {
+    if (this.scheduledAt && this.scheduledAt > new Date()) {
+        this.status = NotificationStatus.PENDING;
+    }
+
+    if (this.expiresAt && this.expiresAt < new Date() && !this.archived) {
+        this.unread = 0;
+        this.archived = true;
+        this.status = NotificationStatus.READ;
+    }
+
+    next();
+});
+
+UserNotificationSchema.pre(/^find/, function (this: any, next) {
+    if (this.getFilter().archived === undefined) {
+        this.where({ archived: false, deletedAt: null });
+    }
+    next();
+});
+
+const UserNotification: IUserNotificationModel = mongoose.model<IUserNotification, IUserNotificationModel>(
+    'UserNotification',
+    UserNotificationSchema
+);
+
+export default UserNotification;
