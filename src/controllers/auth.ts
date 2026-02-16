@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import User, { IUser } from '../models/User';
+import Driver, { IDriver } from '../models/Driver';
 import { AppError, asyncHandler, AppResponse } from '../middleware/error';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -60,6 +61,8 @@ export const login = asyncHandler(async (req: Request, res: Response, next: Next
         return next(new AppError('No user found with this phone number', 404));
     }
 
+
+
     // If user is admin, verify password
     // if (user.role === 'admin') {
     //     if (!password) {
@@ -108,7 +111,7 @@ export const verifyLoginOTP = asyncHandler(async (req: Request, res: Response, n
         return next(new AppError('Please provide phone number and OTP', 400));
     }
 
-    const user = await User.findOne({ phoneNumber }).select('+otp +otpExpiry');
+    const user = await User.findOne({ phoneNumber }).select('+otp +otpExpiry').populate('driverId');
 
     if (!user) {
         return next(new AppError('User not found', 404));
@@ -133,7 +136,6 @@ export const verifyLoginOTP = asyncHandler(async (req: Request, res: Response, n
     }
 
     await user.save({ validateBeforeSave: false });
-
     sendTokenResponse(user, 200, res as AppResponse, 'Login successful');
 });
 
@@ -188,7 +190,7 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response, next: 
         return next(new AppError('Please provide phone number and OTP', 400));
     }
 
-    const user = await User.findOne({ phoneNumber }).select('+otp +otpExpiry');
+    const user = await User.findOne({ phoneNumber }).select('+otp +otpExpiry').populate('driverId');
 
     if (!user) {
         return next(new AppError('User not found', 404));
@@ -384,7 +386,7 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response, nex
 
     const decoded: any = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET as string);
 
-    const user = await User.findById((decoded as any).id).select('+refreshToken');
+    const user = await User.findById((decoded as any).id).select('+refreshToken').populate('driverId');
 
     if (!user || user.refreshToken !== refreshToken) {
         return next(new AppError('Invalid refresh token', 401));

@@ -49,12 +49,18 @@ const AddressSchema = new mongoose_1.Schema({
             message: 'Label must be Home, Shop, Office, or Other'
         }
     },
-    fullname: {
+    phone: {
         type: String,
-        required: [true, 'Full name is required'],
+        required: [true, 'Phone number is required'],
         trim: true,
-        minlength: [3, 'Name must be at least 3 characters'],
-        maxlength: [100, 'Name cannot exceed 100 characters']
+        match: [/^[0-9+\-\s()]+$/, 'Please provide a valid phone number']
+    },
+    street: {
+        type: String,
+        required: [true, 'Street is required'],
+        trim: true,
+        minlength: [3, 'Street must be at least 3 characters'],
+        maxlength: [100, 'Street cannot exceed 100 characters']
     },
     address: {
         type: String,
@@ -63,30 +69,22 @@ const AddressSchema = new mongoose_1.Schema({
         minlength: [10, 'Address must be at least 10 characters'],
         maxlength: [500, 'Address cannot exceed 500 characters']
     },
-    phone: {
+    landmark: {
         type: String,
-        required: [true, 'Phone number is required'],
+        required: [true, 'Landmark is required'],
         trim: true,
-        match: [/^[0-9+\-\s()]+$/, 'Please provide a valid phone number']
+        minlength: [3, 'Landmark must be at least 3 characters'],
+        maxlength: [100, 'Landmark cannot exceed 100 characters']
     },
     state: {
         type: String,
         required: [true, 'State is required'],
         trim: true
     },
-    city: {
+    localGovernment: {
         type: String,
+        required: [true, 'Local Government is required'],
         trim: true
-    },
-    zipCode: {
-        type: String,
-        trim: true
-    },
-    email: {
-        type: String,
-        trim: true,
-        lowercase: true,
-        match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please provide a valid email']
     },
     isDefault: {
         type: Boolean,
@@ -111,13 +109,8 @@ AddressSchema.pre('save', async function (next) {
 });
 // Virtual for formatted address
 AddressSchema.virtual('formattedAddress').get(function () {
-    const parts = [this.address];
-    if (this.city)
-        parts.push(this.city);
-    parts.push(this.state);
-    if (this.zipCode)
-        parts.push(this.zipCode);
-    return parts.join(', ');
+    const parts = [this.street, this.landmark, this.localGovernment];
+    return parts.filter(part => part).join(', ');
 });
 exports.default = mongoose_1.default.model('Address', AddressSchema);
 //# sourceMappingURL=Address.js.map

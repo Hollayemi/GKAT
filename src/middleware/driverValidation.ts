@@ -35,6 +35,16 @@ export const validateDriverCreate = (req: Request, res: Response, next: NextFunc
     // Phone validation
     if (!phone || phone.trim().length === 0) {
         errors.phone = ['Phone number is required'];
+    } else {
+        const cleaned = phone.replace(/[\s()-]/g, "");
+
+        if (!/^\+?\d+$/.test(cleaned)) {
+            errors.phone = ['Phone number contains invalid characters'];
+        }
+
+        if (cleaned.length < 10 || cleaned.length > 15) {
+            errors.phone = ['Phone number must be between 10 and 15 digits'];
+        }
     }
 
     // Address validation

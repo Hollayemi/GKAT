@@ -1,8 +1,14 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
+interface coordinate {    
+ coordinates: [number, number];
+ point: string;
+}
+
 export interface IRegion extends Document {
     name: string;
     isActive: boolean;
+    coordinate: coordinate;
     order?: number;
     createdAt: Date;
     updatedAt: Date;
@@ -28,6 +34,23 @@ const RegionSchema: Schema<IRegion> = new Schema(
             minlength: [2, 'Region name must be at least 2 characters long'],
             maxlength: [100, 'Region name cannot exceed 100 characters']
         },
+        coordinate: {
+            point: {
+                type: String,
+                default: 'Point'
+            },
+            coordinates: {
+                type: [Number],
+                required: [true, 'Coordinate is required'],
+                // validate: {
+                //     validator: function (value: number[]) {
+                //         return value.length === 2 && value.every(num => typeof num === 'number');
+                //     },
+                //     message: 'Coordinate must be an array of two numbers [latitude, longitude]'
+                // }
+            }
+        },
+
         isActive: {
             type: Boolean,
             default: true,
@@ -136,7 +159,7 @@ RegionSchema.pre<IRegion>('save', function (next) {
     next();
 });
 
-RegionSchema.pre<IRegion>('deleteOne', async function (next:any) {
+RegionSchema.pre<IRegion>('deleteOne', async function (next: any) {
     try {
 
         const Product = mongoose.model('Product');

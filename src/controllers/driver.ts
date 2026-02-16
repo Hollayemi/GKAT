@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import Driver from '../models/Driver';
+import User from '../models/User';
 import DriverActivity from '../models/activities/driver';
 import { AppError, asyncHandler, AppResponse } from '../middleware/error';
 import CloudinaryService from '../services/cloudinary';
@@ -35,7 +36,7 @@ const logDriverActivity = async (
 // @desc    Get all drivers with filtering and pagination
 // @route   GET /api/v1/drivers
 // @access  Private/Admin
-export const getAllDrivers = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+export const getAllDrivers = asyncHandler(async (req: Request, res: Response) => {
     const {
         search,
         status,
@@ -90,6 +91,7 @@ export const getAllDrivers = asyncHandler(async (req: Request, res: Response, ne
     const [drivers, total] = await Promise.all([
         Driver.find(query)
             .select('-password -passwordSetupToken -passwordSetupExpiry')
+            .populate('userId', 'name email')
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limitNum)
@@ -99,14 +101,14 @@ export const getAllDrivers = asyncHandler(async (req: Request, res: Response, ne
 
     (res as AppResponse).data(
         {
-            drivers, 
+            drivers,
             pagination: {
                 page: pageNum,
                 limit: limitNum,
                 total,
                 totalPages: Math.ceil(total / limitNum)
             }
-    },
+        },
         'Drivers retrieved successfully',
         200,
     );
@@ -136,14 +138,12 @@ export const createDriver = asyncHandler(async (req: Request, res: Response, nex
         fullName,
         email,
         phone,
-        address,
         city,
         state,
         vehicleType,
         vehiclePlateNumber,
         region,
         employmentType,
-        dateOfBirth,
         vehicleModel,
         vehicleColor,
         assignedBranch,
@@ -154,16 +154,19 @@ export const createDriver = asyncHandler(async (req: Request, res: Response, nex
         emergencyContactRelationship
     } = req.body;
 
-    // Check if email already exists
-    const existingDriver = await Driver.findOne({ email: email.toLowerCase() });
+    
+
+    // Check if phone number already exists
+    const existingDriver = await Driver.findOne({ phone });
     if (existingDriver) {
-        return next(new AppError('Email already exists', 400, 'DUPLICATE_EMAIL'));
+        return next(new AppError('Phone number already exists', 400, 'DUPLICATE_PHONE'));
     }
 
     // Check if plate number already exists
-    const existingPlate = await Driver.findOne({ 
-        vehiclePlateNumber: vehiclePlateNumber.toUpperCase().replace(/\s/g, '') 
+    const existingPlate = await Driver.findOne({
+        vehiclePlateNumber: vehiclePlateNumber.toUpperCase().replace(/\s/g, '')
     });
+
     if (existingPlate) {
         return next(new AppError('Vehicle plate number already registered', 400, 'DUPLICATE_PLATE_NUMBER'));
     }
@@ -196,15 +199,28 @@ export const createDriver = asyncHandler(async (req: Request, res: Response, nex
         }
     }
 
+    let existingUser = null; // Initialize existingUser variable
+
+    existingUser = await User.findOne({ phone }).lean();
+
+    if (!existingUser) {
+        const newUser = await User.create({
+            phoneNumber: phone,
+            residentArea: city || state || 'Unknown',
+            name: fullName,
+            email: email,
+            role: 'driver'
+        });
+        existingUser = newUser;
+    }
+
+    // const user = await User.create({
+
     // Create driver
     const driver = await Driver.create({
-        fullName,
-        email: email.toLowerCase(),
+        userId: existingUser._id,
         phone,
-        address,
-        city,
-        state,
-        dateOfBirth,
+
         vehicleType,
         vehicleModel,
         vehiclePlateNumber: vehiclePlateNumber.toUpperCase().replace(/\s/g, ''),
@@ -227,17 +243,16 @@ export const createDriver = asyncHandler(async (req: Request, res: Response, nex
     });
 
     // Generate password setup token
-    const setupToken = driver.generatePasswordSetupToken();
     await driver.save();
 
     // Send password setup email
     try {
-        const setupUrl = `${process.env.DRIVER_APP_URL}/setup-password?token=${setupToken}`;
-        await sendEmail({
-            to: driver.email,
-            subject: 'Set up your GoKart Driver account',
-            html: driverEmailTemplates.passwordSetup(driver.fullName, setupUrl)
-        });
+        // const setupUrl = `${process.env.DRIVER_APP_URL}/setup-password?token=${setupToken}`;
+        // await sendEmail({
+        //     to: driver.email,
+        //     subject: 'Set up your GoKart Driver account',
+        //     html: driverEmailTemplates.passwordSetup(driver.fullName, setupUrl)
+        // });
     } catch (error) {
         console.error('Failed to send password setup email:', error);
     }
@@ -245,7 +260,7 @@ export const createDriver = asyncHandler(async (req: Request, res: Response, nex
     // Log activity
     await logDriverActivity(
         driver._id.toString(),
-        driver.fullName,
+        existingUser.name,
         'Registration',
         'Driver account created',
         {
@@ -259,8 +274,8 @@ export const createDriver = asyncHandler(async (req: Request, res: Response, nex
 
     const responseData = {
         _id: driver._id,
-        fullName: driver.fullName,
-        email: driver.email,
+        fullName: existingUser.name,
+        email: existingUser.email,
         phone: driver.phone,
         vehicleType: driver.vehicleType,
         vehiclePlateNumber: driver.vehiclePlateNumber,
@@ -281,14 +296,14 @@ export const createDriver = asyncHandler(async (req: Request, res: Response, nex
 // @route   PUT /api/v1/drivers/:id
 // @access  Private/Admin
 export const updateDriver = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-    const driver = await Driver.findById(req.params.id);
+    const driver = await Driver.findById(req.params.id).populate('userId', 'name email').exec() as any;
 
     if (!driver) {
         return next(new AppError('Driver not found', 404));
     }
 
     // Email cannot be updated
-    if (req.body.email && req.body.email !== driver.email) {
+    if (req.body.email && req.body.email !== (driver.userId as any).email) {
         return next(new AppError('Email cannot be changed', 400));
     }
 
@@ -365,7 +380,7 @@ export const updateDriver = asyncHandler(async (req: Request, res: Response, nex
     // Log activity
     await logDriverActivity(
         driver._id.toString(),
-        driver.fullName,
+        driver.userId.name,
         'Profile Updated',
         'Driver profile information updated',
         {
@@ -382,7 +397,7 @@ export const updateDriver = asyncHandler(async (req: Request, res: Response, nex
 // @route   DELETE /api/v1/drivers/:id
 // @access  Private/Admin
 export const deleteDriver = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-    const driver = await Driver.findById(req.params.id);
+    const driver = await Driver.findById(req.params.id).populate('userId', 'name email').exec() as any;
 
     if (!driver) {
         return next(new AppError('Driver not found', 404));
@@ -410,7 +425,7 @@ export const deleteDriver = asyncHandler(async (req: Request, res: Response, nex
     // Log activity
     await logDriverActivity(
         driver._id.toString(),
-        driver.fullName,
+        driver.userId.name,
         'Account Deleted',
         'Driver account deleted by admin',
         undefined,
@@ -430,7 +445,7 @@ export const deleteDriver = asyncHandler(async (req: Request, res: Response, nex
 export const verifyDriver = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { notes } = req.body;
 
-    const driver = await Driver.findById(req.params.id);
+    const driver = await Driver.findById(req.params.id).populate('userId', 'name email').exec() as any;
 
     if (!driver) {
         return next(new AppError('Driver not found', 404));
@@ -454,9 +469,9 @@ export const verifyDriver = asyncHandler(async (req: Request, res: Response, nex
     try {
         const loginUrl = `${process.env.DRIVER_APP_URL}/login`;
         await sendEmail({
-            to: driver.email,
+            to: driver.userId.email,
             subject: 'Your driver account has been verified!',
-            html: driverEmailTemplates.verificationApproved(driver.fullName, loginUrl)
+            html: driverEmailTemplates.verificationApproved(driver.userId.name, loginUrl)
         });
     } catch (error) {
         console.error('Failed to send verification email:', error);
@@ -465,7 +480,7 @@ export const verifyDriver = asyncHandler(async (req: Request, res: Response, nex
     // Log activity
     await logDriverActivity(
         driver._id.toString(),
-        driver.fullName,
+        driver.userId.name,
         'Account Verified',
         'Driver account verified by admin',
         {
@@ -478,7 +493,7 @@ export const verifyDriver = asyncHandler(async (req: Request, res: Response, nex
 
     const responseData = {
         _id: driver._id,
-        fullName: driver.fullName,
+        fullName: driver.userId.name,
         status: driver.status,
         verificationStatus: driver.verificationStatus,
         verifiedAt: driver.verifiedAt,
@@ -498,7 +513,7 @@ export const rejectDriver = asyncHandler(async (req: Request, res: Response, nex
         return next(new AppError('Rejection reason is required', 400));
     }
 
-    const driver = await Driver.findById(req.params.id);
+    const driver = await Driver.findById(req.params.id).populate('userId', 'name email').exec() as any;
 
     if (!driver) {
         return next(new AppError('Driver not found', 404));
@@ -514,9 +529,9 @@ export const rejectDriver = asyncHandler(async (req: Request, res: Response, nex
     // Send rejection email
     try {
         await sendEmail({
-            to: driver.email,
+            to: driver.userId.email,
             subject: 'Driver account verification update',
-            html: driverEmailTemplates.verificationRejected(driver.fullName, reason)
+            html: driverEmailTemplates.verificationRejected(driver.userId.name, reason)
         });
     } catch (error) {
         console.error('Failed to send rejection email:', error);
@@ -557,7 +572,7 @@ export const suspendDriver = asyncHandler(async (req: Request, res: Response, ne
         return next(new AppError('Suspension reason is required', 400));
     }
 
-    const driver = await Driver.findById(req.params.id);
+    const driver = await Driver.findById(req.params.id).populate('userId', 'name email') as any
 
     if (!driver) {
         return next(new AppError('Driver not found', 404));
@@ -581,9 +596,9 @@ export const suspendDriver = asyncHandler(async (req: Request, res: Response, ne
     if (notifyDriver) {
         try {
             await sendEmail({
-                to: driver.email,
+                to: driver.userId.email,
                 subject: 'Your driver account has been suspended',
-                html: driverEmailTemplates.accountSuspended(driver.fullName, reason, duration, driver.suspendedUntil)
+                html: driverEmailTemplates.accountSuspended(driver.userId.name, reason, duration, driver.suspendedUntil)
             });
         } catch (error) {
             console.error('Failed to send suspension email:', error);
@@ -593,7 +608,7 @@ export const suspendDriver = asyncHandler(async (req: Request, res: Response, ne
     // Log activity
     await logDriverActivity(
         driver._id.toString(),
-        driver.fullName,
+        driver.userId.name,
         'Account Suspended',
         `Driver account suspended: ${reason}`,
         {
@@ -620,7 +635,7 @@ export const suspendDriver = asyncHandler(async (req: Request, res: Response, ne
 // @route   POST /api/v1/drivers/:id/unsuspend
 // @access  Private/Admin
 export const unsuspendDriver = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-    const driver = await Driver.findById(req.params.id);
+    const driver = await Driver.findById(req.params.id).populate('userId', 'name email') as any;
 
     if (!driver) {
         return next(new AppError('Driver not found', 404));
@@ -640,7 +655,7 @@ export const unsuspendDriver = asyncHandler(async (req: Request, res: Response, 
     // Log activity
     await logDriverActivity(
         driver._id.toString(),
-        driver.fullName,
+        driver.userId.name,
         'Account Unsuspended',
         'Driver account unsuspended by admin',
         {
@@ -663,7 +678,7 @@ export const disableDriver = asyncHandler(async (req: Request, res: Response, ne
         return next(new AppError('Disablement reason is required', 400));
     }
 
-    const driver = await Driver.findById(req.params.id);
+    const driver = await Driver.findById(req.params.id).populate('userId', 'name email') as any;
 
     if (!driver) {
         return next(new AppError('Driver not found', 404));
@@ -680,9 +695,9 @@ export const disableDriver = asyncHandler(async (req: Request, res: Response, ne
     if (notifyDriver) {
         try {
             await sendEmail({
-                to: driver.email,
+                to: driver.userId.email,
                 subject: 'Driver account disabled',
-                html: driverEmailTemplates.accountDisabled(driver.fullName, reason)
+                html: driverEmailTemplates.accountDisabled(driver.userId.name, reason)
             });
         } catch (error) {
             console.error('Failed to send disablement email:', error);
@@ -692,7 +707,7 @@ export const disableDriver = asyncHandler(async (req: Request, res: Response, ne
     // Log activity
     await logDriverActivity(
         driver._id.toString(),
-        driver.fullName,
+        driver.userId.name,
         'Account Disabled',
         `Driver account disabled: ${reason}`,
         {
@@ -717,7 +732,7 @@ export const disableDriver = asyncHandler(async (req: Request, res: Response, ne
 // @route   POST /api/v1/drivers/:id/enable
 // @access  Private/Admin
 export const enableDriver = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-    const driver = await Driver.findById(req.params.id);
+    const driver = await Driver.findById(req.params.id).populate('userId', 'name email') as any;
 
     if (!driver) {
         return next(new AppError('Driver not found', 404));
@@ -736,7 +751,7 @@ export const enableDriver = asyncHandler(async (req: Request, res: Response, nex
     // Log activity
     await logDriverActivity(
         driver._id.toString(),
-        driver.fullName,
+        driver.userId.name,
         'Account Enabled',
         'Driver account enabled by admin',
         {
@@ -753,7 +768,7 @@ export const enableDriver = asyncHandler(async (req: Request, res: Response, nex
 // @route   POST /api/v1/drivers/:id/resend-password-link
 // @access  Private/Admin
 export const resendPasswordLink = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-    const driver = await Driver.findById(req.params.id);
+    const driver = await Driver.findById(req.params.id).populate('userId', 'name email') as any;
 
     if (!driver) {
         return next(new AppError('Driver not found', 404));
@@ -769,12 +784,11 @@ export const resendPasswordLink = asyncHandler(async (req: Request, res: Respons
 
     // Send password setup email
     try {
-        const setupUrl = `${process.env.DRIVER_APP_URL}/setup-password?token=${setupToken}`;
-        await sendEmail({
-            to: driver.email,
-            subject: 'New password setup link - GoKart Driver',
-            html: driverEmailTemplates.passwordSetupResend(driver.fullName, setupUrl)
-        });
+        // await sendEmail({
+        //     to: driver.email,
+        //     subject: 'New password setup link - GoKart Driver',
+        //     html: driverEmailTemplates.passwordSetupResend(driver.userId.name, setupUrl)
+        // });
     } catch (error) {
         console.error('Failed to send password setup email:', error);
         return next(new AppError('Failed to send password setup email', 500));
@@ -783,7 +797,7 @@ export const resendPasswordLink = asyncHandler(async (req: Request, res: Respons
     // Log activity
     await logDriverActivity(
         driver._id.toString(),
-        driver.fullName,
+        driver.userId.name,
         'Password Link Resent',
         'Password setup link resent by admin',
         {
@@ -830,11 +844,11 @@ export const bulkSuspend = asyncHandler(async (req: Request, res: Response, next
     );
 
     // Log activity for each driver
-    const drivers = await Driver.find({ _id: { $in: ids } }).select('fullName');
+    const drivers = await Driver.find({ _id: { $in: ids } }).populate('userId', 'name email') as any;
     for (const driver of drivers) {
         await logDriverActivity(
             driver._id.toString(),
-            driver.fullName,
+            driver.userId.name,
             'Bulk Suspend',
             `Driver suspended in bulk operation: ${reason}`,
             {
@@ -867,7 +881,7 @@ export const bulkDelete = asyncHandler(async (req: Request, res: Response, next:
     }
 
     // Get drivers before deletion to delete their images
-    const drivers = await Driver.find({ _id: { $in: ids } });
+    const drivers = await Driver.find({ _id: { $in: ids } }).populate('userId', 'name email') as any;
 
     // Delete images from Cloudinary
     for (const driver of drivers) {
@@ -890,7 +904,7 @@ export const bulkDelete = asyncHandler(async (req: Request, res: Response, next:
         // Log activity
         await logDriverActivity(
             driver._id.toString(),
-            driver.fullName,
+            driver.userId.name,
             'Bulk Delete',
             'Driver account deleted in bulk operation',
             {
@@ -938,7 +952,7 @@ export const getActivityLogs = asyncHandler(async (req: Request, res: Response, 
     ]);
 
     (res as AppResponse).data(
-        { 
+        {
             logs,
             pagination: {
                 page: pageNum,
@@ -963,7 +977,7 @@ export const getDriverStatistics = asyncHandler(async (req: Request, res: Respon
     }
 
     // Calculate additional statistics
-    const completionRate = driver.totalDeliveries > 0 
+    const completionRate = driver.totalDeliveries > 0
         ? ((driver.completedDeliveries / driver.totalDeliveries) * 100).toFixed(1)
         : 0;
 
@@ -978,11 +992,11 @@ export const getDriverStatistics = asyncHandler(async (req: Request, res: Respon
         rating: driver.rating,
         completionRate: parseFloat(completionRate as string),
         cancellationRate: parseFloat(cancellationRate as string),
-        isLicenseExpiringSoon: driver.licenseExpiry 
+        isLicenseExpiringSoon: driver.licenseExpiry
             ? new Date(driver.licenseExpiry).getTime() < Date.now() + 30 * 24 * 60 * 60 * 1000
             : false,
         accountAge: Math.floor((Date.now() - driver.joinedDate.getTime()) / (1000 * 60 * 60 * 24)), // days
-        lastActiveAgo: driver.lastActive 
+        lastActiveAgo: driver.lastActive
             ? Math.floor((Date.now() - driver.lastActive.getTime()) / (1000 * 60 * 60 * 24)) // days
             : null
     };
@@ -993,7 +1007,7 @@ export const getDriverStatistics = asyncHandler(async (req: Request, res: Respon
 // @desc    Get drivers dashboard summary
 // @route   GET /api/v1/drivers/dashboard/summary
 // @access  Private/Admin
-export const getDashboardSummary = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+export const getDashboardSummary = asyncHandler(async (req: Request, res: Response) => {
     const [
         totalDrivers,
         activeDrivers,

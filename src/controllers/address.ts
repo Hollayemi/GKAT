@@ -48,10 +48,10 @@ export const createAddress = asyncHandler(async (req: Request, res: Response, ne
         return next(new AppError('Not authenticated', 401));
     }
 
-    const { label, fullname, address, phone, state } = req.body;
+    const { label, landmark, address, localGovernment, state, phone } = req.body;
 
-    if (!label || !fullname || !address || !phone || !state) {
-        return next(new AppError('Please provide all required fields: label, fullname, address, phone, state', 400));
+    if (!label || !landmark || !address || !localGovernment || !state || !phone) {
+        return next(new AppError('Please provide all required fields: label, landmark, address, localGovernment, state, phone', 400));
     }
 
     const addressCount = await Address.countDocuments({ userId: req.user.id });

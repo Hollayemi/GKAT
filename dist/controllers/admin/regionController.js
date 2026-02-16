@@ -38,7 +38,8 @@ exports.createRegion = (0, error_1.asyncHandler)(async (req, res, next) => {
     // if (!req.user?.isAdmin) {
     //     return next(new AppError('Not authorized to perform this action', 403));
     // }
-    const { name } = req.body;
+    const { name, coordinates } = req.body;
+    console.log(req.body);
     // Check if region already exists
     const existingRegion = await region_model_1.default.findByName(name);
     if (existingRegion) {
@@ -46,6 +47,7 @@ exports.createRegion = (0, error_1.asyncHandler)(async (req, res, next) => {
     }
     const region = await region_model_1.default.create({
         name,
+        coordinate: { coordinates: coordinates },
         order: req.body.order || 0,
         isActive: req.body.isActive !== undefined ? req.body.isActive : true
     });

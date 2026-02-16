@@ -28,6 +28,8 @@ export interface IUser extends Document {
     avatar?: string;
     role: 'user' | 'admin' | 'driver';
 
+    driverId: Types.ObjectId; // Reference to Driver model if role is 'driver'
+
     isPhoneVerified: boolean;
     isEmailVerified: boolean;
 
@@ -67,6 +69,7 @@ const UserSchema = new Schema<IUser>({
         trim: true,
         maxlength: [50, 'Name cannot be more than 50 characters']
     },
+
     email: {
         type: String,
         lowercase: true,
@@ -85,6 +88,7 @@ const UserSchema = new Schema<IUser>({
     phoneNumber: {
         type: String,
         required: [true, 'Please add a phone number'],
+        match: [/^[0-9+\-\s()]+$/, 'Please provide a valid phone number'],
         unique: true,
         trim: true,
         index: true
@@ -104,7 +108,11 @@ const UserSchema = new Schema<IUser>({
         default: 'user',
         index: true
     },
-
+    driverId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Driver',
+        default: null
+    },
     isPhoneVerified: {
         type: Boolean,
         default: false

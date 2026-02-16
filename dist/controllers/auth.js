@@ -86,7 +86,7 @@ exports.verifyLoginOTP = (0, error_1.asyncHandler)(async (req, res, next) => {
     if (!phoneNumber || !otp) {
         return next(new error_1.AppError('Please provide phone number and OTP', 400));
     }
-    const user = await User_1.default.findOne({ phoneNumber }).select('+otp +otpExpiry');
+    const user = await User_1.default.findOne({ phoneNumber }).select('+otp +otpExpiry').populate('driverId');
     if (!user) {
         return next(new error_1.AppError('User not found', 404));
     }
@@ -147,7 +147,7 @@ exports.verifyOTP = (0, error_1.asyncHandler)(async (req, res, next) => {
     if (!phoneNumber || !otp) {
         return next(new error_1.AppError('Please provide phone number and OTP', 400));
     }
-    const user = await User_1.default.findOne({ phoneNumber }).select('+otp +otpExpiry');
+    const user = await User_1.default.findOne({ phoneNumber }).select('+otp +otpExpiry').populate('driverId');
     if (!user) {
         return next(new error_1.AppError('User not found', 404));
     }
@@ -297,7 +297,7 @@ exports.refreshToken = (0, error_1.asyncHandler)(async (req, res, next) => {
         return next(new error_1.AppError('Please provide refresh token', 400));
     }
     const decoded = jsonwebtoken_1.default.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-    const user = await User_1.default.findById(decoded.id).select('+refreshToken');
+    const user = await User_1.default.findById(decoded.id).select('+refreshToken').populate('driverId');
     if (!user || user.refreshToken !== refreshToken) {
         return next(new error_1.AppError('Invalid refresh token', 401));
     }

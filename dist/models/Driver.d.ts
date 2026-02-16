@@ -5,13 +5,8 @@ interface IEmergencyContact {
     relationship?: string;
 }
 export interface IDriver extends Document {
-    fullName: string;
-    email: string;
+    userId: Types.ObjectId;
     phone: string;
-    address: string;
-    city: string;
-    state: string;
-    dateOfBirth?: Date;
     vehicleType: 'motorcycle' | 'bicycle' | 'car' | 'van' | 'truck';
     vehicleModel?: string;
     vehiclePlateNumber: string;
@@ -49,6 +44,8 @@ export interface IDriver extends Document {
     lastActive?: Date;
     createdAt: Date;
     updatedAt: Date;
+    otp?: string;
+    otpExpiry?: Date;
     comparePassword(candidatePassword: string): Promise<boolean>;
     generatePasswordSetupToken(): string;
 }

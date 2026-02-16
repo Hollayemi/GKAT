@@ -62,6 +62,7 @@ const advert_1 = __importDefault(require("./routes/advert"));
 const Staffs_1 = __importDefault(require("./routes/Staffs"));
 const Roles_1 = __importDefault(require("./routes/Roles"));
 const driver_1 = __importDefault(require("./routes/driver"));
+const others_1 = __importDefault(require("./routes/others"));
 const pushNotification_1 = __importDefault(require("./routes/pushNotification"));
 app.use('/api/v1/auth', auth_1.default);
 app.use('/api/v1/product', products_1.default);
@@ -78,6 +79,7 @@ app.use('/api/v1/roles', Roles_1.default);
 app.use('/api/v1/staff', Staffs_1.default);
 app.use('/api/v1/drivers', driver_1.default);
 app.use('/api/v1/push-notifications', pushNotification_1.default);
+app.use('/api/v1/', others_1.default);
 app.use('*', error_1.handle404);
 app.use(error_1.errorHandler);
 const server = app.listen(PORT, () => {

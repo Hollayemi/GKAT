@@ -2,13 +2,12 @@ import mongoose, { Document, Types } from 'mongoose';
 export interface IAddress extends Document {
     userId: Types.ObjectId;
     label: 'Home' | 'Shop' | 'Office' | 'Other';
-    fullname: string;
+    phone?: string;
+    street: string;
     address: string;
-    phone: string;
+    landmark: string;
     state: string;
-    city?: string;
-    zipCode?: string;
-    email?: string;
+    localGovernment: string;
     isDefault: boolean;
     createdAt: Date;
     updatedAt: Date;

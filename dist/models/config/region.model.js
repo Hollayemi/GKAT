@@ -43,6 +43,22 @@ const RegionSchema = new mongoose_1.Schema({
         minlength: [2, 'Region name must be at least 2 characters long'],
         maxlength: [100, 'Region name cannot exceed 100 characters']
     },
+    coordinate: {
+        point: {
+            type: String,
+            default: 'Point'
+        },
+        coordinates: {
+            type: [Number],
+            required: [true, 'Coordinate is required'],
+            // validate: {
+            //     validator: function (value: number[]) {
+            //         return value.length === 2 && value.every(num => typeof num === 'number');
+            //     },
+            //     message: 'Coordinate must be an array of two numbers [latitude, longitude]'
+            // }
+        }
+    },
     isActive: {
         type: Boolean,
         default: true,

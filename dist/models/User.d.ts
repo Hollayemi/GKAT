@@ -22,6 +22,7 @@ export interface IUser extends Document {
     residentArea: string;
     avatar?: string;
     role: 'user' | 'admin' | 'driver';
+    driverId: Types.ObjectId;
     isPhoneVerified: boolean;
     isEmailVerified: boolean;
     referralCode: string;

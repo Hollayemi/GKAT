@@ -44,9 +44,9 @@ exports.createAddress = (0, error_1.asyncHandler)(async (req, res, next) => {
     if (!req.user) {
         return next(new error_1.AppError('Not authenticated', 401));
     }
-    const { label, fullname, address, phone, state } = req.body;
-    if (!label || !fullname || !address || !phone || !state) {
-        return next(new error_1.AppError('Please provide all required fields: label, fullname, address, phone, state', 400));
+    const { label, landmark, address, localGovernment, state, phone } = req.body;
+    if (!label || !landmark || !address || !localGovernment || !state || !phone) {
+        return next(new error_1.AppError('Please provide all required fields: label, landmark, address, localGovernment, state, phone', 400));
     }
     const addressCount = await Address_1.default.countDocuments({ userId: req.user.id });
     if (addressCount === 0) {

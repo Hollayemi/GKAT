@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getDashboardSummary = exports.getDriverStatistics = exports.getActivityLogs = exports.bulkDelete = exports.bulkSuspend = exports.resendPasswordLink = exports.enableDriver = exports.disableDriver = exports.unsuspendDriver = exports.suspendDriver = exports.rejectDriver = exports.verifyDriver = exports.deleteDriver = exports.updateDriver = exports.createDriver = exports.getDriverById = exports.getAllDrivers = void 0;
 const Driver_1 = __importDefault(require("../models/Driver"));
+const User_1 = __importDefault(require("../models/User"));
 const driver_1 = __importDefault(require("../models/activities/driver"));
 const error_1 = require("../middleware/error");
 const cloudinary_1 = __importDefault(require("../services/cloudinary"));
@@ -30,7 +31,7 @@ const logDriverActivity = async (driverId, driverName, action, description, meta
 // @desc    Get all drivers with filtering and pagination
 // @route   GET /api/v1/drivers
 // @access  Private/Admin
-exports.getAllDrivers = (0, error_1.asyncHandler)(async (req, res, next) => {
+exports.getAllDrivers = (0, error_1.asyncHandler)(async (req, res) => {
     const { search, status, region, vehicleType, employmentType, verificationStatus, page = 1, limit = 10 } = req.query;
     const query = {};
     // Search by name, email, or phone
@@ -67,6 +68,7 @@ exports.getAllDrivers = (0, error_1.asyncHandler)(async (req, res, next) => {
     const [drivers, total] = await Promise.all([
         Driver_1.default.find(query)
             .select('-password -passwordSetupToken -passwordSetupExpiry')
+            .populate('userId', 'name email')
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limitNum)
@@ -100,11 +102,11 @@ exports.getDriverById = (0, error_1.asyncHandler)(async (req, res, next) => {
 // @route   POST /api/v1/drivers
 // @access  Private/Admin
 exports.createDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
-    const { fullName, email, phone, address, city, state, vehicleType, vehiclePlateNumber, region, employmentType, dateOfBirth, vehicleModel, vehicleColor, assignedBranch, licenseNumber, licenseExpiry, emergencyContactName, emergencyContactPhone, emergencyContactRelationship } = req.body;
-    // Check if email already exists
-    const existingDriver = await Driver_1.default.findOne({ email: email.toLowerCase() });
+    const { fullName, email, phone, city, state, vehicleType, vehiclePlateNumber, region, employmentType, vehicleModel, vehicleColor, assignedBranch, licenseNumber, licenseExpiry, emergencyContactName, emergencyContactPhone, emergencyContactRelationship } = req.body;
+    // Check if phone number already exists
+    const existingDriver = await Driver_1.default.findOne({ phone });
     if (existingDriver) {
-        return next(new error_1.AppError('Email already exists', 400, 'DUPLICATE_EMAIL'));
+        return next(new error_1.AppError('Phone number already exists', 400, 'DUPLICATE_PHONE'));
     }
     // Check if plate number already exists
     const existingPlate = await Driver_1.default.findOne({
@@ -139,15 +141,23 @@ exports.createDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
             }
         }
     }
+    let existingUser = null; // Initialize existingUser variable
+    existingUser = await User_1.default.findOne({ phone }).lean();
+    if (!existingUser) {
+        const newUser = await User_1.default.create({
+            phoneNumber: phone,
+            residentArea: city || state || 'Unknown',
+            name: fullName,
+            email: email,
+            role: 'driver'
+        });
+        existingUser = newUser;
+    }
+    // const user = await User.create({
     // Create driver
     const driver = await Driver_1.default.create({
-        fullName,
-        email: email.toLowerCase(),
+        userId: existingUser._id,
         phone,
-        address,
-        city,
-        state,
-        dateOfBirth,
         vehicleType,
         vehicleModel,
         vehiclePlateNumber: vehiclePlateNumber.toUpperCase().replace(/\s/g, ''),
@@ -169,30 +179,29 @@ exports.createDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
         hasSetPassword: false
     });
     // Generate password setup token
-    const setupToken = driver.generatePasswordSetupToken();
     await driver.save();
     // Send password setup email
     try {
-        const setupUrl = `${process.env.DRIVER_APP_URL}/setup-password?token=${setupToken}`;
-        await (0, driverEmail_1.sendEmail)({
-            to: driver.email,
-            subject: 'Set up your GoKart Driver account',
-            html: driverEmail_1.driverEmailTemplates.passwordSetup(driver.fullName, setupUrl)
-        });
+        // const setupUrl = `${process.env.DRIVER_APP_URL}/setup-password?token=${setupToken}`;
+        // await sendEmail({
+        //     to: driver.email,
+        //     subject: 'Set up your GoKart Driver account',
+        //     html: driverEmailTemplates.passwordSetup(driver.fullName, setupUrl)
+        // });
     }
     catch (error) {
         console.error('Failed to send password setup email:', error);
     }
     // Log activity
-    await logDriverActivity(driver._id.toString(), driver.fullName, 'Registration', 'Driver account created', {
+    await logDriverActivity(driver._id.toString(), existingUser.name, 'Registration', 'Driver account created', {
         vehicleType: driver.vehicleType,
         region: driver.region,
         employmentType: driver.employmentType
     }, undefined, req.ip);
     const responseData = {
         _id: driver._id,
-        fullName: driver.fullName,
-        email: driver.email,
+        fullName: existingUser.name,
+        email: existingUser.email,
         phone: driver.phone,
         vehicleType: driver.vehicleType,
         vehiclePlateNumber: driver.vehiclePlateNumber,
@@ -211,12 +220,12 @@ exports.createDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
 // @route   PUT /api/v1/drivers/:id
 // @access  Private/Admin
 exports.updateDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
-    const driver = await Driver_1.default.findById(req.params.id);
+    const driver = await Driver_1.default.findById(req.params.id).populate('userId', 'name email').exec();
     if (!driver) {
         return next(new error_1.AppError('Driver not found', 404));
     }
     // Email cannot be updated
-    if (req.body.email && req.body.email !== driver.email) {
+    if (req.body.email && req.body.email !== driver.userId.email) {
         return next(new error_1.AppError('Email cannot be changed', 400));
     }
     // Check if new plate number already exists
@@ -281,7 +290,7 @@ exports.updateDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
         runValidators: true
     }).select('-password -passwordSetupToken -passwordSetupExpiry');
     // Log activity
-    await logDriverActivity(driver._id.toString(), driver.fullName, 'Profile Updated', 'Driver profile information updated', {
+    await logDriverActivity(driver._id.toString(), driver.userId.name, 'Profile Updated', 'Driver profile information updated', {
         updatedFields: Object.keys(req.body)
     }, undefined, req.ip);
     res.data(updatedDriver, 'Driver updated successfully');
@@ -290,7 +299,7 @@ exports.updateDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
 // @route   DELETE /api/v1/drivers/:id
 // @access  Private/Admin
 exports.deleteDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
-    const driver = await Driver_1.default.findById(req.params.id);
+    const driver = await Driver_1.default.findById(req.params.id).populate('userId', 'name email').exec();
     if (!driver) {
         return next(new error_1.AppError('Driver not found', 404));
     }
@@ -313,7 +322,7 @@ exports.deleteDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
     }
     await driver.deleteOne();
     // Log activity
-    await logDriverActivity(driver._id.toString(), driver.fullName, 'Account Deleted', 'Driver account deleted by admin', undefined, undefined, req.ip);
+    await logDriverActivity(driver._id.toString(), driver.userId.name, 'Account Deleted', 'Driver account deleted by admin', undefined, undefined, req.ip);
     res.success('Driver deleted successfully');
 });
 // Continue in Part 2...
@@ -323,7 +332,7 @@ exports.deleteDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
 // @access  Private/Admin
 exports.verifyDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
     const { notes } = req.body;
-    const driver = await Driver_1.default.findById(req.params.id);
+    const driver = await Driver_1.default.findById(req.params.id).populate('userId', 'name email').exec();
     if (!driver) {
         return next(new error_1.AppError('Driver not found', 404));
     }
@@ -342,22 +351,22 @@ exports.verifyDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
     try {
         const loginUrl = `${process.env.DRIVER_APP_URL}/login`;
         await (0, driverEmail_1.sendEmail)({
-            to: driver.email,
+            to: driver.userId.email,
             subject: 'Your driver account has been verified!',
-            html: driverEmail_1.driverEmailTemplates.verificationApproved(driver.fullName, loginUrl)
+            html: driverEmail_1.driverEmailTemplates.verificationApproved(driver.userId.name, loginUrl)
         });
     }
     catch (error) {
         console.error('Failed to send verification email:', error);
     }
     // Log activity
-    await logDriverActivity(driver._id.toString(), driver.fullName, 'Account Verified', 'Driver account verified by admin', {
+    await logDriverActivity(driver._id.toString(), driver.userId.name, 'Account Verified', 'Driver account verified by admin', {
         verifiedBy: req.user?.fullName,
         verificationNotes: notes
     }, undefined, req.ip);
     const responseData = {
         _id: driver._id,
-        fullName: driver.fullName,
+        fullName: driver.userId.name,
         status: driver.status,
         verificationStatus: driver.verificationStatus,
         verifiedAt: driver.verifiedAt,
@@ -373,7 +382,7 @@ exports.rejectDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
     if (!reason) {
         return next(new error_1.AppError('Rejection reason is required', 400));
     }
-    const driver = await Driver_1.default.findById(req.params.id);
+    const driver = await Driver_1.default.findById(req.params.id).populate('userId', 'name email').exec();
     if (!driver) {
         return next(new error_1.AppError('Driver not found', 404));
     }
@@ -385,9 +394,9 @@ exports.rejectDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
     // Send rejection email
     try {
         await (0, driverEmail_1.sendEmail)({
-            to: driver.email,
+            to: driver.userId.email,
             subject: 'Driver account verification update',
-            html: driverEmail_1.driverEmailTemplates.verificationRejected(driver.fullName, reason)
+            html: driverEmail_1.driverEmailTemplates.verificationRejected(driver.userId.name, reason)
         });
     }
     catch (error) {
@@ -415,7 +424,7 @@ exports.suspendDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
     if (!reason) {
         return next(new error_1.AppError('Suspension reason is required', 400));
     }
-    const driver = await Driver_1.default.findById(req.params.id);
+    const driver = await Driver_1.default.findById(req.params.id).populate('userId', 'name email');
     if (!driver) {
         return next(new error_1.AppError('Driver not found', 404));
     }
@@ -434,9 +443,9 @@ exports.suspendDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
     if (notifyDriver) {
         try {
             await (0, driverEmail_1.sendEmail)({
-                to: driver.email,
+                to: driver.userId.email,
                 subject: 'Your driver account has been suspended',
-                html: driverEmail_1.driverEmailTemplates.accountSuspended(driver.fullName, reason, duration, driver.suspendedUntil)
+                html: driverEmail_1.driverEmailTemplates.accountSuspended(driver.userId.name, reason, duration, driver.suspendedUntil)
             });
         }
         catch (error) {
@@ -444,7 +453,7 @@ exports.suspendDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
         }
     }
     // Log activity
-    await logDriverActivity(driver._id.toString(), driver.fullName, 'Account Suspended', `Driver account suspended: ${reason}`, {
+    await logDriverActivity(driver._id.toString(), driver.userId.name, 'Account Suspended', `Driver account suspended: ${reason}`, {
         suspendedBy: req.user?.fullName,
         reason,
         duration
@@ -462,7 +471,7 @@ exports.suspendDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
 // @route   POST /api/v1/drivers/:id/unsuspend
 // @access  Private/Admin
 exports.unsuspendDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
-    const driver = await Driver_1.default.findById(req.params.id);
+    const driver = await Driver_1.default.findById(req.params.id).populate('userId', 'name email');
     if (!driver) {
         return next(new error_1.AppError('Driver not found', 404));
     }
@@ -475,7 +484,7 @@ exports.unsuspendDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
     driver.suspensionReason = undefined;
     await driver.save();
     // Log activity
-    await logDriverActivity(driver._id.toString(), driver.fullName, 'Account Unsuspended', 'Driver account unsuspended by admin', {
+    await logDriverActivity(driver._id.toString(), driver.userId.name, 'Account Unsuspended', 'Driver account unsuspended by admin', {
         unsuspendedBy: req.user?.fullName
     }, undefined, req.ip);
     res.data({ driver }, 'Driver unsuspended successfully');
@@ -488,7 +497,7 @@ exports.disableDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
     if (!reason) {
         return next(new error_1.AppError('Disablement reason is required', 400));
     }
-    const driver = await Driver_1.default.findById(req.params.id);
+    const driver = await Driver_1.default.findById(req.params.id).populate('userId', 'name email');
     if (!driver) {
         return next(new error_1.AppError('Driver not found', 404));
     }
@@ -501,9 +510,9 @@ exports.disableDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
     if (notifyDriver) {
         try {
             await (0, driverEmail_1.sendEmail)({
-                to: driver.email,
+                to: driver.userId.email,
                 subject: 'Driver account disabled',
-                html: driverEmail_1.driverEmailTemplates.accountDisabled(driver.fullName, reason)
+                html: driverEmail_1.driverEmailTemplates.accountDisabled(driver.userId.name, reason)
             });
         }
         catch (error) {
@@ -511,7 +520,7 @@ exports.disableDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
         }
     }
     // Log activity
-    await logDriverActivity(driver._id.toString(), driver.fullName, 'Account Disabled', `Driver account disabled: ${reason}`, {
+    await logDriverActivity(driver._id.toString(), driver.userId.name, 'Account Disabled', `Driver account disabled: ${reason}`, {
         disabledBy: req.user?.fullName,
         reason
     }, undefined, req.ip);
@@ -527,7 +536,7 @@ exports.disableDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
 // @route   POST /api/v1/drivers/:id/enable
 // @access  Private/Admin
 exports.enableDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
-    const driver = await Driver_1.default.findById(req.params.id);
+    const driver = await Driver_1.default.findById(req.params.id).populate('userId', 'name email');
     if (!driver) {
         return next(new error_1.AppError('Driver not found', 404));
     }
@@ -539,7 +548,7 @@ exports.enableDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
     driver.disablementReason = undefined;
     await driver.save();
     // Log activity
-    await logDriverActivity(driver._id.toString(), driver.fullName, 'Account Enabled', 'Driver account enabled by admin', {
+    await logDriverActivity(driver._id.toString(), driver.userId.name, 'Account Enabled', 'Driver account enabled by admin', {
         enabledBy: req.user?.fullName
     }, undefined, req.ip);
     res.data({ driver }, 'Driver enabled successfully');
@@ -548,7 +557,7 @@ exports.enableDriver = (0, error_1.asyncHandler)(async (req, res, next) => {
 // @route   POST /api/v1/drivers/:id/resend-password-link
 // @access  Private/Admin
 exports.resendPasswordLink = (0, error_1.asyncHandler)(async (req, res, next) => {
-    const driver = await Driver_1.default.findById(req.params.id);
+    const driver = await Driver_1.default.findById(req.params.id).populate('userId', 'name email');
     if (!driver) {
         return next(new error_1.AppError('Driver not found', 404));
     }
@@ -560,19 +569,18 @@ exports.resendPasswordLink = (0, error_1.asyncHandler)(async (req, res, next) =>
     await driver.save();
     // Send password setup email
     try {
-        const setupUrl = `${process.env.DRIVER_APP_URL}/setup-password?token=${setupToken}`;
-        await (0, driverEmail_1.sendEmail)({
-            to: driver.email,
-            subject: 'New password setup link - GoKart Driver',
-            html: driverEmail_1.driverEmailTemplates.passwordSetupResend(driver.fullName, setupUrl)
-        });
+        // await sendEmail({
+        //     to: driver.email,
+        //     subject: 'New password setup link - GoKart Driver',
+        //     html: driverEmailTemplates.passwordSetupResend(driver.userId.name, setupUrl)
+        // });
     }
     catch (error) {
         console.error('Failed to send password setup email:', error);
         return next(new error_1.AppError('Failed to send password setup email', 500));
     }
     // Log activity
-    await logDriverActivity(driver._id.toString(), driver.fullName, 'Password Link Resent', 'Password setup link resent by admin', {
+    await logDriverActivity(driver._id.toString(), driver.userId.name, 'Password Link Resent', 'Password setup link resent by admin', {
         resentBy: req.user?.fullName
     }, undefined, req.ip);
     res.data({ emailSent: true }, 'Password setup link sent successfully');
@@ -600,9 +608,9 @@ exports.bulkSuspend = (0, error_1.asyncHandler)(async (req, res, next) => {
         }
     });
     // Log activity for each driver
-    const drivers = await Driver_1.default.find({ _id: { $in: ids } }).select('fullName');
+    const drivers = await Driver_1.default.find({ _id: { $in: ids } }).populate('userId', 'name email');
     for (const driver of drivers) {
-        await logDriverActivity(driver._id.toString(), driver.fullName, 'Bulk Suspend', `Driver suspended in bulk operation: ${reason}`, {
+        await logDriverActivity(driver._id.toString(), driver.userId.name, 'Bulk Suspend', `Driver suspended in bulk operation: ${reason}`, {
             suspendedBy: req.user?.fullName,
             reason,
             bulkOperation: true
@@ -622,7 +630,7 @@ exports.bulkDelete = (0, error_1.asyncHandler)(async (req, res, next) => {
         return next(new error_1.AppError('Driver IDs array is required', 400));
     }
     // Get drivers before deletion to delete their images
-    const drivers = await Driver_1.default.find({ _id: { $in: ids } });
+    const drivers = await Driver_1.default.find({ _id: { $in: ids } }).populate('userId', 'name email');
     // Delete images from Cloudinary
     for (const driver of drivers) {
         if (driver.profilePhoto) {
@@ -642,7 +650,7 @@ exports.bulkDelete = (0, error_1.asyncHandler)(async (req, res, next) => {
             }
         }
         // Log activity
-        await logDriverActivity(driver._id.toString(), driver.fullName, 'Bulk Delete', 'Driver account deleted in bulk operation', {
+        await logDriverActivity(driver._id.toString(), driver.userId.name, 'Bulk Delete', 'Driver account deleted in bulk operation', {
             deletedBy: req.user?.fullName,
             bulkOperation: true
         }, undefined, req.ip);
@@ -717,7 +725,7 @@ exports.getDriverStatistics = (0, error_1.asyncHandler)(async (req, res, next) =
 // @desc    Get drivers dashboard summary
 // @route   GET /api/v1/drivers/dashboard/summary
 // @access  Private/Admin
-exports.getDashboardSummary = (0, error_1.asyncHandler)(async (req, res, next) => {
+exports.getDashboardSummary = (0, error_1.asyncHandler)(async (req, res) => {
     const [totalDrivers, activeDrivers, pendingDrivers, suspendedDrivers, onlineDrivers, verifiedDrivers, pendingVerification] = await Promise.all([
         Driver_1.default.countDocuments(),
         Driver_1.default.countDocuments({ status: 'active' }),

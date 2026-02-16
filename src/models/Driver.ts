@@ -10,13 +10,8 @@ interface IEmergencyContact {
 
 export interface IDriver extends Document {
     // Basic Information
-    fullName: string;
-    email: string;
+    userId: Types.ObjectId; // Reference to User model
     phone: string;
-    address: string;
-    city: string;
-    state: string;
-    dateOfBirth?: Date;
 
     // Vehicle Information
     vehicleType: 'motorcycle' | 'bicycle' | 'car' | 'van' | 'truck';
@@ -73,6 +68,9 @@ export interface IDriver extends Document {
     createdAt: Date;
     updatedAt: Date;
 
+     otp?: string;
+    otpExpiry?: Date;
+
     // Methods
     comparePassword(candidatePassword: string): Promise<boolean>;
     generatePasswordSetupToken(): string;
@@ -80,44 +78,18 @@ export interface IDriver extends Document {
 
 const DriverSchema = new Schema<IDriver>({
     // Basic Information
-    fullName: {
-        type: String,
-        required: [true, 'Full name is required'],
-        trim: true,
-        maxlength: [100, 'Name cannot exceed 100 characters']
-    },
-    email: {
-        type: String,
-        required: [true, 'Email is required'],
-        unique: true,
-        lowercase: true,
-        trim: true,
-        match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email address']
+    userId: {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+        unique: true
     },
     phone: {
         type: String,
         required: [true, 'Phone number is required'],
-        trim: true
+        match: [/^[0-9+\-\s()]+$/, 'Please provide a valid phone number'],
+        unique: true
     },
-    address: {
-        type: String,
-        required: [true, 'Address is required'],
-        trim: true
-    },
-    city: {
-        type: String,
-        required: [true, 'City is required'],
-        trim: true
-    },
-    state: {
-        type: String,
-        required: [true, 'State is required'],
-        trim: true
-    },
-    dateOfBirth: {
-        type: Date
-    },
-
     // Vehicle Information
     vehicleType: {
         type: String,

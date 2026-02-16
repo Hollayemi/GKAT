@@ -64,6 +64,7 @@ const UserSchema = new mongoose_1.Schema({
     phoneNumber: {
         type: String,
         required: [true, 'Please add a phone number'],
+        match: [/^[0-9+\-\s()]+$/, 'Please provide a valid phone number'],
         unique: true,
         trim: true,
         index: true
@@ -82,6 +83,11 @@ const UserSchema = new mongoose_1.Schema({
         enum: ['user', 'admin', 'driver'],
         default: 'user',
         index: true
+    },
+    driverId: {
+        type: mongoose_1.Schema.Types.ObjectId,
+        ref: 'Driver',
+        default: null
     },
     isPhoneVerified: {
         type: Boolean,

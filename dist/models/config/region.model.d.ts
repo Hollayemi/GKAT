@@ -1,7 +1,12 @@
 import { Document, Model } from 'mongoose';
+interface coordinate {
+    coordinates: [number, number];
+    point: string;
+}
 export interface IRegion extends Document {
     name: string;
     isActive: boolean;
+    coordinate: coordinate;
     order?: number;
     createdAt: Date;
     updatedAt: Date;

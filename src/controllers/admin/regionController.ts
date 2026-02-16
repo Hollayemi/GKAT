@@ -52,7 +52,9 @@ export const createRegion = asyncHandler(async (req: Request, res: Response, nex
     //     return next(new AppError('Not authorized to perform this action', 403));
     // }
 
-    const { name } = req.body;
+    const { name, coordinates } = req.body;
+
+    console.log(req.body)
 
     // Check if region already exists
     const existingRegion = await Region.findByName(name);
@@ -62,6 +64,7 @@ export const createRegion = asyncHandler(async (req: Request, res: Response, nex
 
     const region = await Region.create({
         name,
+        coordinate: {coordinates: coordinates as [number, number]},
         order: req.body.order || 0,
         isActive: req.body.isActive !== undefined ? req.body.isActive : true
     });
