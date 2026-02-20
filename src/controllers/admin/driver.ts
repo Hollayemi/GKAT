@@ -1,11 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
-import Driver from '../models/Driver';
-import User from '../models/User';
-import DriverActivity from '../models/activities/driver';
-import { AppError, asyncHandler, AppResponse } from '../middleware/error';
-import CloudinaryService from '../services/cloudinary';
-import { sendEmail, driverEmailTemplates } from '../utils/driverEmail';
-import crypto from 'crypto';
+import Driver from '../../models/Driver';
+import User from '../../models/User';
+import DriverActivity from '../../models/activities/driver';
+import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
+import CloudinaryService from '../../services/cloudinary';
+import { sendEmail, driverEmailTemplates } from '../../utils/driverEmail';
 
 // Helper function to log driver activity
 const logDriverActivity = async (

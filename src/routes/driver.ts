@@ -17,7 +17,7 @@ import {
     getActivityLogs,
     getDriverStatistics,
     getDashboardSummary
-} from '../controllers/driver';
+} from '../controllers/admin/driver';
 import { protect, checkPermission } from '../middleware/auth';
 import { upload } from '../services/cloudinary';
 import { validateDriverCreate, validateDriverUpdate } from '../middleware/driverValidation';
