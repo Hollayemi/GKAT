@@ -347,7 +347,7 @@ cartSchema.methods.removeItem = function (productId: Types.ObjectId, variantId?:
             return !(item.productId.toString() === productId.toString() &&
                 item.variantId?.toString() === variantId.toString());
         }
-        return item.productId.toString() !== productId.toString();
+        return item.productId._id.toString() !== productId.toString();
     });
     return this.save();
 };
