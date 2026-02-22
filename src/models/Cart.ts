@@ -106,7 +106,8 @@ const cartItemSchema = new Schema<ICartItem>({
     },
     category: {
         type: String,
-        required: true
+        required: true,
+        ref: "Category"
     },
     price: {
         type: Number,
@@ -515,6 +516,7 @@ cartSchema.statics.findOrCreateCart = async function (userId: Types.ObjectId): P
 cartSchema.statics.getActiveCart = function (userId: Types.ObjectId): Promise<ICart | null> {
     return this.findOne({ userId, isActive: true })
         .populate('items.productId', 'productName images status stockQuantity')
+        .populate('items.category', 'name icon isActive')
         .exec();
 };
 

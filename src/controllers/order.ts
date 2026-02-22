@@ -119,7 +119,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
     const paymentReference = paymentGateway.generatePaymentReference(order.orderNumber);
 
     const paymentData = {
-        email: req.user.email,
+        email: req.user.email || "admin@gmail.com",
         amount: order.paymentInfo.amount,
         reference: paymentReference,
         orderId: order._id.toString(),
@@ -145,6 +145,42 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
     });
 
     (res as AppResponse).data({ order, payment: paymentResult }, 'Order created successfully', 201);
+});
+
+export const repayOrder = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    const { orderId, paymentMethod="paystack" } = req.body
+    if (!req.user) {
+        return next(new AppError('Not authenticated', 401));
+    }
+
+    const order = await Order.findOne({
+        _id: orderId,
+        userId: req.user.id
+    });
+
+    if (!order) {
+        return next(new AppError('Order not found', 404));
+    }
+
+    const paymentGateway = new PaymentGateway();
+
+    const paymentReference = paymentGateway.generatePaymentReference(order.orderNumber);
+
+    const paymentData = {
+        email: req.user.email || "admin@gmail.com",
+        amount: order.totalAmount,
+        reference: paymentReference,
+        orderId: order._id.toString(),
+        userId: req.user.id,
+        description: "Order re-Payment",
+        phone: req.user.phone || '',
+        metadata: {}
+    }
+
+    const paymentResult = await paymentGateway.initializePayment(paymentMethod, paymentData);
+    console.log('Payment Result:', paymentResult);
+
+   (res as AppResponse).data({ order, payment: paymentResult }, 'Order Payment ', 201);
 });
 
 // @desc    Get user orders

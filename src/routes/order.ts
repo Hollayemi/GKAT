@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
     createOrder,
+    repayOrder,
     getUserOrders,
     getOrder,
     cancelOrder,
@@ -19,6 +20,10 @@ router.use(protect);
 // @route   POST /api/v1/orders
 // @desc    Create order from cart
 router.post('/', createOrder);
+
+// @route   POST /api/v1/orders
+// @desc    Create order from cart
+router.post('/repay', repayOrder);
 
 // @route   GET /api/v1/orders
 // @desc    Get user orders with pagination and filtering
