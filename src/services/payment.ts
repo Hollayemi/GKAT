@@ -489,45 +489,6 @@ class PaymentGateway extends PaymentLogging {
         return expectedSignature === signature;
     }
 
-    getSupportedPaymentMethods(): Array<{
-        id: string;
-        name: string;
-        description: string;
-        logo: string;
-        enabled: boolean;
-    }> {
-        return [
-            {
-                id: 'paystack',
-                name: 'Paystack',
-                description: 'Pay with Cards, Bank Transfer, USSD',
-                logo: 'https://res.cloudinary.com/xmart/image/upload/v1771615922/paystack_qynpzs.png',
-                enabled: !!this.paystack.secretKey
-            },
-            {
-                id: 'palmpay',
-                name: 'PalmPay',
-                description: 'Pay with PalmPay Wallet',
-                logo: '/images/palmpay-logo.png',
-                enabled: !!this.palmpay.secretKey
-            },
-            {
-                id: 'opay',
-                name: 'OPay',
-                description: 'Pay with OPay Wallet, Cards, Bank Transfer',
-                logo: 'https://res.cloudinary.com/xmart/image/upload/v1771615885/opay_g8vsac.png',
-                enabled: !!this.opay.privateKey
-            },
-            {
-                id: 'cash_on_delivery',
-                name: 'Cash on Delivery',
-                description: 'Pay when your order is delivered',
-                logo: 'https://res.cloudinary.com/xmart/image/upload/v1771615960/images_p8jpfi.png',
-                enabled: true
-            }
-        ];
-    }
-
     getPaymentFees(provider: string, amount: number): number {
         const fees: Record<string, { percentage: number; cap: number; fixed: number }> = {
             paystack: {

@@ -1,5 +1,11 @@
 import { Router } from 'express';
 import PurchaseController from '../controllers/payment/index';
+import {
+    getAllPaymentMethods,
+    togglePaymentMethod,
+    updatePaymentMethod
+} from '../controllers/payment/paymentMethodController';
+import { checkPermission } from '../middleware/auth';
 import { protect } from '../middleware/auth';
 
 const router = Router();
@@ -28,5 +34,20 @@ router.get('/methods', PurchaseController.getPaymentMethods);
 // @desc    Manually verify a payment
 // @access  Private
 router.post('/verify', protect, PurchaseController.verifyPayment);
+
+// @route   GET /api/v1/admin/payment-methods
+router.get('/', getAllPaymentMethods);
+
+
+
+
+
+router.use(protect);
+
+// @route   PATCH /api/v1/admin/payment-methods/:id/toggle
+router.patch('/:id/toggle', checkPermission('system_settings'), togglePaymentMethod);
+
+// @route   PUT /api/v1/admin/payment-methods/:id
+router.put('/:id', checkPermission('system_settings'), updatePaymentMethod);
 
 export default router;

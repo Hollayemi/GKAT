@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from './error';
-import { parse } from 'path';
 
 const productValidationRules = {
     productName: {
@@ -14,8 +13,6 @@ const productValidationRules = {
     },
     category: {
         required: true,
-        enum: ['Packaged Foods', 'Beverages', 'Fresh Produce', 'Dairy', 'Meat & Seafood',
-            'Bakery', 'Snacks', 'Household', 'Personal Care', 'Other']
     },
     description: {
         required: true,

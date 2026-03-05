@@ -28,7 +28,8 @@
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.13",
-    "supervisor": "^0.12.0"
+    "supervisor": "^0.12.0",
+    "twilio": "^5.12.2"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

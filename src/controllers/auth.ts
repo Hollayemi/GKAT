@@ -4,6 +4,7 @@ import Driver, { IDriver } from '../models/Driver';
 import { AppError, asyncHandler, AppResponse } from '../middleware/error';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import { sendOTPViaSMS } from '../services/sms';
 
 const sendTokenResponse = (user: IUser, statusCode: number, res: AppResponse, message: string) => {
     const token = user.getSignedJwtToken();
@@ -87,6 +88,14 @@ export const login = asyncHandler(async (req: Request, res: Response, next: Next
     // TODO: Send OTP via SMS service (Twilio)
     console.log(`OTP for ${phoneNumber}: ${otp}`);
 
+    // Send OTP via Twilio SMS
+    const smsResult = await sendOTPViaSMS(phoneNumber, otp);
+
+    if (!smsResult.success && process.env.NODE_ENV === 'production') {
+        return next(new AppError('Failed to resend OTP. Please try again.', 500));
+    }
+
+
     const responseData: any = {
         phoneNumber,
         message: 'OTP sent successfully',
@@ -163,6 +172,15 @@ export const sendOTP = asyncHandler(async (req: Request, res: Response, next: Ne
     const otp = user.generateOTP();
     await user.save({ validateBeforeSave: false });
 
+
+    // Send OTP via Twilio SMS
+    const smsResult = await sendOTPViaSMS(phoneNumber, otp);
+
+    if (!smsResult.success && process.env.NODE_ENV === 'production') {
+        return next(new AppError('Failed to resend OTP. Please try again.', 500));
+    }
+
+
     // TODO Reminder: Send OTP via SMS service (Twilio)
     console.log(`OTP for ${phoneNumber}: ${otp}`);
 
@@ -230,6 +248,14 @@ export const resendOTP = asyncHandler(async (req: Request, res: Response, next: 
 
     // when the twilio service is ready, iwill handle it here
     console.log(`New OTP for ${phoneNumber}: ${otp}`);
+
+    // Send OTP via Twilio SMS
+    const smsResult = await sendOTPViaSMS(phoneNumber, otp);
+
+    if (!smsResult.success && process.env.NODE_ENV === 'production') {
+        return next(new AppError('Failed to resend OTP. Please try again.', 500));
+    }
+
 
     const responseData: any = {
         phoneNumber,

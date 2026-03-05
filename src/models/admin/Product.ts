@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Types } from 'mongoose';
 
 // Product Variant Interface
 interface IProductVariant {
@@ -15,7 +15,7 @@ interface IProductVariant {
 
 // Regional Distribution Interface
 interface IRegionalDistribution {
-    region: string;
+    region: Types.ObjectId;
     mainProduct: number;
     variants: {
         variantId: string;
@@ -85,16 +85,7 @@ const ProductVariantSchema = new Schema<IProductVariant>({
         required: true,
         enum: ['single', 'pack', 'carton', 'kg', 'litre', 'box']
     },
-    unitQuantity: {
-        type: Number,
-        required: true
-    },
-    stockQuantity: {
-        type: Number,
-        required: true,
-        default: 0,
-        min: 0
-    },
+
     images: [{
         type: String
     }]
@@ -102,7 +93,8 @@ const ProductVariantSchema = new Schema<IProductVariant>({
 
 const RegionalDistributionSchema = new Schema<IRegionalDistribution>({
     region: {
-        type: String,
+        type: Schema.Types.ObjectId,
+        ref: 'Region',
         required: true
     },
     mainProduct: {

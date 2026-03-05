@@ -1,8 +1,9 @@
 import { Request, Response } from 'express';
 import PaymentGateway from '../../services/payment';
 import Order from '../../models/Orders';
-import Cart from '../../models/Cart';
 import logger from '../../utils/logger';
+import { getSupportedPaymentMethods } from './paymentMethodController';
+
 
 class PurchaseController {
    
@@ -164,9 +165,7 @@ class PurchaseController {
    
     static async getPaymentMethods(req: Request, res: Response): Promise<Response> {
         try {
-            const paymentGateway = new PaymentGateway();
-            const methods = paymentGateway.getSupportedPaymentMethods();
-
+            const methods = await getSupportedPaymentMethods();
             return res.status(200).json({
                 success: true,
                 data: methods

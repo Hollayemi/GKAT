@@ -158,7 +158,9 @@ export const createProduct = asyncHandler(async (req: Request, res: Response, ne
         salesPrice: parseFloat(req.body.salesPrice),
         variants:JSON.parse(req.body.variants),
         stockQuantity: parseInt(req.body.stockQuantity),
-        tags: JSON.parse(req.body.tags)
+        tags: JSON.parse(req.body.tags),
+        regionalDistribution: JSON.parse(req.body.regionDistribution),
+
     });
 
     (res as AppResponse).data(
