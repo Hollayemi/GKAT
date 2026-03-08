@@ -1,5 +1,43 @@
 import { Types } from "mongoose";
 
+
+export const getProductPipeline = ({query, sort, skip,limitNum}: any) => [
+  { $match: query },
+  {
+    $lookup: {
+      from: "regions",
+      localField: "regionalDistribution.region",
+      foreignField: "_id",
+      as: "regionalDistribution.region"
+    }
+  },
+
+  { $unwind: "$regionalDistribution.region" },
+  { $set:  {category :{$toObjectId: "$category"}} },
+  {
+    $lookup: {
+      from: "categories",
+      localField: "category",
+      foreignField: "_id",
+      as: "category"
+    }
+  },
+
+  { $unwind: "$category" },
+
+  { $sort: sort },
+
+  { $skip: skip },
+
+  { $limit: limitNum },
+
+  {
+    $project: {
+      __v: 0
+    }
+  }
+];
+
 const salesReveniuePipeline = (productId: Types.ObjectId) => [
     {
         $match: {
