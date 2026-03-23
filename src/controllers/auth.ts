@@ -5,6 +5,8 @@ import { AppError, asyncHandler, AppResponse } from '../middleware/error';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { sendOTPViaSMS } from '../services/sms';
+import CloudinaryService from '../services/cloudinary';
+
 
 const sendTokenResponse = (user: IUser, statusCode: number, res: AppResponse, message: string) => {
     const token = user.getSignedJwtToken();
@@ -287,8 +289,25 @@ export const completeProfile = asyncHandler(async (req: Request, res: Response, 
         return next(new AppError('User not found', 404));
     }
 
+    let imageUrl: any = "";
+    
+        if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+            try {
+                imageUrl = await CloudinaryService.uploadImage(req.files[0], 'go-kart/products');
+            } catch (error: any) {
+                return next(new AppError(`Image upload failed: ${error.message}`, 400));
+            }
+        }
+    
+        if (imageUrl.length === 0) {
+            return next(new AppError('At least one product image is required', 400));
+        }
+    
+    
+
     // Update profile
     if (name) user.name = name;
+    if (imageUrl && req.file) user.avatar = imageUrl;
     if (email) user.email = email;
 
     // Handle referral
@@ -429,7 +448,6 @@ export const getSearchHistory = asyncHandler(async (req: Request, res: Response,
 
     const users = await User.find().select('searchHistory');
 
-    // Aggregate search queries to find popular searches
     const searchCounts: { [key: string]: number } = {};
     users.forEach(user => {
         user.searchHistory.forEach(query => {
@@ -437,7 +455,6 @@ export const getSearchHistory = asyncHandler(async (req: Request, res: Response,
         });
     });
 
-    // Get top 10 popular searches
     const popularSearches = Object.entries(searchCounts)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 10)
