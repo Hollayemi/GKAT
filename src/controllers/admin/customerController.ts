@@ -531,6 +531,7 @@ function calculateLoyaltyProgress(user: any, orders: any[]) {
 
     // Normal order
     progress.push({
+        id: `${order._id}-loyalty`,
       rawDate: order.createdAt,
       date: formatDate(order.createdAt),
       event: "Order Completed",
@@ -540,7 +541,7 @@ function calculateLoyaltyProgress(user: any, orders: any[]) {
 
   return {
     history: progress.sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.rawDate).getTime(),
+      (a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime(),
     ),
     totalPoints,
   };
@@ -551,6 +552,7 @@ function buildCustomerActivity(user: any, orders: any[]) {
   const activities: any[] = [];
 
   activities.push({
+    rawDate: new Date(user.createdAt),
     date: formatDate(user.createdAt),
     activity: "Account Created",
     details: "User registered",
@@ -559,6 +561,7 @@ function buildCustomerActivity(user: any, orders: any[]) {
 
   for (const order of orders) {
     activities.push({
+      rawDate: new Date(order.createdAt),
       date: formatDate(order.createdAt),
       activity: "Order Placed",
       details: `Order #${order.orderNumber}`,
@@ -567,6 +570,6 @@ function buildCustomerActivity(user: any, orders: any[]) {
   }
 
   return activities.sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+    (a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime(),
   );
 }
