@@ -39,67 +39,6 @@ function formatDate(date: Date | string | null | undefined) {
   return `${datePart} - ${timePart}`;
 }
 
-
-// async function formatOrder(order: any) {
-//   const productIds = order.items.map((item: any) => item.productId);
-//   const products = await Product.find({ _id: { $in: productIds } })
-//     .populate("regionalDistribution.region", "name")
-//     .lean();
-
-//   const productRegionMap: Record<string, string> = {};
-//   for (const product of products) {
-//     if (product.regionalDistribution?.length) {
-//       const rd = product.regionalDistribution[0] as any;
-//       const regionName = rd.region?.name || "-";
-//       productRegionMap[product._id.toString()] = regionName;
-//     } else {
-//       productRegionMap[product._id.toString()] = "-";
-//     }
-//   }
-
-//   const uniqueRegions = Array.from(new Set(Object.values(productRegionMap)));
-
-//   return {
-//     orderId: order.orderNumber,
-//     customerName: order.userId?.name || "",
-//     customerEmail: order.userId?.email || "",
-//     customerPhone: order.userId?.phone || "",
-
-//     deliveryAddress: order.shippingAddress || "",
-//     region:
-//       order.items.length === 1
-//         ? productRegionMap[order.items[0].productId.toString()]
-//         : "-",
-
-//     totalAmount: order.totalAmount,
-//     items: order.items.length,
-
-//     status: order.orderStatus,
-
-//     dateOrdered: formatDate(order.createdAt),
-//     deliveryDate: formatDate(order.actualDelivery),
-
-//     courierName: order.carrier || "-",
-//     courierPhone: "-",
-//     vehicleType: "-",
-//     plateNumber: "-",
-//     pickupLocation: "-",
-
-//     trackingStatus: order.orderStatus,
-
-//     orderedItems: order.items.map((item: any) => ({
-//       name: item.name,
-//       quantity: item.quantity,
-//       price: item.price,
-//     })),
-
-//     activityTimeline: order.statusHistory.map((s: any) => ({
-//       time: s.timestamp,
-//       event: s.status,
-//     })),
-//   };
-// }
-
 // @desc    Get all orders with pagination, search and status filter
 // @route   GET /api/v1/admin/orders
 // @access  Private/Admin
@@ -138,23 +77,66 @@ async function formatOrder(order: any) {
   };
 }
 
+
 export const getAllOrders = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { page = 1, limit = 9, status = "all", search = "" } = req.query;
+    const { 
+      page = 1, 
+      limit = 9, 
+      status = "all", 
+      search = "", 
+      startDate, 
+      endDate, 
+      minAmount, 
+      maxAmount, 
+      region 
+    } = req.query;
 
     const query: any = {};
 
-    // Status filter — uses orderStatus (the real field name in the model)
+    // Status filter
     if (status !== "all") {
       const mapped = buildOrderStatusFilter(status as string);
       if (!mapped) return next(new AppError("Invalid status value", 400));
       query.orderStatus = mapped;
     }
 
-    // Search by orderNumber, orderSlug, or customer name via userId populate
+    // Region filter
+    if (region) {
+      query.region = { $regex: region as string, $options: "i" };
+    }
+
+    // Amount filter
+    if (minAmount || maxAmount) {
+      query.totalAmount = {};
+      if (minAmount) query.totalAmount.$gte = Number(minAmount);
+      if (maxAmount) query.totalAmount.$lte = Number(maxAmount);
+    }
+
+    // Date range filter
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate as string);
+      if (endDate) query.createdAt.$lte = new Date(endDate as string);
+    }
+
+    // Search filter (handles Order Number and Populated User Fields)
     if ((search as string).trim()) {
-      const regex = new RegExp(search as string, "i");
-      query.$or = [{ orderNumber: regex }, { orderSlug: regex }];
+      const s = (search as string).trim();
+      // First, find users matching the search to get their IDs
+      const matchingUsers = await User.find({
+        $or: [
+          { name: { $regex: s, $options: "i" } },
+          { email: { $regex: s, $options: "i" } }
+        ]
+      }).select('_id');
+      
+      const userIds = matchingUsers.map(u => u._id);
+
+      query.$or = [
+        { orderNumber: { $regex: s, $options: "i" } },
+        { userId: { $in: userIds } }
+      ];
     }
 
     const pageNum = parseInt(page as string);
@@ -172,24 +154,12 @@ export const getAllOrders = asyncHandler(
       Order.countDocuments(query),
     ]);
 
-    /**
-     * Convert DB orders to UI format
-     */
-    // const formattedOrders = orders.map(formatOrder);
     const formattedOrders = await Promise.all(
-  orders.map((order) => formatOrder(order))
-);
+      orders.map((order) => formatOrder(order))
+    );
 
-
-
-    /**
-     * Order statistics
-     */
     const statsRaw = await Order.getOrderStats();
-
-    const statMap = statsRaw.reduce<
-      Record<string, { count: number; totalAmount: number }>
-    >((acc, s) => {
+    const statMap = statsRaw.reduce<Record<string, { count: number; totalAmount: number }>>((acc, s) => {
       acc[s._id] = { count: s.count, totalAmount: s.totalAmount };
       return acc;
     }, {});
@@ -199,26 +169,10 @@ export const getAllOrders = asyncHandler(
 
     const stats = [
       { label: "Total Orders", value: String(totalOrders), color: "purple" },
-      {
-        label: "Processing",
-        value: String(statMap["processing"]?.count ?? 0),
-        color: "orange",
-      },
-      {
-        label: "Delivered",
-        value: String(statMap["delivered"]?.count ?? 0),
-        color: "green",
-      },
-      {
-        label: "Cancelled",
-        value: String(statMap["cancelled"]?.count ?? 0),
-        color: "red",
-      },
-      {
-        label: "Revenue",
-        value: `₦${revenue.toLocaleString()}`,
-        color: "blue",
-      },
+      { label: "Processing", value: String(statMap["processing"]?.count ?? 0), color: "orange" },
+      { label: "Delivered", value: String(statMap["delivered"]?.count ?? 0), color: "green" },
+      { label: "Cancelled", value: String(statMap["cancelled"]?.count ?? 0), color: "red" },
+      { label: "Revenue", value: `₦${revenue.toLocaleString()}`, color: "blue" },
     ];
 
     (res as AppResponse).data(
@@ -237,21 +191,19 @@ export const getAllOrders = asyncHandler(
   },
 );
 
-// @desc    Get single order by orderNumber
-// @route   GET /api/v1/admin/orders/:orderNumber
-// @access  Private/Admin
 export const getOrderById = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const { orderNumber } = req.params;
 
     const order = await Order.findOne({ orderNumber })
       .populate("userId", "name email phone")
-      // .populate('shippingAddress', 'label fullname address phone state city')
+      .populate("shippingAddress")
       .lean();
 
     if (!order) return next(new AppError("Order not found", 404));
 
-    const formattedOrder = formatOrder(order);
+    // Fixed: Added await for the async formatOrder function
+    const formattedOrder = await formatOrder(order);
 
     (res as AppResponse).data(
       { order: formattedOrder },
@@ -260,9 +212,180 @@ export const getOrderById = asyncHandler(
   },
 );
 
+// export const getAllOrders = asyncHandler(
+//   async (req: Request, res: Response, next: NextFunction) => {
+//     const { page = 1, limit = 9, status = "all", search = "",startDate,
+//   endDate,
+//   minAmount,
+//   maxAmount,
+//   region, } = req.query;
+
+//     const query: any = {};
+
+//     // Status filter — uses orderStatus (the real field name in the model)
+//     if (status !== "all") {
+//       const mapped = buildOrderStatusFilter(status as string);
+//       if (!mapped) return next(new AppError("Invalid status value", 400));
+//       query.orderStatus = mapped;
+//     }
+
+//     // Search by orderNumber, orderSlug, or customer name via userId populate
+//     const ordersRaw = await Order.find(query)
+//       .populate("userId", "name email phone")
+//       .sort({ createdAt: -1 })
+//       .lean();
+
+//     // ✅ SEARCH (AFTER POPULATE)
+//     let filteredOrders = ordersRaw;
+
+//     if ((search as string).trim()) {
+//       const s = (search as string).toLowerCase();
+
+//       filteredOrders = ordersRaw.filter((order: any) => {
+//         return (
+//           order.orderNumber?.toLowerCase().includes(s) ||
+//           order.userId?.name?.toLowerCase().includes(s) ||
+//           order.userId?.email?.toLowerCase().includes(s)
+//         );
+//       });
+//     }
+
+
+//     if (startDate || endDate) {
+//   query.createdAt = {};
+
+//   if (startDate) {
+//     query.createdAt.$gte = new Date(startDate as string);
+//   }
+
+//   if (endDate) {
+//     query.createdAt.$lte = new Date(endDate as string);
+//   }
+// }
+
+//  // ✅ REGION FILTER
+//     if (region) {
+//       query.region = region;
+//     }
+
+//     // ✅ AMOUNT FILTER
+//     if (minAmount || maxAmount) {
+//       query.totalAmount = {};
+
+//       if (minAmount) query.totalAmount.$gte = Number(minAmount);
+//       if (maxAmount) query.totalAmount.$lte = Number(maxAmount);
+//     }
+
+
+//     const pageNum = parseInt(page as string);
+//     const limitNum = parseInt(limit as string);
+//     const skip = (pageNum - 1) * limitNum;
+
+//     const [orders, total] = await Promise.all([
+//       Order.find(query)
+//         .populate("userId", "name email phone")
+//         .populate("shippingAddress")
+//         .sort({ createdAt: -1 })
+//         .skip(skip)
+//         .limit(limitNum)
+//         .lean(),
+//       Order.countDocuments(query),
+//     ]);
+
+//     /**
+//      * Convert DB orders to UI format
+//      */
+//     // const formattedOrders = orders.map(formatOrder);
+//     const formattedOrders = await Promise.all(
+//   orders.map((order) => formatOrder(order))
+// );
+
+
+
+//     /**
+//      * Order statistics
+//      */
+//     const statsRaw = await Order.getOrderStats();
+
+//     const statMap = statsRaw.reduce<
+//       Record<string, { count: number; totalAmount: number }>
+//     >((acc, s) => {
+//       acc[s._id] = { count: s.count, totalAmount: s.totalAmount };
+//       return acc;
+//     }, {});
+
+//     const totalOrders = statsRaw.reduce((sum, s) => sum + s.count, 0);
+//     const revenue = statMap["delivered"]?.totalAmount ?? 0;
+
+//     const stats = [
+//       { label: "Total Orders", value: String(totalOrders), color: "purple" },
+//       {
+//         label: "Processing",
+//         value: String(statMap["processing"]?.count ?? 0),
+//         color: "orange",
+//       },
+//       {
+//         label: "Delivered",
+//         value: String(statMap["delivered"]?.count ?? 0),
+//         color: "green",
+//       },
+//       {
+//         label: "Cancelled",
+//         value: String(statMap["cancelled"]?.count ?? 0),
+//         color: "red",
+//       },
+//       {
+//         label: "Revenue",
+//         value: `₦${revenue.toLocaleString()}`,
+//         color: "blue",
+//       },
+//     ];
+
+//     (res as AppResponse).data(
+//       {
+//         orders: formattedOrders,
+//         stats,
+//         pagination: {
+//           total,
+//           totalPages: Math.ceil(total / limitNum),
+//           currentPage: pageNum,
+//           limit: limitNum,
+//         },
+//       },
+//       "Orders retrieved successfully",
+//     );
+//   },
+// );
+
+// // @desc    Get single order by orderNumber
+// // @route   GET /api/v1/admin/orders/:orderNumber
+// // @access  Private/Admin
+// export const getOrderById = asyncHandler(
+//   async (req: Request, res: Response, next: NextFunction) => {
+//     const { orderNumber } = req.params;
+
+//     const order = await Order.findOne({ orderNumber })
+//       .populate("userId", "name email phone")
+//       // .populate('shippingAddress', 'label fullname address phone state city')
+//       .lean();
+
+//     if (!order) return next(new AppError("Order not found", 404));
+
+//     const formattedOrder = formatOrder(order);
+
+//     (res as AppResponse).data(
+//       { order: formattedOrder },
+//       "Order retrieved successfully",
+//     );
+//   },
+// );
+
 // @desc    Cancel an order
 // @route   PATCH /api/v1/admin/orders/:orderNumber/cancel
 // @access  Private/Admin
+
+
+
 export const cancelOrder = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError("Not authenticated", 401));
