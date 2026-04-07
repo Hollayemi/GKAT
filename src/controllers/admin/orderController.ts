@@ -39,9 +39,6 @@ function formatDate(date: Date | string | null | undefined) {
   return `${datePart} - ${timePart}`;
 }
 
-// @desc    Get all orders with pagination, search and status filter
-// @route   GET /api/v1/admin/orders
-// @access  Private/Admin
 
 async function formatOrder(order: any) {
   return {
@@ -77,7 +74,9 @@ async function formatOrder(order: any) {
   };
 }
 
-
+// @desc    Get all orders with pagination, search and status filter
+// @route   GET /api/v1/admin/orders
+// @access  Private/Admin
 export const getAllOrders = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const { 
@@ -94,36 +93,30 @@ export const getAllOrders = asyncHandler(
 
     const query: any = {};
 
-    // Status filter
     if (status !== "all") {
       const mapped = buildOrderStatusFilter(status as string);
       if (!mapped) return next(new AppError("Invalid status value", 400));
       query.orderStatus = mapped;
     }
 
-    // Region filter
     if (region) {
       query.region = { $regex: region as string, $options: "i" };
     }
 
-    // Amount filter
     if (minAmount || maxAmount) {
       query.totalAmount = {};
       if (minAmount) query.totalAmount.$gte = Number(minAmount);
       if (maxAmount) query.totalAmount.$lte = Number(maxAmount);
     }
 
-    // Date range filter
     if (startDate || endDate) {
       query.createdAt = {};
       if (startDate) query.createdAt.$gte = new Date(startDate as string);
       if (endDate) query.createdAt.$lte = new Date(endDate as string);
     }
 
-    // Search filter (handles Order Number and Populated User Fields)
     if ((search as string).trim()) {
       const s = (search as string).trim();
-      // First, find users matching the search to get their IDs
       const matchingUsers = await User.find({
         $or: [
           { name: { $regex: s, $options: "i" } },
