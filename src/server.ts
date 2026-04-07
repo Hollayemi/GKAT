@@ -79,6 +79,7 @@ import driverRoutes from './routes/driver';
 import Others from './routes/others';
 import pushNotificationRoute from './routes/pushNotification';
 import riderRoutes from './routes/rider';
+import customer from './routes/admin/customer';
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/product', productRoutes);
@@ -97,6 +98,7 @@ app.use('/api/v1/drivers', driverRoutes);
 app.use('/api/v1/push-notifications', pushNotificationRoute);
 app.use('/api/v1/rider', riderRoutes);
 app.use('/api/v1/', Others);
+app.use('/api/v1/admin/customers', customer);
 
 app.use('*', handle404);
 
