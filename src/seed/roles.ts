@@ -22,9 +22,9 @@ const seedRoles = async () => {
         // Create roles
         const roles = [
             {
-                name: 'super_admin',
-                displayName: 'Super Admin',
-                permissions: [
+                "name": 'super_admin',
+                "displayName": 'Super Admin',
+                "permissions": [
                     'view_users',
                     'create_users',
                     'suspend_accounts',
@@ -38,9 +38,9 @@ const seedRoles = async () => {
                 ]
             },
             {
-                name: 'warehouse_admin',
-                displayName: 'Warehouse Admin',
-                permissions: [
+                "name": 'warehouse_admin',
+                "displayName": 'Warehouse Admin',
+                "permissions": [
                     'view_users',
                     'create_users',
                     'suspend_accounts',
@@ -51,9 +51,9 @@ const seedRoles = async () => {
                 ]
             },
             {
-                name: 'regional_manager',
-                displayName: 'Regional Manager',
-                permissions: [
+                "name": 'regional_manager',
+                "displayName": 'Regional Manager',
+                "permissions": [
                     'view_users',
                     'create_users',
                     'access_reports',
@@ -62,17 +62,17 @@ const seedRoles = async () => {
                 ]
             },
             {
-                name: 'inventory_manager',
-                displayName: 'Inventory Manager',
-                permissions: [
+                "name": 'inventory_manager',
+                "displayName": 'Inventory Manager',
+                "permissions": [
                     'view_users',
                     'access_reports'
                 ]
             },
             {
-                name: 'customer_support',
-                displayName: 'Customer Support',
-                permissions: [
+                "name": 'customer_support',
+                "displayName": 'Customer Support',
+                "permissions": [
                     'view_users',
                     'access_reports'
                 ]

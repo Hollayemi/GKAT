@@ -114,8 +114,6 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
         }
     }
 
-    await cart.clearCart();
-
     const paymentReference = paymentGateway.generatePaymentReference(order.orderNumber);
 
     const paymentData = {

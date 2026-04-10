@@ -289,25 +289,25 @@ export const completeProfile = asyncHandler(async (req: Request, res: Response, 
         return next(new AppError('User not found', 404));
     }
 
-    let imageUrl: any = "";
-    
-        if (req.files && Array.isArray(req.files) && req.files.length > 0) {
-            try {
-                imageUrl = await CloudinaryService.uploadImage(req.files[0], 'go-kart/products');
-            } catch (error: any) {
-                return next(new AppError(`Image upload failed: ${error.message}`, 400));
-            }
-        }
-    
-        if (imageUrl.length === 0) {
-            return next(new AppError('At least one product image is required', 400));
-        }
-    
-    
+    // let imageUrl: any = "";
+
+    // if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+    //     try {
+    //         imageUrl = await CloudinaryService.uploadImage(req.files[0], 'go-kart/products');
+    //     } catch (error: any) {
+    //         return next(new AppError(`Image upload failed: ${error.message}`, 400));
+    //     }
+    // }
+
+    // if (imageUrl.length === 0) {
+    //     return next(new AppError('At least one product image is required', 400));
+    // }
+
+
 
     // Update profile
     if (name) user.name = name;
-    if (imageUrl && req.file) user.avatar = imageUrl;
+    // if (imageUrl && req.file) user.avatar = imageUrl;
     if (email) user.email = email;
 
     // Handle referral
