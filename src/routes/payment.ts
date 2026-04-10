@@ -23,7 +23,7 @@ router.post('/webhook/:provider', PurchaseController.handleWebhook);
 // @route   GET /api/v1/payment/service-charge
 // @desc    Get service charge for payment method
 // @access  Public
-router.get('/service-charge', PurchaseController.getServiceCharge);
+router.get('/service-charge', protect, PurchaseController.getServiceCharge);
 
 // @route   GET /api/v1/payment/methods
 // @desc    Get supported payment methods
@@ -37,9 +37,6 @@ router.post('/verify', protect, PurchaseController.verifyPayment);
 
 // @route   GET /api/v1/admin/payment-methods
 router.get('/', getAllPaymentMethods);
-
-
-
 
 
 router.use(protect);

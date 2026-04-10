@@ -80,7 +80,7 @@ function formatCustomer(user: any, userOrders: any[]) {
     name: user.name ?? "Unknown",
     email: user.email ?? "-",
     phone: user.phoneNumber ?? user.phone ?? "",
-    region: user.defaultAddress ?? "Unknown",
+    region: user.residentArea ?? "Unknown",
     address: Array.isArray(user.addresses)
       ? (user.addresses[0]?.address ?? "")
       : (user.addresses ?? ""),

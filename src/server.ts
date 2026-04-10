@@ -123,6 +123,8 @@ process.on('unhandledRejection', (err: Error) => {
     });
 });
 
+// seedRoles()
+
 process.on('uncaughtException', (err: Error) => {
     console.log('UNCAUGHT EXCEPTION! Shutting down...');
     console.log(err.name, err.message);

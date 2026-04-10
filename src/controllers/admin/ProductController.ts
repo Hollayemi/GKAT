@@ -574,7 +574,9 @@ export const getProductPreview = asyncHandler(async (req: Request, res: Response
 
     const product = await Product.findById(productId)
         .populate('createdBy', 'name email')
-        .populate('updatedBy', 'name email');
+        .populate('updatedBy', 'name email')
+        .populate('category', 'name icon')
+        .populate('regionalDistribution.region', 'name coordinate isActive');
 
     if (!product) {
         return next(new AppError('Product not found', 404));

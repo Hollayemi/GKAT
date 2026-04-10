@@ -1,8 +1,10 @@
 import { Request, Response } from 'express';
 import PaymentGateway from '../../services/payment';
 import Order from '../../models/Orders';
+import Cart from '../../models/Cart';
 import logger from '../../utils/logger';
 import { getSupportedPaymentMethods } from './paymentMethodController';
+import { buildCartSummary } from '../cart';
 
 
 class PurchaseController {
@@ -101,11 +103,16 @@ class PurchaseController {
    
     static async getServiceCharge(req: Request, res: Response, next: any): Promise<Response | void> {
         try {
-            const { subTotal, provider } = req.query;
+            const { provider="paystack", deliveryMethod="delivery" } = req.query;
 
-            if (!subTotal || !provider) {
+            const cart = await Cart.findOrCreateCart(req.user.id);
+
+            const { pricing } = await buildCartSummary(cart)
+            const subTotal = pricing.totalAmount;
+
+            if ( !provider) {
                 return res.status(400).json({
-                    error: 'subTotal and provider are required'
+                    error: 'Provider is required'
                 });
             }
 
@@ -115,11 +122,14 @@ class PurchaseController {
                 parseInt(subTotal as string)
             );
 
+            const  deliveryFee = deliveryMethod ? 500 : 0;
+
             return res.status(200).json({
                 provider,
                 subTotal: parseInt(subTotal as string),
                 serviceCharge: gateWayFee,
-                total: parseInt(subTotal as string) + gateWayFee
+                deliveryFee,
+                totalAmount: parseInt(subTotal as string) + gateWayFee + deliveryFee
             });
         } catch (err) {
             return next(err);
