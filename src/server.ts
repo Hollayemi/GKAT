@@ -34,7 +34,7 @@ const limiter = rateLimit({
 // app.use('/api/', limiter);
 
 app.use(cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:3000',
+    origin: process.env.CLIENT_URL || 'http://localhost:3000' || "https://go-kart-nu.vercel.app",
     credentials: true
 }));
 
@@ -101,7 +101,6 @@ app.use('/api/v1/push-notifications', pushNotificationRoute);
 app.use('/api/v1/rider', riderRoutes);
 app.use('/api/v1/', Others);
 app.use('/api/v1/admin/customers', customer);
-
 app.use('*', handle404);
 
 app.use(errorHandler);

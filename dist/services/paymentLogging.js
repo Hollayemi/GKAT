@@ -136,7 +136,7 @@ class PaymentLogging {
                         logger_1.default.error(`Error updating order ${orderId}:`, error);
                     }
                 }
-                // Clear user's cart after successful payment
+                // Clear user&apos;scart after successful payment
                 if (userId) {
                     try {
                         const cart = await Cart_1.default.findOne({ userId, isActive: true });

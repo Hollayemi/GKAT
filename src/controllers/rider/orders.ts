@@ -24,7 +24,7 @@ const calculateFare = (distanceKm: number, isPriority = false) => {
 const generateDeliveryPin = (): string =>
     Math.floor(1000 + Math.random() * 9000).toString();
 
-// ─── @desc    Get available orders in driver's region (broadcast)
+// ─── @desc    Get available orders in driver&apos;sregion (broadcast)
 // ─── @route   GET /api/v1/driver-app/orders/available
 // ─── @access  Private (driver)
 export const getAvailableOrders = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
@@ -41,7 +41,7 @@ export const getAvailableOrders = asyncHandler(async (req: Request, res: Respons
         return next(new AppError('Your account is not active', 403));
     }
 
-    // Find deliveries broadcasted to this driver's region that are not yet accepted
+    // Find deliveries broadcasted to this driver&apos;sregion that are not yet accepted
     const available = await DriverDelivery.find({
         status: 'pending_acceptance',
         expiresAt: { $gt: new Date() }
@@ -428,7 +428,7 @@ export const cancelDelivery = asyncHandler(async (req: Request, res: Response, n
     (res as AppResponse).success('Delivery cancelled');
 });
 
-// ─── @desc    Get driver's current active delivery
+// ─── @desc    Get driver&apos;scurrent active delivery
 // ─── @route   GET /api/v1/driver-app/orders/active
 // ─── @access  Private (driver)
 export const getActiveDelivery = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {

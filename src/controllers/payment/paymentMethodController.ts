@@ -44,7 +44,7 @@ export const togglePaymentMethod = asyncHandler(
     }
 );
 
-// @desc    Update a payment method's details
+// @desc    Update a payment method&apos;sdetails
 // @route   PUT /api/v1/admin/payment-methods/:id
 // @access  Private/Admin
 export const updatePaymentMethod = asyncHandler(

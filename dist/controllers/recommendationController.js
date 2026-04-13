@@ -17,7 +17,7 @@ exports.getPersonalizedRecommendations = (0, error_1.asyncHandler)(async (req, r
     }
     const { limit = 10 } = req.query;
     const limitNum = parseInt(limit);
-    // Get user's order history to find categories they've purchased from
+    // Get user&apos;sorder history to find categories they've purchased from
     const orders = await Orders_1.default.find({
         userId: req.user.id,
         orderStatus: { $in: ['delivered', 'confirmed', 'processing'] }
@@ -35,7 +35,7 @@ exports.getPersonalizedRecommendations = (0, error_1.asyncHandler)(async (req, r
         .sort((a, b) => b[1] - a[1])
         .slice(0, 3)
         .map(([category]) => category);
-    // Get user's cart history
+    // Get user&apos;scart history
     const cart = await Cart_1.default.findOne({ userId: req.user.id, isActive: true });
     if (cart && cart.items.length > 0) {
         cart.items.forEach(item => {
@@ -113,7 +113,7 @@ exports.getOrderBasedRecommendations = (0, error_1.asyncHandler)(async (req, res
     }
     const { limit = 10 } = req.query;
     const limitNum = parseInt(limit);
-    // Get user's recent orders
+    // Get user&apos;srecent orders
     const orders = await Orders_1.default.find({
         userId: req.user.id,
         orderStatus: { $in: ['delivered', 'confirmed'] }

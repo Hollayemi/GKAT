@@ -422,7 +422,7 @@ export const cancelOrder = asyncHandler(
       return next(new AppError("Cannot cancel a delivered order", 400));
     }
 
-    // Use the model's built-in cancelOrder method which handles
+    // Use the model&apos;sbuilt-in cancelOrder method which handles
     // orderStatus, cancellationReason, statusHistory, and refund logic
     await order.cancelOrder(`${reason} — ${note}`, req.user.id);
 
@@ -448,7 +448,7 @@ export const updateOrderStatus = asyncHandler(
     const order = await Order.findOne({ orderNumber });
     if (!order) return next(new AppError("Order not found", 404));
 
-    // Use the model's built-in updateStatus method which also
+    // Use the model&apos;sbuilt-in updateStatus method which also
     // pushes to statusHistory and sets actualDelivery/estimatedDelivery
     await order.updateStatus(newStatus, note ?? "", req.user.id);
 
@@ -487,7 +487,7 @@ export const transferOrder = asyncHandler(
       );
     }
 
-    // Use the model's built-in addTrackingInfo method http://localhost:5001/api/v1
+    // Use the model&apos;sbuilt-in addTrackingInfo method http://localhost:5001/api/v1
     await order.addTrackingInfo(
       trackingNumber,
       carrier,

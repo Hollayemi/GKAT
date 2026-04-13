@@ -547,7 +547,7 @@ function calculateLoyaltyProgress(user: any, orders: any[]) {
   };
 }
 
-//function to show customer's activities
+//function to show customer&apos;sactivities
 function buildCustomerActivity(user: any, orders: any[]) {
   const activities: any[] = [];
 

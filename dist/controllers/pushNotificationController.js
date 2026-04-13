@@ -404,7 +404,7 @@ exports.testNotification = (0, error_1.asyncHandler)(async (req, res, next) => {
     if (!req.user) {
         return next(new error_1.AppError('Not authenticated', 401));
     }
-    // Get admin's FCM token from User model
+    // Get admin&apos;sFCM token from User model
     const User = require('../models/User').default;
     const admin = await User.findById(req.user.id).select('fcmToken');
     if (!admin || !admin.fcmToken) {

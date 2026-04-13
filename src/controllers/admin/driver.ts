@@ -187,13 +187,13 @@ export const createDriver = asyncHandler(async (req: Request, res: Response, nex
             }
         }
 
-        // Upload driver's license
+        // Upload driver&apos;slicense
         if (files.driversLicense && files.driversLicense[0]) {
             try {
                 const result = await CloudinaryService.uploadImage(files.driversLicense[0], 'go-kart/drivers/licenses');
                 driversLicenseUrl = result.url;
             } catch (error: any) {
-                return next(new AppError(`Driver's license upload failed: ${error.message}`, 400));
+                return next(new AppError(`Driver&apos;slicense upload failed: ${error.message}`, 400));
             }
         }
     }
@@ -335,7 +335,7 @@ export const updateDriver = asyncHandler(async (req: Request, res: Response, nex
             }
         }
 
-        // Upload new driver's license
+        // Upload new driver&apos;slicense
         if (files.driversLicense && files.driversLicense[0]) {
             try {
                 // Delete old license if exists
@@ -345,7 +345,7 @@ export const updateDriver = asyncHandler(async (req: Request, res: Response, nex
                 const result = await CloudinaryService.uploadImage(files.driversLicense[0], 'go-kart/drivers/licenses');
                 req.body.driversLicense = result.url;
             } catch (error: any) {
-                return next(new AppError(`Driver's license upload failed: ${error.message}`, 400));
+                return next(new AppError(`Driver&apos;slicense upload failed: ${error.message}`, 400));
             }
         }
     }

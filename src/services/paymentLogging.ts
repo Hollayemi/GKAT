@@ -188,7 +188,7 @@ class PaymentLogging {
                     }
                 }
 
-                // Clear user's cart after successful payment
+                // Clear user&apos;scart after successful payment
                 if (userId) {
                     try {
                         const cart = await Cart.findOne({ userId, isActive: true });
