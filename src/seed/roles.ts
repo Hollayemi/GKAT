@@ -31,6 +31,8 @@ const seedRoles = async () => {
                     'disable_accounts',
                     'access_reports',
                     'manage_promotions',
+                    'coupon_management',
+                    'view_coupon',
                     'assign_roles',
                     'view_financial_dashboard',
                     'system_settings',
@@ -104,11 +106,11 @@ const seedRoles = async () => {
                 console.log('\nDefault Super Admin created:');
                 console.log(`Email: ${superAdmin.email}`);
                 console.log('Password: Admin@123456');
-                console.log('\n⚠️  IMPORTANT: Please change this password immediately after first login!');
+                console.log('\n IMPORTANT: Please change this password immediately after first login!');
             }
         }
 
-        console.log('\n✅ Database seeded successfully!');
+        console.log('\nDatabase seeded successfully!');
         process.exit(0);
     } catch (error) {
         console.error('Error seeding database:', error);

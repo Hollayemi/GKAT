@@ -22,7 +22,7 @@ router.post('/:id/click', trackAdvertClick);
 
 // Protected/Admin routes
 router.use(protect);
-// router.use(authorize('admin'));
+router.use(authorize('admin'));
 
 router.post('/', upload.single('image'), createAdvert);
 router.get('/stats/summary', getAdvertStats);

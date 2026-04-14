@@ -5,7 +5,6 @@ import User, {IUser} from '../models/User';
 import Role from '../models/admin/Roles.models';
 import { AppError, asyncHandler } from './error';
 
-// Extend Express Request to include user
 declare global {
     namespace Express {
         interface Request {
@@ -14,11 +13,9 @@ declare global {
     }
 }
 
-// Protect routes - verify JWT token
 export const ifToken = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     let token;
 
-    // Check for token in Authorization header
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
         token = req.headers.authorization.split(' ')[1];
     }
@@ -44,11 +41,9 @@ export const ifToken = asyncHandler(async (req: Request, res: Response, next: Ne
     }
 });
 
-// Protect routes - verify JWT token
 export const protect = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     let token;
 
-    // Check for token in Authorization header
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
         token = req.headers.authorization.split(' ')[1];
     }
@@ -59,7 +54,7 @@ export const protect = asyncHandler(async (req: Request, res: Response, next: Ne
 
 
     if (!token) {
-        return next(new AppError('-Not authorized to access this route', 401, 'UNAUTHORIZED'));
+        return next(new AppError('Not authorized to access this route', 401, 'UNAUTHORIZED'));
     }
 
     try {
@@ -94,7 +89,6 @@ export const protect = asyncHandler(async (req: Request, res: Response, next: Ne
             return next(new AppError('User no longer exists', 401, 'UNAUTHORIZED'));
         }
 
-        // Check if account is active
         if (staff.status === 'suspended') {
             return next(new AppError('Account is suspended', 403, 'FORBIDDEN'));
         }
@@ -123,6 +117,7 @@ export const protect = asyncHandler(async (req: Request, res: Response, next: Ne
             ...staff.toObject(),
             permissions: allPermissions
         };
+
         // req.user.isAdmin = true
         req.user = staffWithPermissions;
 
@@ -132,7 +127,7 @@ export const protect = asyncHandler(async (req: Request, res: Response, next: Ne
     }
 });
 
-// Check for specific permission
+
 export const checkPermission = (permission: string) => {
     return (req: Request, res: Response, next: NextFunction) => {
         if (!req.user) {
@@ -151,7 +146,6 @@ export const checkPermission = (permission: string) => {
     };
 };
 
-// Check for multiple permissions (user must have ALL)
 export const checkPermissions = (...permissions: string[]) => {
     return (req: Request, res: Response, next: NextFunction) => {
         if (!req.user) {
@@ -197,7 +191,6 @@ export const checkAnyPermission = (...permissions: string[]) => {
     };
 };
 
-// Authorize based on role (legacy - prefer permission-based)
 export const authorize = (...roles: string[]) => {
     return async (req: Request, res: Response, next: NextFunction) => {
         if (!req.user) {
@@ -212,31 +205,28 @@ export const authorize = (...roles: string[]) => {
 
         const roleName = (staff.role as any).name;
 
-        // if (!roles.includes(roleName)) {
-        //     return next(new AppError(
-        //         `User role '${roleName}' is not authorized to access this route`,
-        //         403,
-        //         'FORBIDDEN'
-        //     ));
-        // }
+        if (!roles.includes(roleName)) {
+            return next(new AppError(
+                `User role '${roleName}' is not authorized to access this route`,
+                403,
+                'FORBIDDEN'
+            ));
+        }
 
         next();
     };
 };
 
-// Check if user is the owner of a resource or has permission
 export const checkOwnerOrPermission = (permission: string) => {
     return (req: Request, res: Response, next: NextFunction) => {
         if (!req.user) {
             return next(new AppError('Not authenticated', 401, 'UNAUTHORIZED'));
         }
 
-        // Allow if user has the permission
         if (req.user.permissions.includes(permission)) {
             return next();
         }
 
-        // Allow if user is the owner (ID matches)
         if (req.params.id === req.user.id) {
             return next();
         }

@@ -11,8 +11,6 @@ import {
 import { protect } from '../middleware/auth';
 
 const router = Router();
-
-// All routes require authentication
 router.use(protect);
 
 // @route   GET /api/v1/addresses/default
