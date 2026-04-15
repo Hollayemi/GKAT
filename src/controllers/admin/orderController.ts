@@ -4,6 +4,7 @@ import User, { IUser } from "../../models/User";
 import { AppError, asyncHandler, AppResponse } from "../../middleware/error";
 import mongoose from "mongoose";
 import Product from "../../models/admin/Product";
+import StaffModel, { IStaff } from "../../models/admin/Staff.model";
 
 function buildOrderStatusFilter(status: string): OrderStatus | null {
   const map: Record<string, OrderStatus> = {
@@ -46,7 +47,7 @@ async function formatOrder(order: any) {
 
     customerName: order.userId?.name || "",
     customerEmail: order.userId?.email || "",
-    customerPhone: order.userId?.phone || "",
+    customerPhone: order.userId?.phoneNumber || "",
 
     // deliveryAddress: order.shippingAddress || "",
     deliveryAddress: order.shippingAddress?.address || "",
@@ -65,6 +66,7 @@ async function formatOrder(order: any) {
       name: item.name,
       quantity: item.quantity,
       price: item.price,
+      image: item.image,
     })),
 
     activityTimeline: order.statusHistory.map((s: any) => ({
@@ -138,7 +140,7 @@ export const getAllOrders = asyncHandler(
 
     const [orders, total] = await Promise.all([
       Order.find(query)
-        .populate("userId", "name email phone")
+        .populate("userId", "name email phoneNumber")
         .populate("shippingAddress")
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -189,7 +191,7 @@ export const getOrderById = asyncHandler(
     const { orderNumber } = req.params;
 
     const order = await Order.findOne({ orderNumber })
-      .populate("userId", "name email phone")
+      .populate("userId", "name email phoneNumber")
       .populate("shippingAddress")
       .lean();
 
@@ -391,25 +393,18 @@ export const cancelOrder = asyncHandler(
     }
 
     // User.findById with '+password' to include the select:false password field
-    const admin = (await User.findById(req.user.id).select("+password")) as
-      | (IUser & {
-          matchPassword?: (p: string) => Promise<boolean>;
+    const admin = (await StaffModel.findById(req.user.id).select("+password")) as
+      | (IStaff & {
           comparePassword?: (p: string) => Promise<boolean>;
         })
       | null;
-    if (!admin) return next(new AppError("Admin not found", 404));
 
-    const verifyPassword = admin.comparePassword ?? admin.matchPassword;
-    if (!verifyPassword) {
-      return next(
-        new AppError(
-          "Password verification method not found on User model",
-          500,
-        ),
-      );
-    }
-
-    const isMatch = await verifyPassword.call(admin, password);
+      if (!admin) return next(new AppError("Admin not found", 404));
+      
+  
+    console.log("Verify Admin:", admin?.email);
+    const isMatch =  admin.comparePassword(password);
+    console.log("isMatch:", isMatch, password);
     if (!isMatch) return next(new AppError("Incorrect password", 401));
 
     const order = await Order.findOne({ orderNumber });

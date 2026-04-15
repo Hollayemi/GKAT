@@ -60,7 +60,6 @@ exports.protect = (0, error_1.asyncHandler)(async (req, res, next) => {
             req.user = user;
             return next();
         }
-        console.log('Decoded JWT:', decoded);
         // Get user from token
         const staff = await Staff_model_1.default.findById(decoded.id)
             .populate('role', 'name displayName permissions')

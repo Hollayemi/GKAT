@@ -59,6 +59,7 @@ class PurchaseController {
         const { provider } = req.params;
         const signature = req.headers['x-paystack-signature'] as string;
 
+
         try {
             const paymentGateway = new PaymentGateway();
 

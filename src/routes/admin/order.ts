@@ -13,7 +13,7 @@ const router = Router();
 
 router.use(protect);
 
-router.use(authorize('admin'));
+router.use(authorize('super_admin'));
 
 router.get('/', getAllOrders);
 
