@@ -10,31 +10,7 @@ const options: swaggerJsdoc.Options = {
                 ## Go-Kart Grocery Delivery Platform, API Reference
 
                 A full-stack grocery e-commerce and delivery system built with Node.js / TypeScript / MongoDB.
-
-                ### Authentication
-                Most endpoints require a Bearer JWT. Obtain one by completing the OTP login flow:
-                1. \`POST /auth/send-otp\` or \`POST /auth/login\`
-                2. \`POST /auth/verify-otp\` or \`POST /auth/verify-login-otp\`
-
-                The response includes an \`accessToken\` (7 days) and a \`refreshToken\` (30 days).
-                Use \`POST /auth/refresh-token\` to rotate tokens without re-authenticating.
-
-                ### Base URL
-                - **Development** \`http://localhost:5000/api/v1\`
-                - **Production** \`https://gokart-foht.onrender.com/api/v1\`
-
-                ### Response format
-                All responses follow a consistent envelope:
-                \`\`\`json
-                {
-                "success": true,
-                "type": "success",
-                "message": "...",
-                "data": { ... },
-                "timestamp": "2026-04-22T12:00:00.000Z"
-                }
-                \`\`\`
-                Error responses set \`success: false\` and add an \`error\` field in development mode.
+                This documentation provides a comprehensive reference for all API endpoints, request/response schemas, and authentication methods.
 `,
             contact: {
                 name: 'Stephen Oluwasusi',
