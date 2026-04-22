@@ -15,7 +15,7 @@ export interface IOrderItem {
 }
 
 export interface IShippingAddress {
-    label: string; // "Home", "Shop", "Office"
+    label: string;
     fullname: string;
     address: string;
     phone: string;
@@ -48,7 +48,7 @@ export interface IStatusHistory {
 
 export interface IAppliedCoupon {
     code: string;
-    promotionName: string; 
+    promotionName: string;
     promoType: string;
     discountValue: number;
     discountAmount: number;
@@ -63,8 +63,14 @@ export interface IOrder extends Document {
     shippingAddress: string;
     deliveryMethod: 'pickup' | 'delivery';
 
-    paymentInfo: IPaymentInfo;
+    /**
+     * The delivery region resolved automatically at order creation time
+     * by comparing the shipping address coordinates to all active region
+     * coordinates (nearest region wins).
+     */
+    region?: Types.ObjectId;
 
+    paymentInfo: IPaymentInfo;
     orderStatus: OrderStatus;
 
     subtotal: number;
@@ -122,98 +128,18 @@ interface IOrderModel extends Model<IOrder> {
 }
 
 const orderItemSchema = new Schema<IOrderItem>({
-    productId: {
-        type: Schema.Types.ObjectId,
-        ref: 'Product',
-        required: true
-    },
-    variantId: {
-        type: Schema.Types.ObjectId
-    },
-    name: {
-        type: String,
-        required: true
-    },
-    brand: {
-        type: String
-    },
-    category: {
-        type: String,
-        required: true
-    },
-    price: {
-        type: Number,
-        required: true,
-        min: 0
-    },
-    quantity: {
-        type: Number,
-        required: true,
-        min: 1
-    },
-    image: {
-        type: String
-    },
-    unitType: {
-        type: String,
-        required: true
-    },
-    unitQuantity: {
-        type: String,
-        required: true
-    },
-    totalPrice: {
-        type: Number,
-        required: true,
-        min: 0
-    }
+    productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+    variantId: { type: Schema.Types.ObjectId },
+    name: { type: String, required: true },
+    brand: { type: String },
+    category: { type: String, required: true },
+    price: { type: Number, required: true, min: 0 },
+    quantity: { type: Number, required: true, min: 1 },
+    image: { type: String },
+    unitType: { type: String, required: true },
+    unitQuantity: { type: String, required: true },
+    totalPrice: { type: Number, required: true, min: 0 }
 }, { _id: false });
-
-const shippingAddressSchema = new Schema<IShippingAddress>({
-    label: {
-        type: String,
-        required: true,
-        enum: ['Home', 'Shop', 'Office', 'Other']
-    },
-    fullname: {
-        type: String,
-        required: true,
-        trim: true
-    },
-    address: {
-        type: String,
-        required: true,
-        trim: true
-    },
-    phone: {
-        type: String,
-        required: true,
-        trim: true
-    },
-    state: {
-        type: String,
-        required: true,
-        trim: true
-    },
-    city: {
-        type: String,
-        trim: true
-    },
-    zipCode: {
-        type: String,
-        trim: true
-    },
-    email: {
-        type: String,
-        trim: true,
-        lowercase: true
-    },
-    isDefault: {
-        type: Boolean,
-        default: false
-    }
-}, { _id: false });
-
 
 const paymentInfoSchema = new Schema<IPaymentInfo>({
     method: {
@@ -221,30 +147,17 @@ const paymentInfoSchema = new Schema<IPaymentInfo>({
         required: true,
         enum: ['palmpay', 'paystack', 'opay', 'cash_on_delivery'] as PaymentMethod[]
     },
-    reference: {
-        type: String,
-        trim: true
-    },
-    transactionId: {
-        type: String,
-        trim: true
-    },
+    reference: { type: String, trim: true },
+    transactionId: { type: String, trim: true },
     paymentStatus: {
         type: String,
         required: true,
         enum: ['pending', 'completed', 'failed', 'refunded', 'cancelled'] as PaymentStatus[],
         default: 'pending'
     },
-    paidAt: {
-        type: Date
-    },
-    amount: {
-        type: Number,
-        required: true,
-        min: 0
-    }
+    paidAt: { type: Date },
+    amount: { type: Number, required: true, min: 0 }
 }, { _id: false });
-
 
 const statusHistorySchema = new Schema<IStatusHistory>({
     status: {
@@ -252,86 +165,32 @@ const statusHistorySchema = new Schema<IStatusHistory>({
         required: true,
         enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'returned', 'refunded'] as OrderStatus[]
     },
-    timestamp: {
-        type: Date,
-        default: Date.now
-    },
-    note: {
-        type: String,
-        trim: true
-    },
-    updatedBy: {
-        type: Schema.Types.ObjectId,
-        ref: 'User'
-    }
+    timestamp: { type: Date, default: Date.now },
+    note: { type: String, trim: true },
+    updatedBy: { type: Schema.Types.ObjectId, ref: 'User' }
 }, { _id: false });
 
 const appliedCouponSchema = new Schema<IAppliedCoupon>({
-    code: {
-        type: String,
-        required: true,
-        uppercase: true
-    },
-    promotionName: {
-        type: String,
-        required: true
-    },
-    promoType: {
-        type: String,
-        required: true
-    },
-    discountValue: {
-        type: Number,
-        required: true,
-        min: 0
-    },
-    discountAmount: {
-        type: Number,
-        required: true,
-        min: 0
-    }
+    code: { type: String, required: true, uppercase: true },
+    promotionName: { type: String, required: true },
+    promoType: { type: String, required: true },
+    discountValue: { type: Number, required: true, min: 0 },
+    discountAmount: { type: Number, required: true, min: 0 }
 }, { _id: false });
 
-
 const orderSchema = new Schema<IOrder, IOrderModel>({
-    orderNumber: {
-        type: String,
-        required: true,
-        unique: true,
-        index: true,
-        trim: true
-    },
-    orderSlug: {
-        type: String,
-        required: true,
-        unique: true,
-        index: true,
-        trim: true
-    },
-    userId: {
-        type: Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
-        index: true
-    },
+    orderNumber: { type: String, required: true, unique: true, index: true, trim: true },
+    orderSlug: { type: String, required: true, unique: true, index: true, trim: true },
+    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     items: [orderItemSchema],
 
-    shippingAddress: {
-        type: String,  
-        required: true,
-        ref: 'Address'
-    },
-    deliveryMethod: {
-        type: String,
-        required: true,
-        enum: ['pickup', 'delivery'],
-        default: 'delivery'
-    },
+    shippingAddress: { type: String, required: true, ref: 'Address' },
+    deliveryMethod: { type: String, required: true, enum: ['pickup', 'delivery'], default: 'delivery' },
 
-    paymentInfo: {
-        type: paymentInfoSchema,
-        required: true
-    },
+    // Region resolved at order creation time (nearest region to delivery address)
+    region: { type: Schema.Types.ObjectId, ref: 'Region', index: true },
+
+    paymentInfo: { type: paymentInfoSchema, required: true },
 
     orderStatus: {
         type: String,
@@ -341,100 +200,33 @@ const orderSchema = new Schema<IOrder, IOrderModel>({
         index: true
     },
 
-    subtotal: {
-        type: Number,
-        required: true,
-        min: 0
-    },
-    deliveryFee: {
-        type: Number,
-        required: true,
-        min: 0,
-        default: 0
-    },
-    serviceCharge: {
-        type: Number,
-        required: true,
-        min: 0,
-        default: 200
-    },
-    tax: {
-        type: Number,
-        required: true,
-        min: 0,
-        default: 0
-    },
-    discount: {
-        type: Number,
-        min: 0,
-        default: 0
-    },
-    totalAmount: {
-        type: Number,
-        required: true,
-        min: 0
-    },
+    subtotal: { type: Number, required: true, min: 0 },
+    deliveryFee: { type: Number, required: true, min: 0, default: 0 },
+    serviceCharge: { type: Number, required: true, min: 0, default: 200 },
+    tax: { type: Number, required: true, min: 0, default: 0 },
+    discount: { type: Number, min: 0, default: 0 },
+    totalAmount: { type: Number, required: true, min: 0 },
 
     appliedCoupons: [appliedCouponSchema],
 
-    trackingNumber: {
-        type: String,
-        trim: true
-    },
-    carrier: {
-        type: String,
-        trim: true
-    },
-    estimatedDelivery: {
-        type: Date
-    },
-    actualDelivery: {
-        type: Date
-    },
+    trackingNumber: { type: String, trim: true },
+    carrier: { type: String, trim: true },
+    estimatedDelivery: { type: Date },
+    actualDelivery: { type: Date },
 
-    notes: {
-        type: String,
-        trim: true,
-        maxlength: 500
-    },
-    adminNotes: {
-        type: String,
-        trim: true,
-        maxlength: 1000
-    },
+    notes: { type: String, trim: true, maxlength: 500 },
+    adminNotes: { type: String, trim: true, maxlength: 1000 },
 
     statusHistory: [statusHistorySchema],
 
-    cancellationReason: {
-        type: String,
-        trim: true
-    },
-    returnReason: {
-        type: String,
-        trim: true
-    },
-    refundAmount: {
-        type: Number,
-        min: 0,
-        default: 0
-    },
-    refundedAt: {
-        type: Date
-    },
+    cancellationReason: { type: String, trim: true },
+    returnReason: { type: String, trim: true },
+    refundAmount: { type: Number, min: 0, default: 0 },
+    refundedAt: { type: Date },
 
-    rating: {
-        type: Number,
-        min: 1,
-        max: 5
-    },
-    review: {
-        type: String,
-        trim: true,
-        maxlength: 1000
-    },
-    reviewedAt: {
-        type: Date
-    }
+    rating: { type: Number, min: 1, max: 5 },
+    review: { type: String, trim: true, maxlength: 1000 },
+    reviewedAt: { type: Date }
 }, {
     timestamps: true,
     toJSON: { virtuals: true },
@@ -442,6 +234,8 @@ const orderSchema = new Schema<IOrder, IOrderModel>({
 });
 
 orderSchema.index({ userId: 1, createdAt: -1 });
+orderSchema.index({ region: 1, orderStatus: 1 });
+orderSchema.index({ region: 1, createdAt: -1 });
 orderSchema.index({ orderNumber: 1 });
 orderSchema.index({ orderSlug: 1 });
 orderSchema.index({ orderStatus: 1 });
@@ -450,22 +244,13 @@ orderSchema.index({ createdAt: -1 });
 orderSchema.index({ 'paymentInfo.reference': 1 });
 
 orderSchema.pre('save', async function (next) {
-    this.items.forEach(item => {
-        item.totalPrice = item.price * item.quantity;
-    });
-
+    this.items.forEach(item => { item.totalPrice = item.price * item.quantity; });
     this.subtotal = this.items.reduce((sum, item) => sum + item.totalPrice, 0);
-
     this.totalAmount = this.subtotal + this.deliveryFee + this.serviceCharge + this.tax - this.discount;
 
     if (this.isNew && this.statusHistory.length === 0) {
-        this.statusHistory.push({
-            status: this.orderStatus,
-            timestamp: new Date(),
-            note: 'Order created'
-        });
+        this.statusHistory.push({ status: this.orderStatus, timestamp: new Date(), note: 'Order created' });
     }
-
     next();
 });
 
@@ -474,8 +259,7 @@ orderSchema.virtual('orderAge').get(function () {
 });
 
 orderSchema.virtual('isRecent').get(function () {
-    const thirtyDaysAgo = new Date(Date.now() - (30 * 24 * 60 * 60 * 1000));
-    return this.createdAt > thirtyDaysAgo;
+    return this.createdAt > new Date(Date.now() - (30 * 24 * 60 * 60 * 1000));
 });
 
 orderSchema.virtual('canCancel').get(function () {
@@ -485,138 +269,74 @@ orderSchema.virtual('canCancel').get(function () {
 
 orderSchema.virtual('canReturn').get(function () {
     if (this.orderStatus !== 'delivered') return false;
-
     const sevenDaysAgo = new Date(Date.now() - (7 * 24 * 60 * 60 * 1000));
     return this.actualDelivery ? this.actualDelivery > sevenDaysAgo : false;
 });
 
-orderSchema.methods.updateStatus = function (
-    newStatus: OrderStatus,
-    note: string = '',
-    updatedBy?: Types.ObjectId
-): Promise<IOrder> {
+orderSchema.methods.updateStatus = function (newStatus: OrderStatus, note = '', updatedBy?: Types.ObjectId): Promise<IOrder> {
     this.orderStatus = newStatus;
-    this.statusHistory.push({
-        status: newStatus,
-        timestamp: new Date(),
-        note,
-        updatedBy
-    });
-
-    if (newStatus === 'delivered' && !this.actualDelivery) {
-        this.actualDelivery = new Date();
-    }
-
+    this.statusHistory.push({ status: newStatus, timestamp: new Date(), note, updatedBy });
+    if (newStatus === 'delivered' && !this.actualDelivery) this.actualDelivery = new Date();
     if (newStatus === 'shipped' && !this.estimatedDelivery) {
-        this.estimatedDelivery = new Date(Date.now() + (3 * 24 * 60 * 60 * 1000)); // 3 days
+        this.estimatedDelivery = new Date(Date.now() + (3 * 24 * 60 * 60 * 1000));
     }
-
     return this.save();
 };
 
-orderSchema.methods.addTrackingInfo = function (
-    trackingNumber: string,
-    carrier: string,
-    estimatedDelivery?: Date
-): Promise<IOrder> {
+orderSchema.methods.addTrackingInfo = function (trackingNumber: string, carrier: string, estimatedDelivery?: Date): Promise<IOrder> {
     this.trackingNumber = trackingNumber;
     this.carrier = carrier;
-    if (estimatedDelivery) {
-        this.estimatedDelivery = estimatedDelivery;
-    }
+    if (estimatedDelivery) this.estimatedDelivery = estimatedDelivery;
     return this.save();
 };
 
-orderSchema.methods.processPayment = function (
-    reference: string,
-    transactionId: string,
-    paidAmount: number
-): Promise<IOrder> {
+orderSchema.methods.processPayment = function (reference: string, transactionId: string, paidAmount: number): Promise<IOrder> {
     this.paymentInfo.reference = reference;
     this.paymentInfo.transactionId = transactionId;
     this.paymentInfo.paymentStatus = 'completed';
     this.paymentInfo.paidAt = new Date();
     this.paymentInfo.amount = paidAmount;
-
     if (this.orderStatus === 'pending') {
         this.orderStatus = 'confirmed';
-        this.statusHistory.push({
-            status: 'confirmed',
-            timestamp: new Date(),
-            note: 'Payment confirmed'
-        });
+        this.statusHistory.push({ status: 'confirmed', timestamp: new Date(), note: 'Payment confirmed' });
     }
-
     return this.save();
 };
 
-orderSchema.methods.cancelOrder = function (
-    reason: string,
-    cancelledBy?: Types.ObjectId
-): Promise<IOrder> {
+orderSchema.methods.cancelOrder = function (reason: string, cancelledBy?: Types.ObjectId): Promise<IOrder> {
     this.orderStatus = 'cancelled';
     this.cancellationReason = reason;
-    this.statusHistory.push({
-        status: 'cancelled',
-        timestamp: new Date(),
-        note: `Order cancelled: ${reason}`,
-        updatedBy: cancelledBy
-    });
-
+    this.statusHistory.push({ status: 'cancelled', timestamp: new Date(), note: `Order cancelled: ${reason}`, updatedBy: cancelledBy });
     if (this.paymentInfo.paymentStatus === 'completed') {
         this.paymentInfo.paymentStatus = 'refunded';
         this.refundAmount = this.totalAmount;
         this.refundedAt = new Date();
     }
-
     return this.save();
 };
 
 orderSchema.methods.returnOrder = function (reason: string): Promise<IOrder> {
-    if (!this.canReturn) {
-        throw new Error('Order cannot be returned');
-    }
-
+    if (!this.canReturn) throw new Error('Order cannot be returned');
     this.orderStatus = 'returned';
     this.returnReason = reason;
-    this.statusHistory.push({
-        status: 'returned',
-        timestamp: new Date(),
-        note: `Order returned: ${reason}`
-    });
-
+    this.statusHistory.push({ status: 'returned', timestamp: new Date(), note: `Order returned: ${reason}` });
     return this.save();
 };
 
 orderSchema.methods.addRating = function (rating: number, review?: string): Promise<IOrder> {
-    if (this.orderStatus !== 'delivered') {
-        throw new Error('Can only rate delivered orders');
-    }
-
+    if (this.orderStatus !== 'delivered') throw new Error('Can only rate delivered orders');
     this.rating = rating;
-    if (review) {
-        this.review = review;
-    }
+    if (review) this.review = review;
     this.reviewedAt = new Date();
-
     return this.save();
 };
 
 orderSchema.statics.getOrderStats = async function (userId?: Types.ObjectId) {
     const matchStage = userId ? { userId } : {};
-
-    const stats = await this.aggregate([
+    return this.aggregate([
         { $match: matchStage },
-        {
-            $group: {
-                _id: '$orderStatus',
-                count: { $sum: 1 },
-                totalAmount: { $sum: '$totalAmount' }
-            }
-        }
+        { $group: { _id: '$orderStatus', count: { $sum: 1 }, totalAmount: { $sum: '$totalAmount' } } }
     ]);
-
-    return stats;
 };
 
 orderSchema.statics.generateOrderNumber = async function (): Promise<string> {
@@ -624,20 +344,14 @@ orderSchema.statics.generateOrderNumber = async function (): Promise<string> {
     const year = date.getFullYear().toString().slice(-2);
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const day = date.getDate().toString().padStart(2, '0');
-
     let isUnique = false;
     let orderNumber = '';
-
     while (!isUnique) {
         const random = Math.floor(100000 + Math.random() * 900000);
         orderNumber = `ORD-${year}${month}${day}-${random}`;
-
         const existing = await this.findOne({ orderNumber });
-        if (!existing) {
-            isUnique = true;
-        }
+        if (!existing) isUnique = true;
     }
-
     return orderNumber;
 };
 
@@ -645,22 +359,16 @@ orderSchema.statics.generateOrderSlug = async function (): Promise<string> {
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let isUnique = false;
     let slug = '';
-
     while (!isUnique) {
         slug = '';
         for (let i = 0; i < 8; i++) {
             slug += characters.charAt(Math.floor(Math.random() * characters.length));
         }
-
         const existing = await this.findOne({ orderSlug: slug });
-        if (!existing) {
-            isUnique = true;
-        }
+        if (!existing) isUnique = true;
     }
-
     return slug;
 };
 
 const Order: IOrderModel = mongoose.model<IOrder, IOrderModel>('Order', orderSchema);
-
 export default Order;

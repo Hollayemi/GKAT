@@ -3,10 +3,85 @@ import Cart from '../models/Cart';
 import Order from '../models/Orders';
 import Coupon from '../models/Coupon';
 import Product from '../models/admin/Product';
+import Address from '../models/Address';
+import Region from '../models/config/region.model';
 import { AppError, asyncHandler, AppResponse } from '../middleware/error';
 import NotificationController from './others/notification';
 import PaymentGateway from '../services/payment';
+import { findNearestRegion } from '../utils/geo';
+import mongoose from 'mongoose';
 
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Resolve the nearest active region for a given set of coordinates.
+ * Falls back to null when no regions exist or coordinates are unavailable.
+ */
+async function resolveOrderRegion(
+    lat: number | undefined,
+    lng: number | undefined
+): Promise<mongoose.Types.ObjectId | null> {
+    if (lat == null || lng == null) return null;
+
+    const regions = await Region.find({ isActive: true }).lean();
+    const nearest = findNearestRegion(lat, lng, regions);
+    if (!nearest) return null;
+
+    return new mongoose.Types.ObjectId(nearest.regionId);
+}
+
+/**
+ * Reduce the regional distribution stock for a single product/variant
+ * belonging to the given region.  Also reduces the global stockQuantity
+ * (the product-level field).
+ *
+ * Regional stock is clamped at 0 — it will never go negative.
+ */
+async function deductRegionalStock(
+    productId: mongoose.Types.ObjectId,
+    variantId: mongoose.Types.ObjectId | undefined,
+    quantity: number,
+    regionId: mongoose.Types.ObjectId | null
+): Promise<void> {
+    const product = await Product.findById(productId);
+    if (!product) return;
+
+    // ── 1. Global stock ─────────────────────────────────────────────────────
+    if (variantId) {
+        const variant = product.variants.find(
+            v => v._id?.toString() === variantId.toString()
+        );
+        if (variant) {
+            variant.stockQuantity = Math.max(0, variant.stockQuantity - quantity);
+        }
+    } else {
+        product.stockQuantity = Math.max(0, product.stockQuantity - quantity);
+    }
+
+    // ── 2. Regional distribution stock ─────────────────────────────────────
+    if (regionId) {
+        const regionalDist = product.regionalDistribution.find(
+            rd => rd.region.toString() === regionId.toString()
+        );
+
+        if (regionalDist) {
+            if (variantId) {
+                const variantDist = regionalDist.variants.find(
+                    vd => vd.variantId === variantId.toString()
+                );
+                if (variantDist) {
+                    variantDist.quantity = Math.max(0, variantDist.quantity - quantity);
+                }
+            } else {
+                regionalDist.mainProduct = Math.max(0, regionalDist.mainProduct - quantity);
+            }
+        }
+    }
+
+    await product.save();
+}
+
+// ─── controllers ─────────────────────────────────────────────────────────────
 
 // @desc    Create order from cart
 // @route   POST /api/v1/orders
@@ -16,17 +91,13 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
         return next(new AppError('Not authenticated', 401));
     }
 
-    const {
-        shippingAddress,
-        deliveryMethod,
-        paymentMethod,
-        notes
-    } = req.body;
+    const { shippingAddress, deliveryMethod, paymentMethod, notes } = req.body;
 
     if (!shippingAddress || !deliveryMethod || !paymentMethod) {
         return next(new AppError('Missing required fields', 400));
     }
 
+    // ── Cart validation ─────────────────────────────────────────────────────
     const cart = await Cart.getActiveCart(req.user.id);
     if (!cart || cart.items.length === 0) {
         return next(new AppError('Cart is empty', 400));
@@ -40,33 +111,21 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
         ));
     }
 
+    // ── Resolve delivery region from address coordinates ───────────────────
+    const addressDoc = await Address.findById(shippingAddress).lean();
+    const addressCoords = addressDoc?.coordinates;
+
+    const resolvedRegionId = await resolveOrderRegion(
+        addressCoords?.lat,
+        addressCoords?.lng
+    );
+
+    // ── Generate order identifiers ──────────────────────────────────────────
     const orderNumber = await Order.generateOrderNumber();
     const orderSlug = await Order.generateOrderSlug();
 
-
+    // ── Initialise payment ──────────────────────────────────────────────────
     const paymentGateway = new PaymentGateway();
-
-    console.log({
-        orderNumber,
-        orderSlug,
-        userId: req.user.id,
-        items: cart.items,
-        shippingAddress,
-        deliveryMethod,
-        paymentInfo: {
-            method: paymentMethod,
-            paymentStatus: paymentMethod === 'cash_on_delivery' ? 'pending' : 'pending',
-            amount: cart.totalAmount
-        },
-        orderStatus: 'pending',
-        subtotal: cart.subtotal,
-        deliveryFee: cart.deliveryFee,
-        serviceCharge: cart.serviceCharge,
-        discount: cart.discount,
-        totalAmount: cart.totalAmount,
-        appliedCoupons: cart.appliedCoupons,
-        notes
-    })
 
     const order = await Order.create({
         orderNumber,
@@ -75,9 +134,10 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
         items: cart.items,
         shippingAddress,
         deliveryMethod,
+        region: resolvedRegionId ?? undefined,
         paymentInfo: {
             method: paymentMethod,
-            paymentStatus: paymentMethod === 'cash_on_delivery' ? 'pending' : 'pending',
+            paymentStatus: 'pending',
             amount: cart.totalAmount
         },
         orderStatus: 'pending',
@@ -90,46 +150,41 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
         notes
     });
 
+    // ── Deduct stock (global + regional) ────────────────────────────────────
     for (const item of cart.items) {
-        const product = await Product.findById(item.productId);
-        if (product) {
-            if (item.variantId) {
-                const variant = product.variants.find(v =>
-                    v._id?.toString() === item.variantId?.toString()
-                );
-                if (variant) {
-                    variant.stockQuantity -= item.quantity;
-                }
-            } else {
-                product.stockQuantity -= item.quantity;
-            }
-            await product.save();
-        }
+        await deductRegionalStock(
+            item.productId as mongoose.Types.ObjectId,
+            item.variantId as mongoose.Types.ObjectId | undefined,
+            item.quantity,
+            resolvedRegionId
+        );
     }
 
+    // ── Increment coupon usage ───────────────────────────────────────────────
     for (const coupon of cart.appliedCoupons) {
-        const couponDoc = await Coupon.findOne({ code: coupon.code });
+        const couponDoc = await Coupon.findOne({ couponCode: coupon.code });
         if (couponDoc) {
             await couponDoc.incrementUsage(req.user.id);
         }
     }
 
+    // ── Initialise payment gateway ───────────────────────────────────────────
     const paymentReference = paymentGateway.generatePaymentReference(order.orderNumber);
 
     const paymentData = {
-        email: req.user.email || "admin@gmail.com",
+        email: req.user.email || 'admin@gmail.com',
         amount: order.paymentInfo.amount,
         reference: paymentReference,
         orderId: order._id.toString(),
         userId: req.user.id,
-        description: "Order Payment",
+        description: 'Order Payment',
         phone: req.user.phone || '',
         metadata: {}
-    }
+    };
 
     const paymentResult = await paymentGateway.initializePayment(paymentMethod, paymentData);
-    console.log('Payment Result:', paymentResult);
 
+    // ── Send order confirmation notification ─────────────────────────────────
     await NotificationController.saveAndSendNotification({
         userId: req.user.id,
         title: 'Order Placed Successfully',
@@ -138,47 +193,46 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
         typeId: { orderId: order._id },
         clickUrl: `/orders/${order._id}`,
         priority: 'high'
-    }, 'user', {
-        push_notification: true
-    });
+    }, 'user', { push_notification: true });
 
-    (res as AppResponse).data({ order, payment: paymentResult }, 'Order created successfully', 201);
+    (res as AppResponse).data(
+        { order, payment: paymentResult, region: resolvedRegionId },
+        'Order created successfully',
+        201
+    );
 });
 
+// @desc    Re-pay an existing order
+// @route   POST /api/v1/orders/repay
+// @access  Private
 export const repayOrder = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-    const { orderId, paymentMethod="paystack" } = req.body
+    const { orderId, paymentMethod = 'paystack' } = req.body;
     if (!req.user) {
         return next(new AppError('Not authenticated', 401));
     }
 
-    const order = await Order.findOne({
-        _id: orderId,
-        userId: req.user.id
-    });
-
+    const order = await Order.findOne({ _id: orderId, userId: req.user.id });
     if (!order) {
         return next(new AppError('Order not found', 404));
     }
 
     const paymentGateway = new PaymentGateway();
-
     const paymentReference = paymentGateway.generatePaymentReference(order.orderNumber);
 
     const paymentData = {
-        email: req.user.email || "admin@gmail.com",
+        email: req.user.email || 'admin@gmail.com',
         amount: order.totalAmount,
         reference: paymentReference,
         orderId: order._id.toString(),
         userId: req.user.id,
-        description: "Order re-Payment",
+        description: 'Order re-Payment',
         phone: req.user.phone || '',
         metadata: {}
-    }
+    };
 
     const paymentResult = await paymentGateway.initializePayment(paymentMethod, paymentData);
-    console.log('Payment Result:', paymentResult);
 
-   (res as AppResponse).data({ order, payment: paymentResult }, 'Order Payment ', 201);
+    (res as AppResponse).data({ order, payment: paymentResult }, 'Order Payment', 201);
 });
 
 // @desc    Get user orders
@@ -201,7 +255,9 @@ export const getUserOrders = asyncHandler(async (req: Request, res: Response, ne
     const orders = await Order.find(query)
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(parseInt(limit as string)).populate('shippingAddress');
+        .limit(parseInt(limit as string))
+        .populate('shippingAddress')
+        .populate('region', 'name');
 
     const total = await Order.countDocuments(query);
 
@@ -224,10 +280,8 @@ export const getOrder = asyncHandler(async (req: Request, res: Response, next: N
         return next(new AppError('Not authenticated', 401));
     }
 
-    const order = await Order.findOne({
-        _id: req.params.id,
-        userId: req.user.id
-    });
+    const order = await Order.findOne({ _id: req.params.id, userId: req.user.id })
+        .populate('region', 'name coordinate');
 
     if (!order) {
         return next(new AppError('Order not found', 404));
@@ -245,16 +299,11 @@ export const cancelOrder = asyncHandler(async (req: Request, res: Response, next
     }
 
     const { reason } = req.body;
-
     if (!reason) {
         return next(new AppError('Cancellation reason is required', 400));
     }
 
-    const order = await Order.findOne({
-        _id: req.params.id,
-        userId: req.user.id
-    });
-
+    const order = await Order.findOne({ _id: req.params.id, userId: req.user.id });
     if (!order) {
         return next(new AppError('Order not found', 404));
     }
@@ -265,7 +314,6 @@ export const cancelOrder = asyncHandler(async (req: Request, res: Response, next
 
     await order.cancelOrder(reason, req.user.id);
 
-    // Send notification
     await NotificationController.saveAndSendNotification({
         userId: req.user.id,
         title: 'Order Cancelled',
@@ -274,9 +322,7 @@ export const cancelOrder = asyncHandler(async (req: Request, res: Response, next
         typeId: { orderId: order._id },
         clickUrl: `/orders/${order._id}`,
         priority: 'medium'
-    }, 'user', {
-        push_notification: true
-    });
+    }, 'user', { push_notification: true });
 
     (res as AppResponse).data({ order }, 'Order cancelled successfully');
 });
@@ -289,11 +335,7 @@ export const trackOrder = asyncHandler(async (req: Request, res: Response, next:
         return next(new AppError('Not authenticated', 401));
     }
 
-    const order = await Order.findOne({
-        _id: req.params.id,
-        userId: req.user.id
-    });
-
+    const order = await Order.findOne({ _id: req.params.id, userId: req.user.id });
     if (!order) {
         return next(new AppError('Order not found', 404));
     }
@@ -318,16 +360,11 @@ export const rateOrder = asyncHandler(async (req: Request, res: Response, next: 
     }
 
     const { rating, review } = req.body;
-
     if (!rating || rating < 1 || rating > 5) {
         return next(new AppError('Valid rating (1-5) is required', 400));
     }
 
-    const order = await Order.findOne({
-        _id: req.params.id,
-        userId: req.user.id
-    });
-
+    const order = await Order.findOne({ _id: req.params.id, userId: req.user.id });
     if (!order) {
         return next(new AppError('Order not found', 404));
     }

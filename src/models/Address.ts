@@ -10,6 +10,16 @@ export interface IAddress extends Document {
     state: string;
     localGovernment: string;
     isDefault: boolean;
+    /**
+     * Optional WGS-84 coordinates for the address.
+     * Populated at creation time (from device GPS, browser Geolocation API,
+     * or a geocoding service on the frontend).
+     * Used by the order system to resolve the nearest delivery region.
+     */
+    coordinates?: {
+        lat: number;
+        lng: number;
+    };
     createdAt: Date;
     updatedAt: Date;
 }
@@ -61,7 +71,7 @@ const AddressSchema = new Schema<IAddress>({
         required: [true, 'State is required'],
         trim: true
     },
-   localGovernment: {
+    localGovernment: {
         type: String,
         required: [true, 'Local Government is required'],
         trim: true
@@ -70,6 +80,18 @@ const AddressSchema = new Schema<IAddress>({
         type: Boolean,
         default: false,
         index: true
+    },
+    coordinates: {
+        lat: {
+            type: Number,
+            min: [-90, 'Latitude must be between -90 and 90'],
+            max: [90, 'Latitude must be between -90 and 90']
+        },
+        lng: {
+            type: Number,
+            min: [-180, 'Longitude must be between -180 and 180'],
+            max: [180, 'Longitude must be between -180 and 180']
+        }
     }
 }, {
     timestamps: true,

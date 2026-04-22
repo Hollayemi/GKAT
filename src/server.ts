@@ -62,6 +62,25 @@ app.get('/health', (req, res) => {
     }, 'Server is healthy');
 });
 
+
+import swaggerUi from 'swagger-ui-express';
+import { swaggerSpec } from './config/swagger';
+
+// Add this route
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customSiteTitle: 'Go-Kart API Docs',
+  swaggerOptions: {
+    persistAuthorization: true, // keeps JWT token between page refreshes
+  },
+}));
+
+// Also expose the raw JSON spec (useful for Postman import)
+app.get('/api-docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+
+
 import authRoutes from './routes/auth';
 import productRoutes from './routes/products';
 import cartRoutes from './routes/cart';
@@ -123,6 +142,7 @@ process.on('unhandledRejection', (err: Error) => {
 });
 
 // seedRoles()
+
 
 process.on('uncaughtException', (err: Error) => {
     console.log('UNCAUGHT EXCEPTION! Shutting down...');
