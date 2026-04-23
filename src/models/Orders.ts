@@ -630,7 +630,7 @@ orderSchema.statics.generateOrderNumber = async function (): Promise<string> {
 
     while (!isUnique) {
         const random = Math.floor(100000 + Math.random() * 900000);
-        orderNumber = `ORD-${year}${month}${day}-${random}`;
+        orderNumber = `G_K_ORD-${year}${month}${day}-${random}`;
 
         const existing = await this.findOne({ orderNumber });
         if (!existing) {
