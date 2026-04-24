@@ -1,6 +1,7 @@
 import axios, { AxiosResponse } from 'axios';
 import crypto from 'crypto';
 import PaymentLogging from './paymentLogging';
+import Order from '../models/Orders';
 
 interface PaymentData {
     email: string;
@@ -316,6 +317,16 @@ class PaymentGateway extends PaymentLogging {
                     provider: 'paystack'
                 };
             }
+
+            const order = await Order.findOne({ _id: metadata.orderId });
+            if (!order) {
+                return {
+                    success: false,
+                    error: 'Order not found for this payment',
+                    provider: 'paystack'
+                }
+            }
+            await order?.updateStatus("paid", 'Payment completed successfully');
 
             return {
                 success: true,

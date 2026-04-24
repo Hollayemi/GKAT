@@ -14,9 +14,7 @@ class PurchaseController {
 
         logger.info('Payment callback received:', { reference, provider, platform });
 
-        const redirectTo = platform === "mobile"
-            ? 'corisio-app://'
-            : process.env.FRONTEND_URL || 'http://localhost:3000';
+        const redirectTo = process.env.FRONTEND_URL || 'http://localhost:3000';
 
         try {
             if (!reference) {
