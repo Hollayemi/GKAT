@@ -283,7 +283,34 @@
  *             type: object
  *             required: [enabled]
  *             properties:
- *               enabled:
+ *               push_notification:
+ *                 type: boolean
+ *                 example: true
+ *               sound:
+ *                 type: boolean
+ *                 example: true
+ *               vibrate:
+ *                 type: boolean
+ *                 example: true
+ *               offers:
+ *                 type: boolean
+ *                 example: true
+ *               order_updates:
+ *                 type: boolean
+ *                 example: true
+ *               promos:
+ *                 type: boolean
+ *                 example: true
+ *               payments:
+ *                 type: boolean
+ *                 example: true
+ *               orders:
+ *                 type: boolean
+ *                 example: true
+ *               app_update:
+ *                 type: boolean
+ *                 example: true
+ *               policy:
  *                 type: boolean
  *                 example: true
  *     responses:

@@ -11,12 +11,15 @@ interface FCMToken {
 
 interface NotificationPreferences {
     push_notification: boolean;
-    in_app_notification: boolean;
-    email_notification: boolean;
-    notification_sound: boolean;
+    sound: boolean;
+    vibrate: boolean;
+    offers: boolean;
     order_updates: boolean;
-    promotions: boolean;
-    system_updates: boolean;
+    promos: boolean;
+    payments: boolean;
+    orders: boolean;
+    app_update: boolean;
+    policy: boolean;
 }
 
 export interface IUser extends Document {
@@ -28,7 +31,7 @@ export interface IUser extends Document {
     avatar?: string;
     role: 'user' | 'admin' | 'driver';
 
-    driverId: Types.ObjectId; // Reference to Driver model if role is 'driver'
+    driverId: Types.ObjectId; 
 
     isPhoneVerified: boolean;
     isEmailVerified: boolean;
@@ -43,7 +46,7 @@ export interface IUser extends Document {
     otpExpiry?: Date;
 
     refreshToken?: string;
-    fcmTokens: FCMToken[]; // Firebase Cloud Messaging tokens for push notifications
+    fcmTokens: FCMToken[]; 
 
     addresses: Types.ObjectId[];
     defaultAddress?: Types.ObjectId;

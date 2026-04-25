@@ -289,25 +289,20 @@ export const completeProfile = asyncHandler(async (req: Request, res: Response, 
         return next(new AppError('User not found', 404));
     }
 
-    // let imageUrl: any = "";
+    let imageUrl: any = "";
 
-    // if (req.files && Array.isArray(req.files) && req.files.length > 0) {
-    //     try {
-    //         imageUrl = await CloudinaryService.uploadImage(req.files[0], 'go-kart/products');
-    //     } catch (error: any) {
-    //         return next(new AppError(`Image upload failed: ${error.message}`, 400));
-    //     }
-    // }
-
-    // if (imageUrl.length === 0) {
-    //     return next(new AppError('At least one product image is required', 400));
-    // }
-
+    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+        try {
+            imageUrl = await CloudinaryService.uploadImage(req.files[0], 'go-kart/products');
+        } catch (error: any) {
+            return next(new AppError(`Image upload failed: ${error.message}`, 400));
+        }
+    }
 
 
     // Update profile
     if (name) user.name = name;
-    // if (imageUrl && req.file) user.avatar = imageUrl;
+    if (imageUrl) user.avatar = imageUrl;
     if (email) user.email = email;
 
     // Handle referral
@@ -341,7 +336,18 @@ export const completeProfile = asyncHandler(async (req: Request, res: Response, 
 // @route   PUT /api/v1/auth/notifications
 // @access  Private
 export const updateNotificationSettings = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-    const { enabled } = req.body;
+    const {
+        push_notification,
+        sound,
+        vibrate,
+        offers,
+        order_updates,
+        promos,
+        payments,
+        orders,
+        app_update,
+        policy,
+    } = req.body;
 
     if (!req.user) {
         return next(new AppError('Not authenticated', 401));
@@ -353,7 +359,18 @@ export const updateNotificationSettings = asyncHandler(async (req: Request, res:
         return next(new AppError('User not found', 404));
     }
 
-    user.notification_pref.push_notification = enabled;
+    push_notification !== undefined && (user.notification_pref.push_notification = push_notification);
+    sound !== undefined && (user.notification_pref.sound = sound);
+    vibrate !== undefined && (user.notification_pref.vibrate = vibrate);
+    offers !== undefined && (user.notification_pref.offers = offers);
+    order_updates !== undefined && (user.notification_pref.order_updates = order_updates);
+    promos !== undefined && (user.notification_pref.promos = promos);
+    payments !== undefined && (user.notification_pref.payments = payments);
+    orders !== undefined && (user.notification_pref.orders = orders);
+    app_update !== undefined && (user.notification_pref.app_update = app_update);
+    policy !== undefined && (user.notification_pref.policy = policy);
+
+    // user.notification_pref.push_notification = enabled;
     await user.save();
 
     (res as AppResponse).success('Notification settings updated');
@@ -389,13 +406,15 @@ export const getMe = asyncHandler(async (req: Request, res: Response, next: Next
         return next(new AppError('Not authenticated', 401));
     }
 
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user.id).populate('defaultAddress').populate('driverId');
+
+    const { addresses, ...userData } = user || {};
 
     if (!user) {
         return next(new AppError('User not found', 404));
     }
 
-    (res as AppResponse).data({ user }, 'User retrieved successfully');
+    (res as AppResponse).data({ user: userData }, 'User retrieved successfully');
 });
 
 // @desc    Logout user
