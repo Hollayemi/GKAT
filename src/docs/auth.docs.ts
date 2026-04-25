@@ -250,6 +250,10 @@
  *                 type: string
  *                 description: Referral code of the person who referred this user
  *                 example: "ABCD1234"
+ *               avatar:
+ *                 type: string
+ *                 format: base64
+ *                 description: Base64-encoded image string for the user's avatar   
  *     responses:
  *       200:
  *         description: Profile updated

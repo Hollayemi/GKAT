@@ -275,7 +275,7 @@ export const resendOTP = asyncHandler(async (req: Request, res: Response, next: 
 // @route   PUT /api/v1/auth/complete-profile
 // @access  Private
 export const completeProfile = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-    const { name, email, referredBy } = req.body;
+    const { name, email, referredBy, avatar } = req.body;
 
     if (!req.user) {
         return next(new AppError('Not authenticated', 401));
@@ -291,9 +291,9 @@ export const completeProfile = asyncHandler(async (req: Request, res: Response, 
 
     let imageUrl: any = "";
 
-    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+    if (avatar) {
         try {
-            imageUrl = await CloudinaryService.uploadImage(req.files[0], 'go-kart/products');
+            imageUrl = await CloudinaryService.uploadImage(avatar, 'go-kart/products');
         } catch (error: any) {
             return next(new AppError(`Image upload failed: ${error.message}`, 400));
         }
@@ -314,6 +314,9 @@ export const completeProfile = asyncHandler(async (req: Request, res: Response, 
     }
 
     await user.save();
+
+    await user.save({ validateBeforeSave: false });
+    sendTokenResponse(user, 200, res as AppResponse, 'Login successful');
 
     (res as AppResponse).data(
         {
