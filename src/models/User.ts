@@ -136,31 +136,43 @@ const UserSchema = new Schema<IUser>({
     },
 
     notification_pref: {
-        push_notification: {
+        push: {
             type: Boolean,
             default: true
         },
-        in_app_notification: {
+        sound: {
             type: Boolean,
             default: true
         },
-        email_notification: {
+        vibrate: {
             type: Boolean,
             default: true
         },
-        notification_sound: {
+        offers: {
             type: Boolean,
             default: true
         },
-        order_updates: {
+        order: {
             type: Boolean,
             default: true
         },
-        promotions: {
+        promos: {
             type: Boolean,
             default: true
         },
-        system_updates: {
+        payments: {
+            type: Boolean,
+            default: true
+        },
+        orders: {
+            type: Boolean,
+            default: true
+        },
+        app_update: {
+            type: Boolean,
+            default: true
+        },
+        policy: {
             type: Boolean,
             default: true
         }

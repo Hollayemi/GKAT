@@ -410,9 +410,7 @@ export const getMe = asyncHandler(async (req: Request, res: Response, next: Next
     }
 
     const user = await User.findById(req.user.id).populate('defaultAddress').populate('driverId').lean();
-
     const { addresses, ...userData } = user || {};
-
     if (!user) {
         return next(new AppError('User not found', 404));
     }
