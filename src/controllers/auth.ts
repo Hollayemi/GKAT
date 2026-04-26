@@ -409,7 +409,7 @@ export const getMe = asyncHandler(async (req: Request, res: Response, next: Next
         return next(new AppError('Not authenticated', 401));
     }
 
-    const user = await User.findById(req.user.id).populate('defaultAddress').populate('driverId');
+    const user = await User.findById(req.user.id).populate('defaultAddress').populate('driverId').lean();
 
     const { addresses, ...userData } = user || {};
 
