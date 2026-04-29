@@ -136,6 +136,9 @@ export const createDriver = asyncHandler(async (req: Request, res: Response, nex
         emergencyContactRelationship
     } = req.body;
 
+
+
+
     const existingDriver = await Driver.findOne({ phone });
     if (existingDriver) return next(new AppError('Phone number already exists', 400, 'DUPLICATE_PHONE'));
 
@@ -143,10 +146,19 @@ export const createDriver = asyncHandler(async (req: Request, res: Response, nex
     if (existingPlate) return next(new AppError('Vehicle plate number already registered', 400, 'DUPLICATE_PLATE_NUMBER'));
 
     let profilePhotoUrl = '';
+    let vehiclePhotoUrl = '';
     let driversLicenseUrl = '';
 
     if (req.files) {
         const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+        if (files.vehicle?.[0]) {
+            try {
+                const result = await CloudinaryService.uploadImage(files.vehicle[0], 'go-kart/drivers/profiles');
+                vehiclePhotoUrl = result.url;
+            } catch (error: any) {
+                return next(new AppError(`Profile photo upload failed: ${error.message}`, 400));
+            }
+        }
         if (files.profilePhoto?.[0]) {
             try {
                 const result = await CloudinaryService.uploadImage(files.profilePhoto[0], 'go-kart/drivers/profiles');
@@ -174,6 +186,7 @@ export const createDriver = asyncHandler(async (req: Request, res: Response, nex
         userId: existingUser._id, phone, vehicleType, vehicleModel,
         vehiclePlateNumber: vehiclePlateNumber.toUpperCase().replace(/\s/g, ''),
         vehicleColor, profilePhoto: profilePhotoUrl, driversLicense: driversLicenseUrl,
+        vehiclePhoto: vehiclePhotoUrl,
         licenseNumber, licenseExpiry, region, assignedBranch, employmentType,
         emergencyContact: emergencyContactName ? { name: emergencyContactName, phone: emergencyContactPhone, relationship: emergencyContactRelationship } : undefined,
         status: 'pending', verificationStatus: 'pending', hasSetPassword: false

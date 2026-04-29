@@ -16,22 +16,22 @@ interface UploadResult {
 
 class CloudinaryService {
     // Upload a single image
-    async uploadImage(file: any, folder: string = 'go-kart'): Promise<UploadResult> {
-        if (typeof file === 'string') {
-            const result = await cloudinary.uploader.upload(file, {
-                folder,
-                resource_type: 'image',
-                transformation: [
-                    { width: 1000, height: 1000, crop: 'limit' },
-                    { quality: 'auto:good' }
-                ]
-            });
+    async uploadImage(file: Express.Multer.File, folder: string = 'go-kart'): Promise<UploadResult> {
+        // if (typeof file === 'string') {
+        //     const result = await cloudinary.uploader.upload(file, {
+        //         folder,
+        //         resource_type: 'image',
+        //         transformation: [
+        //             { width: 1000, height: 1000, crop: 'limit' },
+        //             { quality: 'auto:good' }
+        //         ]
+        //     });
 
-            return {
-                url: result.secure_url,
-                publicId: result.public_id
-            };
-        }
+        //     return {
+        //         url: result.secure_url,
+        //         publicId: result.public_id
+        //     };
+        // }
         
         return new Promise((resolve, reject) => {
             const uploadStream = cloudinary.uploader.upload_stream(
@@ -57,7 +57,7 @@ class CloudinaryService {
             );
 
             const bufferStream = new Readable();
-            bufferStream.push(file.buffer ?? file);
+            bufferStream.push(file.buffer);
             bufferStream.push(null);
             bufferStream.pipe(uploadStream);
         });

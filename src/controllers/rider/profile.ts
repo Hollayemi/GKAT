@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import Driver from '../../models/Driver';
+import User from '../../models/User';
 import DriverDelivery from '../../models/DriverDelivery';
 import DriverWallet from '../../models/DriverWallet';
 import UserNotification from '../../models/Notification';
@@ -258,8 +259,8 @@ export const updateNotificationPreferences = asyncHandler(async (req: Request, r
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
     const allowedPrefs = [
-        'push_notification', 'in_app_notification', 'email_notification',
-        'notification_sound', 'order_updates', 'promotions', 'system_updates'
+        'push_notification', 'sound', 'vibrate', 'offers', 'order_updates',
+        'promos', 'payments', 'orders', 'app_update', 'policy',
     ];
 
     const updates: any = {};
@@ -268,8 +269,6 @@ export const updateNotificationPreferences = asyncHandler(async (req: Request, r
             updates[`notification_pref.${pref}`] = Boolean(req.body[pref]);
         }
     });
-
-    const { User } = require('../../models/User');
     await User.findByIdAndUpdate(req.user._id, { $set: updates });
 
     (res as AppResponse).success('Notification preferences updated');

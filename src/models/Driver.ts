@@ -21,6 +21,7 @@ export interface IDriver extends Document {
 
     // Documents
     profilePhoto?: string;
+    vehiclePhoto?: string;
     driversLicense?: string;
     licenseNumber?: string;
     licenseExpiry?: Date;
@@ -117,6 +118,9 @@ const DriverSchema = new Schema<IDriver>({
 
     // Documents
     profilePhoto: {
+        type: String
+    },
+    vehiclePhoto: {
         type: String
     },
     driversLicense: {
