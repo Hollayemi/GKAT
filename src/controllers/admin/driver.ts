@@ -1,15 +1,8 @@
-/**
- * Admin driver controller — key change:
- *  • getAllDrivers now filters by the requesting staff's region unless they
- *    are a super_admin.
- *  • getDashboardSummary stats are also scoped to the staff's region.
- *  • All other methods are unchanged in behaviour.
- *
- * Only the region-aware sections are shown in full below; the remaining
- * CRUD / lifecycle methods from the original file are preserved verbatim.
- */
 import { Request, Response, NextFunction } from 'express';
 import Driver from '../../models/Driver';
+import DriverWallet from '../../models/DriverWallet';
+import DriverDelivery from '../../models/DriverDelivery';
+import Order from '../../models/Orders';
 import User from '../../models/User';
 import DriverActivity from '../../models/activities/driver';
 import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
@@ -540,3 +533,143 @@ export const getDashboardSummary = asyncHandler(async (req: Request, res: Respon
         scopedToRegion: staffRegionId ? staffRegionId.toString() : null,
     }, 'Dashboard summary retrieved successfully');
 });
+
+
+
+
+// ─── NEW: Assign a specific driver to an order ────────────────────────────────
+ 
+export const assignDriverToOrder = asyncHandler(
+    async (req: Request, res: Response, next: NextFunction) => {
+        if (!req.user) return next(new AppError('Not authenticated', 401));
+ 
+        const { orderNumber } = req.params;
+        const { driverId, distanceKm = 3.5, isPriority = false, note = '' } = req.body;
+ 
+        if (!driverId) return next(new AppError('driverId is required', 400));
+ 
+        // ── 1. Validate order ────────────────────────────────────────────────
+        const staffRegionId = await resolveStaffRegionId(req.user);
+        const orderFilter: any = { orderNumber };
+        if (staffRegionId) orderFilter.region = staffRegionId;
+ 
+        const order = await Order.findOne(orderFilter).populate('shippingAddress');
+        if (!order) return next(new AppError('Order not found or not in your region', 404));
+ 
+        const assignableStatuses = ['pending', 'paid', 'confirmed', 'processing'];
+        if (!assignableStatuses.includes(order.orderStatus)) {
+            return next(
+                new AppError(`Order cannot be assigned at status '${order.orderStatus}'`, 400),
+            );
+        }
+ 
+        // ── 2. No active delivery already ────────────────────────────────────
+        const existingDelivery = await DriverDelivery.findOne({
+            orderId: order._id,
+            status: { $nin: ['cancelled', 'rejected'] },
+        });
+        if (existingDelivery) {
+            return next(new AppError('Order already has an active delivery assignment', 409));
+        }
+ 
+        // ── 3. Validate driver ───────────────────────────────────────────────
+        const driver = await Driver.findById(driverId).populate('userId', 'name email');
+        if (!driver) return next(new AppError('Driver not found', 404));
+ 
+        if (driver.verificationStatus !== 'verified') {
+            return next(new AppError('Driver is not verified', 400));
+        }
+        if (driver.status !== 'active') {
+            return next(new AppError(`Driver status is '${driver.status}' — must be active`, 400));
+        }
+ 
+        const driverBusy = await DriverDelivery.findOne({
+            driverId: driver._id,
+            status: {
+                $in: ['accepted', 'arrived_at_store', 'picked_up', 'in_transit', 'arrived_at_customer'],
+            },
+        });
+        if (driverBusy) return next(new AppError('Driver already has an active delivery', 400));
+ 
+        // ── 4. Build delivery record ─────────────────────────────────────────
+        const shippingAddr = order.shippingAddress as any;
+        const deliveryAddress =
+            typeof shippingAddr === 'string'
+                ? shippingAddr
+                : [shippingAddr?.address, shippingAddr?.localGovernment, shippingAddr?.state]
+                      .filter(Boolean)
+                      .join(', ');
+ 
+        const fare = 300 //calculateFare(Number(distanceKm), Boolean(isPriority));
+        const pin = "jkjdhcjh" //generateDeliveryPin();
+        const now = new Date();
+ 
+        const delivery = await DriverDelivery.create({
+            orderId: order._id,
+            driverId: driver._id,
+            userId: order.userId,
+            orderNumber: order.orderNumber,
+            pickupAddress: `${driver.region || 'Warehouse'} — Dark Store`,
+            deliveryAddress,
+            distanceKm: Number(distanceKm),
+            fareBreakdown: fare,
+            deliveryPin: pin,
+            broadcastedAt: now,
+            acceptedAt: now,
+            expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+            status: 'accepted',
+            statusHistory: [
+                { status: 'pending_acceptance', timestamp: now, note: 'Created by admin assignment' },
+                { status: 'accepted', timestamp: now, note: note || 'Driver assigned by admin' },
+            ],
+        });
+ 
+        // ── 5. Update driver + order status ──────────────────────────────────
+        await Driver.findByIdAndUpdate(driver._id, { status: 'on-delivery', lastActive: now });
+ 
+        await order.updateStatus(
+            'processing',
+            note || `Driver ${(driver.userId as any)?.name || driverId} assigned by admin`,
+            req.user.id,
+        );
+ 
+        // ── 6. Ensure driver wallet exists ───────────────────────────────────
+        const walletExists = await DriverWallet.findOne({ driverId: driver._id });
+        if (!walletExists) {
+            await DriverWallet.create({
+                driverId: driver._id,
+                userId: driver.userId,
+                balance: 0,
+                totalEarned: 0,
+                totalWithdrawn: 0,
+                totalDeliveries: 0,
+            });
+        }
+ 
+        (res as AppResponse).data(
+            {
+                delivery: {
+                    _id: delivery._id,
+                    status: delivery.status,
+                    deliveryPin: delivery.deliveryPin,
+                    fareBreakdown: delivery.fareBreakdown,
+                    distanceKm: delivery.distanceKm,
+                },
+                driver: {
+                    _id: driver._id,
+                    name: (driver.userId as any)?.name,
+                    phone: driver.phone,
+                    vehicleType: driver.vehicleType,
+                    vehiclePlateNumber: driver.vehiclePlateNumber,
+                },
+                order: {
+                    orderNumber: order.orderNumber,
+                    orderStatus: 'processing',
+                },
+            },
+            'Driver assigned to order successfully',
+            201,
+        );
+    },
+);
+ 

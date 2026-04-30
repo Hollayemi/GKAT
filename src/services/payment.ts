@@ -2,6 +2,7 @@ import axios, { AxiosResponse } from 'axios';
 import crypto from 'crypto';
 import PaymentLogging from './paymentLogging';
 import Order from '../models/Orders';
+import UserSubscription from '../models/UserSubscription';
 
 interface PaymentData {
     email: string;
@@ -66,7 +67,7 @@ class PaymentGateway extends PaymentLogging {
             // publicKey: process.env.PALMPAY_PUBLIC_KEY || '',
             baseURL: process.env.PALMPAY_BASE_URL || 'https://api.palmpay.com'
         };
-        
+
         this.opay = {
             // secretKey: process.env.OPAY_SECRET_KEY || '',
             merchantId: process.env.OPAY_MERCHANT_ID || '',
@@ -266,7 +267,7 @@ class PaymentGateway extends PaymentLogging {
         }
     }
 
-   
+
     async verifyPaystackPayment(reference: string): Promise<PaymentResponse> {
         try {
             const response: AxiosResponse = await axios.get(
@@ -318,15 +319,55 @@ class PaymentGateway extends PaymentLogging {
                 };
             }
 
-            const order = await Order.findOne({ _id: metadata.orderId });
-            if (!order) {
-                return {
+            const { orderId, userId } = metadata
+
+
+            if (reference?.startsWith("PAY_SUB")) {
+
+
+                const subscription = await UserSubscription.findOne({
+                    userId: userId,
+                    paymentReference: reference
+                }).populate('planId');
+
+                if (!subscription) return {
                     success: false,
-                    error: 'Order not found for this payment',
+                    error: 'Subscription record not found for this reference',
                     provider: 'paystack'
                 }
+
+                if (subscription.paymentStatus === 'completed') {
+                    return {
+                        success: false,
+                        error: 'Subscription is already active',
+                        provider: 'paystack'
+                    }
+                }
+
+                // Activate subscription
+                const plan = subscription.planSnapshot;
+                const now = new Date();
+                const endDate = new Date(now.getTime() + plan.durationDays * 24 * 60 * 60 * 1000);
+
+                subscription.paymentStatus = 'completed';
+                subscription.paymentCompletedAt = now;
+                subscription.status = 'active';
+                subscription.startDate = now;
+                subscription.endDate = endDate;
+                await subscription.save();
             }
-            await order?.updateStatus("paid", 'Payment completed successfully');
+
+            if (reference?.startsWith("PAY_ORD")) {
+                const order = await Order.findOne({ _id: metadata.orderId });
+                if (!order) {
+                    return {
+                        success: false,
+                        error: 'Order not found for this payment',
+                        provider: 'paystack'
+                    }
+                }
+                await order?.updateStatus("paid", 'Payment completed successfully');
+            }
 
             return {
                 success: true,
@@ -352,7 +393,7 @@ class PaymentGateway extends PaymentLogging {
     }
 
 
-    
+
     async verifyPalmPayPayment(reference: string): Promise<PaymentResponse> {
         try {
             const timestamp = Date.now().toString();

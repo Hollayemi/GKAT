@@ -466,7 +466,7 @@ export const getDeliveryHistory = asyncHandler(async (req: Request, res: Respons
     if (status && status !== 'all') {
         query.status = status;
     } else {
-        query.status = { $in: ['delivered', 'cancelled', 'rejected'] };
+        query.status = { $in: ['delivered', 'cancelled', 'rejected', "accepted"] };
     }
 
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);

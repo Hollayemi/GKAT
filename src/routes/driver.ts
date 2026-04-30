@@ -16,11 +16,12 @@ import {
     bulkDelete,
     getActivityLogs,
     getDriverStatistics,
-    getDashboardSummary
+    getDashboardSummary,
 } from '../controllers/admin/driver';
 import { protect, checkPermission } from '../middleware/auth';
 import { upload } from '../services/cloudinary';
 import { validateDriverCreate, validateDriverUpdate } from '../middleware/driverValidation';
+import { getAvailableDrivers } from '../controllers/admin/assignDriverToOrderController';
 
 const router = Router();
 
@@ -29,6 +30,11 @@ router.use(protect);
 
 // Dashboard and statistics
 router.get('/dashboard/summary', checkPermission('view_users'), getDashboardSummary);
+
+
+// ── Driver assignment ──────────────────────────────────────────────────────────
+router.get('/available', checkPermission('view_users'), getAvailableDrivers);
+
 
 // Driver CRUD routes
 router.get('/', checkPermission('view_users'), getAllDrivers);
@@ -74,5 +80,6 @@ router.get('/:id/activity-logs', checkPermission('access_reports'), getActivityL
 // Bulk operations
 router.post('/bulk/suspend', checkPermission('suspend_accounts'), bulkSuspend);
 router.delete('/bulk/delete', checkPermission('suspend_accounts'), bulkDelete);
+
 
 export default router;

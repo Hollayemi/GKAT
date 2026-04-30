@@ -4,6 +4,7 @@ import Cart from '../models/Cart';
 import Coupon from '../models/Coupon';
 import Product from '../models/admin/Product';
 import { AppError, asyncHandler, AppResponse } from '../middleware/error';
+import { buildCartSummary } from '../helpers/buildCartSummary';
 
 
 function resolveEffectivePrice(
@@ -30,156 +31,156 @@ function resolveEffectivePrice(
 }
 
 
-export async function buildCartSummary(cart: any): Promise<any> {
+// export async function buildCartSummary(cart: any): Promise<any> {
 
-    const enrichedItems: any[] = [];
-    let subtotal = 0;
-    let totalOriginalPrice = 0;
-    let totalDealDiscount = 0;
+//     const enrichedItems: any[] = [];
+//     let subtotal = 0;
+//     let totalOriginalPrice = 0;
+//     let totalDealDiscount = 0;
 
-    for (const item of cart.items) {
-        const product = await Product.findById(item.productId)
-            .populate('category', 'name icon')
-            .lean();
+//     for (const item of cart.items) {
+//         const product = await Product.findById(item.productId)
+//             .populate('category', 'name icon')
+//             .lean();
 
-        if (!product) {
-            // Product removed from catalogue – keep item but flag it
-            enrichedItems.push({
-                ...item.toObject?.() ?? item,
-                product: null,
-                unavailable: true,
-                effectivePrice: item.price,
-                originalPrice: item.price,
-                dealDiscount: 0,
-                hasDeal: false,
-                totalPrice: item.price * item.quantity,
-            });
-            subtotal += item.price * item.quantity;
-            totalOriginalPrice += item.price * item.quantity;
-            continue;
-        }
+//         if (!product) {
+//             // Product removed from catalogue – keep item but flag it
+//             enrichedItems.push({
+//                 ...item.toObject?.() ?? item,
+//                 product: null,
+//                 unavailable: true,
+//                 effectivePrice: item.price,
+//                 originalPrice: item.price,
+//                 dealDiscount: 0,
+//                 hasDeal: false,
+//                 totalPrice: item.price * item.quantity,
+//             });
+//             subtotal += item.price * item.quantity;
+//             totalOriginalPrice += item.price * item.quantity;
+//             continue;
+//         }
 
-        // Resolve variant vs main product price
-        let basePrice = item.price;
-        if (item.variantId) {
-            const variant = (product as any).variants?.find(
-                (v: any) => v._id?.toString() === item.variantId?.toString()
-            );
-            if (variant) basePrice = variant.salesPrice;
-        } else {
-            basePrice = (product as any).salesPrice;
-        }
+//         // Resolve variant vs main product price
+//         let basePrice = item.price;
+//         if (item.variantId) {
+//             const variant = (product as any).variants?.find(
+//                 (v: any) => v._id?.toString() === item.variantId?.toString()
+//             );
+//             if (variant) basePrice = variant.salesPrice;
+//         } else {
+//             basePrice = (product as any).salesPrice;
+//         }
 
-        const { effectivePrice, originalPrice, dealDiscount, hasDeal } =
-            resolveEffectivePrice(product, basePrice);
+//         const { effectivePrice, originalPrice, dealDiscount, hasDeal } =
+//             resolveEffectivePrice(product, basePrice);
 
-        const itemOriginalTotal = originalPrice * item.quantity;
-        const itemEffectiveTotal = effectivePrice * item.quantity;
-        const itemDealDiscount = dealDiscount * item.quantity;
+//         const itemOriginalTotal = originalPrice * item.quantity;
+//         const itemEffectiveTotal = effectivePrice * item.quantity;
+//         const itemDealDiscount = dealDiscount * item.quantity;
 
-        totalOriginalPrice += itemOriginalTotal;
-        totalDealDiscount += itemDealDiscount;
-        subtotal += itemEffectiveTotal;
+//         totalOriginalPrice += itemOriginalTotal;
+//         totalDealDiscount += itemDealDiscount;
+//         subtotal += itemEffectiveTotal;
 
-        enrichedItems.push({
-            productId: item.productId,
-            variantId: item.variantId,
+//         enrichedItems.push({
+//             productId: item.productId,
+//             variantId: item.variantId,
           
-            brand: item.brand,
-            category: item.category,
+//             brand: item.brand,
+//             category: item.category,
 
-            unitType: item.unitType,
-            unitQuantity: item.unitQuantity,
-            maxQuantity: item.maxQuantity,
-            quantity: item.quantity,
+//             unitType: item.unitType,
+//             unitQuantity: item.unitQuantity,
+//             maxQuantity: item.maxQuantity,
+//             quantity: item.quantity,
 
-            // Pricing
-            originalPrice,          // price without deal
-            effectivePrice,         // price after deal
-            dealDiscount,           // discount per unit
-            hasDeal,
-            dealInfo: hasDeal ? (product as any).dealInfo : null,
-            totalOriginalPrice: itemOriginalTotal,
-            totalEffectivePrice: itemEffectiveTotal,
-            totalDealDiscount: itemDealDiscount,
-
-
-            _id: (product as any)._id,
-            name: (product as any).productName,
-            sku: (product as any).sku,
-            status: (product as any).status,
-            stockQuantity: (product as any).stockQuantity,
-            image: (product as any).images[0],
-
-            unavailable:
-                (product as any).status !== 'active' ||
-                (product as any).stockQuantity < item.quantity,
-        });
-    }
-
-    let couponDiscount = 0;
-    const enrichedCoupons: any[] = [];
-
-    for (const appliedCoupon of cart.appliedCoupons) {
-        const promoType = appliedCoupon.promoType?.toLowerCase() ?? '';
-        let discountAmount = 0;
-
-        if (promoType.includes('percentage') || promoType.includes('%')) {
-            discountAmount = Math.round((subtotal * appliedCoupon.discountValue) / 100);
-        } else if (promoType.includes('fixed') || promoType.includes('flat')) {
-            discountAmount = Math.min(appliedCoupon.discountValue, subtotal - couponDiscount);
-        } else {
-            // default → percentage
-            discountAmount = Math.round((subtotal * appliedCoupon.discountValue) / 100);
-        }
-
-        couponDiscount += discountAmount;
-
-        enrichedCoupons.push({
-            code: appliedCoupon.code,
-            promotionName: appliedCoupon.promotionName,
-            promoType: appliedCoupon.promoType,
-            discountValue: appliedCoupon.discountValue,
-            discountAmount,
-        });
-    }
-
-    const discountedSubtotal = Math.max(0, subtotal - couponDiscount);
+//             // Pricing
+//             originalPrice,          // price without deal
+//             effectivePrice,         // price after deal
+//             dealDiscount,           // discount per unit
+//             hasDeal,
+//             dealInfo: hasDeal ? (product as any).dealInfo : null,
+//             totalOriginalPrice: itemOriginalTotal,
+//             totalEffectivePrice: itemEffectiveTotal,
+//             totalDealDiscount: itemDealDiscount,
 
 
-    // Delivery fee – use whatever is already stored on the cart
-    const deliveryFee = cart.deliveryFee ?? 0;
+//             _id: (product as any)._id,
+//             name: (product as any).productName,
+//             sku: (product as any).sku,
+//             status: (product as any).status,
+//             stockQuantity: (product as any).stockQuantity,
+//             image: (product as any).images[0],
 
-    const totalAmount = discountedSubtotal;
+//             unavailable:
+//                 (product as any).status !== 'active' ||
+//                 (product as any).stockQuantity < item.quantity,
+//         });
+//     }
 
-    return {
-        _id: cart._id,
-        userId: cart.userId,
-        isActive: cart.isActive,
-        deliveryMethod: cart.deliveryMethod,
-        deliveryAddress: cart.deliveryAddress,
-        estimatedDeliveryTime: cart.estimatedDeliveryTime,
-        lastModified: cart.lastModified,
-        createdAt: cart.createdAt,
-        updatedAt: cart.updatedAt,
+//     let couponDiscount = 0;
+//     const enrichedCoupons: any[] = [];
 
-        items: enrichedItems,
-        appliedCoupons: enrichedCoupons,
+//     for (const appliedCoupon of cart.appliedCoupons) {
+//         const promoType = appliedCoupon.promoType?.toLowerCase() ?? '';
+//         let discountAmount = 0;
 
-        pricing: {
-            originalSubtotal: totalOriginalPrice,     // sum of original prices (before deals)
-            dealDiscount: totalDealDiscount,           // total saved from deals
-            subtotal,                                  // after deals, before coupons
-            couponDiscount,                            // total saved from coupons
-            discountedSubtotal,                        // after both deals & coupons
-            totalAmount,
-        },
+//         if (promoType.includes('percentage') || promoType.includes('%')) {
+//             discountAmount = Math.round((subtotal * appliedCoupon.discountValue) / 100);
+//         } else if (promoType.includes('fixed') || promoType.includes('flat')) {
+//             discountAmount = Math.min(appliedCoupon.discountValue, subtotal - couponDiscount);
+//         } else {
+//             // default → percentage
+//             discountAmount = Math.round((subtotal * appliedCoupon.discountValue) / 100);
+//         }
 
-        totalItems: enrichedItems.reduce((n, i) => n + i.quantity, 0),
-        totalSavings: totalDealDiscount + couponDiscount,
-        hasUnavailableItems: enrichedItems.some((i) => i.unavailable),
-    };
-}
+//         couponDiscount += discountAmount;
+
+//         enrichedCoupons.push({
+//             code: appliedCoupon.code,
+//             promotionName: appliedCoupon.promotionName,
+//             promoType: appliedCoupon.promoType,
+//             discountValue: appliedCoupon.discountValue,
+//             discountAmount,
+//         });
+//     }
+
+//     const discountedSubtotal = Math.max(0, subtotal - couponDiscount);
+
+
+//     // Delivery fee – use whatever is already stored on the cart
+//     const deliveryFee = cart.deliveryFee ?? 0;
+
+//     const totalAmount = discountedSubtotal;
+
+//     return {
+//         _id: cart._id,
+//         userId: cart.userId,
+//         isActive: cart.isActive,
+//         deliveryMethod: cart.deliveryMethod,
+//         deliveryAddress: cart.deliveryAddress,
+//         estimatedDeliveryTime: cart.estimatedDeliveryTime,
+//         lastModified: cart.lastModified,
+//         createdAt: cart.createdAt,
+//         updatedAt: cart.updatedAt,
+
+//         items: enrichedItems,
+//         appliedCoupons: enrichedCoupons,
+
+//         pricing: {
+//             originalSubtotal: totalOriginalPrice,     // sum of original prices (before deals)
+//             dealDiscount: totalDealDiscount,           // total saved from deals
+//             subtotal,                                  // after deals, before coupons
+//             couponDiscount,                            // total saved from coupons
+//             discountedSubtotal,                        // after both deals & coupons
+//             totalAmount,
+//         },
+
+//         totalItems: enrichedItems.reduce((n, i) => n + i.quantity, 0),
+//         totalSavings: totalDealDiscount + couponDiscount,
+//         hasUnavailableItems: enrichedItems.some((i) => i.unavailable),
+//     };
+// }
 
 // ─── controllers ─────────────────────────────────────────────────────────────
 

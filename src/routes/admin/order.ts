@@ -7,6 +7,8 @@ import {
   transferOrder
 } from '../../controllers/admin/orderController';
 
+import { assignDriverToOrder } from '../../controllers/admin/assignDriverToOrderController';
+
 import { protect, authorize } from '../../middleware/auth';
 
 const router = Router();
@@ -24,5 +26,7 @@ router.patch('/:orderNumber/status', updateOrderStatus);
 router.patch('/:orderNumber/cancel', cancelOrder);
 
 router.patch('/:orderNumber/transfer', transferOrder);
+
+router.post('/:orderNumber/assign-driver', assignDriverToOrder);
 
 export default router;

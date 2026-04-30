@@ -100,6 +100,8 @@ import Others from './routes/others';
 import pushNotificationRoute from './routes/pushNotification';
 import riderRoutes from './routes/rider';
 import customer from './routes/admin/customer';
+import subscriptionRoutes from './routes/subscription';
+import adminSubscriptionPlanRoutes from './routes/admin/subscriptionPlan';
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/product', productRoutes);
@@ -120,6 +122,9 @@ app.use('/api/v1/push-notifications', pushNotificationRoute);
 app.use('/api/v1/rider', riderRoutes);
 app.use('/api/v1/', Others);
 app.use('/api/v1/admin/customers', customer);
+app.use('/api/v1/subscriptions', subscriptionRoutes);
+app.use('/api/v1/admin/subscription-plans', adminSubscriptionPlanRoutes);
+
 app.use('*', handle404);
 
 app.use(errorHandler);

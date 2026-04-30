@@ -59,7 +59,7 @@ export interface IOrder extends Document {
     orderSlug: string;
     userId: Types.ObjectId;
     items: IOrderItem[];
-
+    
     shippingAddress: string;
     deliveryMethod: 'pickup' | 'delivery';
 
@@ -67,17 +67,17 @@ export interface IOrder extends Document {
      * The delivery region resolved automatically at order creation time
      * by comparing the shipping address coordinates to all active region
      * coordinates (nearest region wins).
-     */
-    region?: Types.ObjectId;
-
-    paymentInfo: IPaymentInfo;
-    orderStatus: OrderStatus;
-
-    subtotal: number;
+    */
+   region?: Types.ObjectId;
+   
+   paymentInfo: IPaymentInfo;
+   orderStatus: OrderStatus;
+   pricing:any;
+   
     deliveryFee: number;
     serviceCharge: number;
     tax: number;
-    discount: number;
+    discount?: number;
     totalAmount: number;
 
     appliedCoupons: IAppliedCoupon[];
@@ -134,6 +134,7 @@ const orderItemSchema = new Schema<IOrderItem>({
     brand: { type: String },
     category: { type: String, required: true },
     price: { type: Number, required: true, min: 0 },
+
     quantity: { type: Number, required: true, min: 1 },
     image: { type: String },
     unitType: { type: String, required: true },
@@ -199,8 +200,6 @@ const orderSchema = new Schema<IOrder, IOrderModel>({
         default: 'pending',
         index: true
     },
-
-    subtotal: { type: Number, required: true, min: 0 },
     deliveryFee: { type: Number, required: true, min: 0, default: 0 },
     serviceCharge: { type: Number, required: true, min: 0, default: 200 },
     tax: { type: Number, required: true, min: 0, default: 0 },
@@ -208,6 +207,8 @@ const orderSchema = new Schema<IOrder, IOrderModel>({
     totalAmount: { type: Number, required: true, min: 0 },
 
     appliedCoupons: [appliedCouponSchema],
+
+    pricing: {type:Object, default: {}},
 
     trackingNumber: { type: String, trim: true },
     carrier: { type: String, trim: true },
@@ -244,10 +245,6 @@ orderSchema.index({ createdAt: -1 });
 orderSchema.index({ 'paymentInfo.reference': 1 });
 
 orderSchema.pre('save', async function (next) {
-    this.items.forEach(item => { item.totalPrice = item.price * item.quantity; });
-    this.subtotal = this.items.reduce((sum, item) => sum + item.totalPrice, 0);
-    this.totalAmount = this.subtotal + this.deliveryFee + this.serviceCharge + this.tax - this.discount;
-
     if (this.isNew && this.statusHistory.length === 0) {
         this.statusHistory.push({ status: this.orderStatus, timestamp: new Date(), note: 'Order created' });
     }
@@ -255,11 +252,11 @@ orderSchema.pre('save', async function (next) {
 });
 
 orderSchema.virtual('orderAge').get(function () {
-    return Math.floor((Date.now() - this.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+    return Math.floor((Date.now() - new Date(this.createdAt).getTime()) / (1000 * 60 * 60 * 24));
 });
 
 orderSchema.virtual('isRecent').get(function () {
-    return this.createdAt > new Date(Date.now() - (30 * 24 * 60 * 60 * 1000));
+    return new Date(this.createdAt) > new Date(Date.now() - (30 * 24 * 60 * 60 * 1000));
 });
 
 orderSchema.virtual('canCancel').get(function () {
