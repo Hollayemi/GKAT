@@ -25,6 +25,7 @@ import {
 } from '../controllers/rider/orders';
 
 import {
+    getEarningsOverview,
     getWallet,
     getTransactions,
     withdrawEarnings,
@@ -52,13 +53,13 @@ import { upload } from '../services/cloudinary';
 
 const router = Router();
 
-// ─── Public ──────────────────────────────────────────────────────────────────
+//  Public 
 // router.post('/auth/send-otp', sendLoginOTP);
 // router.post('/auth/verify-otp', verifyLoginOTP);
 router.post('/auth/set-password', setupPassword);
 // router.post('/auth/refresh-token', refreshToken);
 
-// ─── Protected - driver only ──────────────────────────────────────────────────
+//  Protected - driver only 
 router.use(protectDriver);
 
 // Auth / profile
@@ -90,6 +91,7 @@ router.post('/orders/:deliveryId/cancel', cancelDelivery);
 router.post('/orders/:deliveryId/rate-customer', rateCustomer);
 
 // Earnings & Wallet
+router.get('/earnings/overview', getEarningsOverview);
 router.get('/earnings/wallet', getWallet);
 router.get('/earnings/transactions', getTransactions);
 router.get('/earnings/summary', getEarningsSummary);
@@ -100,7 +102,7 @@ router.post('/earnings/bank-accounts', addBankAccount);
 router.delete('/earnings/bank-accounts/:accountId', deleteBankAccount);
 router.patch('/earnings/bank-accounts/:accountId/default', setDefaultBankAccount);
 
-// ─── Admin-only: dispatch order ───────────────────────────────────────────────
+//  Admin-only: dispatch order 
 router.post('/dispatch', protect, checkPermission('manage_orders'), dispatchOrderToDrivers);
 
 export default router;

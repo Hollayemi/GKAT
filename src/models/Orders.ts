@@ -75,6 +75,7 @@ export interface IOrder extends Document {
    pricing:any;
    
     deliveryFee: number;
+    driverId?: Types.ObjectId;
     serviceCharge: number;
     tax: number;
     discount?: number;
@@ -201,6 +202,7 @@ const orderSchema = new Schema<IOrder, IOrderModel>({
         index: true
     },
     deliveryFee: { type: Number, required: true, min: 0, default: 0 },
+    driverId: { type: Schema.Types.ObjectId, ref: 'Driver' },
     serviceCharge: { type: Number, required: true, min: 0, default: 200 },
     tax: { type: Number, required: true, min: 0, default: 0 },
     discount: { type: Number, min: 0, default: 0 },

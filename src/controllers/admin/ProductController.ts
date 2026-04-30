@@ -20,7 +20,7 @@ import { parse } from 'csv-parse/sync';
 import { stringify } from 'csv-stringify/sync';
 
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+//  Helpers 
 
 function haversineDistanceKm(
     lat1: number, lng1: number,
@@ -144,7 +144,7 @@ async function buildProductOverview() {
 }
 
 
-// ─── CSV helpers ──────────────────────────────────────────────────────────────
+//  CSV helpers 
 
 const CSV_TEMPLATE_HEADERS = [
     'productName',
@@ -181,7 +181,7 @@ function buildCsvRow(product: any): Record<string, string> {
 }
 
 
-// ─── Controllers ─────────────────────────────────────────────────────────────
+//  Controllers 
 
 // @desc    Get all products (with overview stats)
 // @route   GET /api/v1/product
@@ -799,7 +799,7 @@ export const getStockHistory = asyncHandler(async (req: Request, res: Response, 
 });
 
 
-// ─── CSV Import ───────────────────────────────────────────────────────────────
+//  CSV Import 
 
 // @desc    Download CSV import template
 // @route   GET /api/v1/product/import/template
@@ -873,7 +873,7 @@ export const importProductsFromCsv = asyncHandler(async (req: Request, res: Resp
         const rowNum = i + 2; // 1-indexed + header row
 
         try {
-            // ── Resolve / generate SKU ──────────────────────────────────────
+            //  Resolve / generate SKU 
             let sku = row.sku?.trim().toUpperCase();
             if (!sku) {
                 sku = await generateUniqueSku('GK');
@@ -886,7 +886,7 @@ export const importProductsFromCsv = asyncHandler(async (req: Request, res: Resp
                 }
             }
 
-            // ── Resolve category ────────────────────────────────────────────
+            //  Resolve category 
             const categoryName = row.category?.trim();
             let categoryId: string | undefined;
             if (categoryName) {
@@ -905,7 +905,7 @@ export const importProductsFromCsv = asyncHandler(async (req: Request, res: Resp
                 }
             }
 
-            // ── Validate required fields ─────────────────────────────────────
+            //  Validate required fields 
             const productName = row.productName?.trim();
             if (!productName) {
                 errors.push({ row: rowNum, message: 'productName is required' });
@@ -938,7 +938,7 @@ export const importProductsFromCsv = asyncHandler(async (req: Request, res: Resp
                 continue;
             }
 
-            // ── Build product doc ───────────────────────────────────────────
+            //  Build product doc 
             const productDoc: any = {
                 productName,
                 sku,
@@ -991,7 +991,7 @@ export const importProductsFromCsv = asyncHandler(async (req: Request, res: Resp
 });
 
 
-// ─── CSV Export ───────────────────────────────────────────────────────────────
+//  CSV Export 
 
 // @desc    Export products as CSV (format matches import template)
 // @route   GET /api/v1/product/export

@@ -2,7 +2,7 @@
  * @swagger
  * components:
  *
- *   # ─── Security ──────────────────────────────────────────────────
+ *   #  Security 
  *   securitySchemes:
  *     bearerAuth:
  *       type: http
@@ -12,7 +12,7 @@
  *         JWT issued by `/auth/verify-otp` or `/auth/verify-login-otp`.
  *         Pass it as: `Authorization: Bearer <token>`
  *
- *   # ─── Reusable Responses ─────────────────────────────────────────
+ *   #  Reusable Responses 
  *   responses:
  *     Unauthorized:
  *       description: Missing or invalid JWT
@@ -39,10 +39,10 @@
  *           schema:
  *             $ref: '#/components/schemas/ErrorResponse'
  *
- *   # ─── Schemas ────────────────────────────────────────────────────
+ *   #  Schemas 
  *   schemas:
  *
- *     # ── Envelopes ─────────────────────────────────────────────────
+ *     #  Envelopes 
  *     SuccessEnvelope:
  *       type: object
  *       properties:
@@ -93,7 +93,7 @@
  *           type: integer
  *           example: 8
  *
- *     # ── Auth ──────────────────────────────────────────────────────
+ *     #  Auth 
  *     AuthResponse:
  *       type: object
  *       properties:
@@ -146,7 +146,7 @@
  *         residentArea:
  *           type: string
  *
- *     # ── Address ───────────────────────────────────────────────────
+ *     #  Address 
  *     AddressInput:
  *       type: object
  *       required: [label, landmark, localGovernment, phone, state, street, address]
@@ -205,7 +205,7 @@
  *               type: string
  *               format: date-time
  *
- *     # ── Category ──────────────────────────────────────────────────
+ *     #  Category 
  *     Category:
  *       type: object
  *       properties:
@@ -226,7 +226,7 @@
  *           type: string
  *           format: date-time
  *
- *     # ── Region ────────────────────────────────────────────────────
+ *     #  Region 
  *     Region:
  *       type: object
  *       properties:
@@ -252,7 +252,7 @@
  *         order:
  *           type: integer
  *
- *     # ── Product ───────────────────────────────────────────────────
+ *     #  Product 
  *     Product:
  *       type: object
  *       properties:
@@ -354,7 +354,7 @@
  *             change: { type: string }
  *             color: { type: string }
  *
- *     # ── Cart ──────────────────────────────────────────────────────
+ *     #  Cart 
  *     CartDetail:
  *       type: object
  *       properties:
@@ -469,7 +469,7 @@
  *         minimumOrderValue:
  *           type: number
  *
- *     # ── Order ─────────────────────────────────────────────────────
+ *     #  Order 
  *     Order:
  *       type: object
  *       properties:
@@ -535,7 +535,7 @@
  *           type: string
  *           format: date-time
  *
- *     # ── Advert ────────────────────────────────────────────────────
+ *     #  Advert 
  *     Advert:
  *       type: object
  *       properties:
@@ -571,7 +571,7 @@
  *           type: string
  *           format: date-time
  *
- *     # ── Payment ───────────────────────────────────────────────────
+ *     #  Payment 
  *     PaymentMethod:
  *       type: object
  *       properties:
@@ -590,7 +590,7 @@
  *         sortOrder:
  *           type: integer
  *
- *     # ── Rider / Driver ────────────────────────────────────────────
+ *     #  Rider / Driver 
  *     Driver:
  *       type: object
  *       properties:
@@ -745,7 +745,7 @@
  *                     earned: { type: number }
  *                     deliveries: { type: integer }
  *
- *     # ── Notification ──────────────────────────────────────────────
+ *     #  Notification 
  *     Notification:
  *       type: object
  *       properties:

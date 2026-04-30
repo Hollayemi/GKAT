@@ -96,13 +96,13 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
         addressCoords?.lng
     );
 
-   
+
     const cartSummary = await buildCartSummary(cart);
 
     let subscriptionDiscount = cartSummary.pricing.subscriptionDiscount || 0;
     let subscriptionInfo = cartSummary.subscriptionInfo || null;
 
-    console.log({cartSummary})
+    console.log({ cartSummary })
 
     const orderNumber = await Order.generateOrderNumber();
     const orderSlug = await Order.generateOrderSlug();
@@ -125,7 +125,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
         orderStatus: 'pending',
         deliveryFee: cart.deliveryFee ?? 0,
         serviceCharge: cart.serviceCharge ?? 0,
-        pricing: cartSummary.pricing ,
+        pricing: cartSummary.pricing,
         totalAmount: cartSummary.pricing.totalAmount,
         appliedCoupons: cart.appliedCoupons,
         notes
@@ -140,7 +140,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
     }
 
 
-    console.log({orderData})
+    console.log({ orderData })
 
     const order = await Order.create(orderData);
 
@@ -160,7 +160,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
 
     const paymentReference = paymentGateway.generatePaymentReference(order.orderNumber);
 
-  
+
     const paymentData = {
         email: req.user.email || 'admin@gmail.com',
         amount: order.totalAmount,
@@ -182,11 +182,10 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
         {
             userId: req.user.id,
             title: 'Order Placed Successfully',
-            body: `Your order #${orderSlug} has been placed. Total: ₦${order.totalAmount.toLocaleString()}${
-                subscriptionDiscount > 0
+            body: `Your order #${orderSlug} has been placed. Total: ₦${order.totalAmount.toLocaleString()}${subscriptionDiscount > 0
                     ? ` (Go Prime saved you ₦${subscriptionDiscount.toLocaleString()}!)`
                     : ''
-            }`,
+                }`,
             type: 'order',
             typeId: { orderId: order._id },
             clickUrl: `/orders/${order._id}`,
@@ -264,7 +263,16 @@ export const getUserOrders = asyncHandler(async (req: Request, res: Response, ne
         .skip(skip)
         .limit(parseInt(limit as string))
         .populate('shippingAddress')
-        .populate('region', 'name');
+        .populate('region', 'name')
+        .populate({
+            path: "driverId",
+            select: "name phoneNumber vehicleInfo userId",
+            populate: {
+                path: "userId",
+                select: "name email phoneNumber"
+            }
+        })
+
 
     const total = await Order.countDocuments(query);
 

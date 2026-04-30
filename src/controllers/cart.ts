@@ -182,7 +182,7 @@ function resolveEffectivePrice(
 //     };
 // }
 
-// ─── controllers ─────────────────────────────────────────────────────────────
+//  controllers 
 
 // @desc    Get user cart (fully populated + live pricing)
 // @route   GET /api/v1/cart

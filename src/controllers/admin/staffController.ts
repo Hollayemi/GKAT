@@ -11,7 +11,7 @@ import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
 import { sendEmail } from '../../utils/email';
 import { resolveStaffRegionId } from '../../helpers/regionScope';
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
+//  helpers 
 
 const logActivity = async (userId: string, userName: string, action: string, description: string, metadata?: any, ipAddress?: string) => {
     try {
@@ -38,7 +38,7 @@ const sendTokenResponse = (staff: IStaff, statusCode: number, res: AppResponse, 
     );
 };
 
-// ─── controllers ─────────────────────────────────────────────────────────────
+//  controllers 
 
 // @desc    Get all staff — region-scoped for non-super-admin
 // @route   GET /api/v1/staff
@@ -48,7 +48,7 @@ export const getAllStaff = asyncHandler(async (req: Request, res: Response, next
 
     const query: any = {};
 
-    // ── Region scoping ────────────────────────────────────────────────────────
+    //  Region scoping 
     const staffRegionId = await resolveStaffRegionId(req.user);
 
     if (staffRegionId) {

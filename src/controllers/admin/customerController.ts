@@ -5,7 +5,7 @@ import Region from "../../models/config/region.model";
 import { asyncHandler, AppResponse, AppError } from "../../middleware/error";
 import mongoose from "mongoose";
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
+//  helpers 
 
 function formatDate(date?: Date | string | null): string {
     if (!date) return "-";
@@ -116,7 +116,7 @@ async function resolveStaffRegionId(staff: any): Promise<mongoose.Types.ObjectId
     return region ? (region._id as mongoose.Types.ObjectId) : null;
 }
 
-// ─── controllers ─────────────────────────────────────────────────────────────
+//  controllers 
 
 /**
  * GET /api/v1/admin/customers
@@ -138,7 +138,7 @@ export const getAllCustomers = asyncHandler(async (req: Request, res: Response) 
 
     const staffRegionId = await resolveStaffRegionId(req.user);
 
-    // ── If region-scoped, first collect user IDs that have orders in the region
+    //  If region-scoped, first collect user IDs that have orders in the region
     let allowedUserIds: mongoose.Types.ObjectId[] | null = null;
 
     if (staffRegionId) {
@@ -189,7 +189,7 @@ export const getAllCustomers = asyncHandler(async (req: Request, res: Response) 
     if (badge === "frequent_buyer") customers = customers.filter(c => c.badges.includes("Frequent Buyer"));
     else if (badge === "new_user") customers = customers.filter(c => c.badges.includes("New User"));
 
-    // ── Stats (scoped to region) ─────────────────────────────────────────────
+    //  Stats (scoped to region) 
     const statsUserQuery: any = {};
     if (allowedUserIds !== null) statsUserQuery._id = { $in: allowedUserIds };
 
@@ -376,7 +376,7 @@ export const exportCustomers = asyncHandler(async (req: Request, res: Response) 
     res.status(200).send(csv);
 });
 
-// ─── loyalty & activity helpers ───────────────────────────────────────────────
+//  loyalty & activity helpers 
 
 function calculateLoyaltyProgress(user: any, orders: any[]) {
     const progress: any[] = [];

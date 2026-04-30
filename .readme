@@ -39,16 +39,16 @@ The admin can register and manage riders, and the platform supports real-time or
 ```
 
 src/
-│── config/        # Database config, environment variables
-│── controllers/   # Route handlers
-│── helpers/       # Utility functions
-│── middleware/    # Auth, role-guard, validation
-│── models/        # Database models
-│── routes/        # API route definitions
-│── services/      # Core business logic
-│── types/         # TypeScript type definitions
-│── utils/         # Common utilities
-│── server.ts      # Application entry point
+│ config/        # Database config, environment variables
+│ controllers/   # Route handlers
+│ helpers/       # Utility functions
+│ middleware/    # Auth, role-guard, validation
+│ models/        # Database models
+│ routes/        # API route definitions
+│ services/      # Core business logic
+│ types/         # TypeScript type definitions
+│ utils/         # Common utilities
+│ server.ts      # Application entry point
 
 ````
 

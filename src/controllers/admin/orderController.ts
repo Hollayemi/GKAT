@@ -6,7 +6,7 @@ import StaffModel, { IStaff } from '../../models/admin/Staff.model';
 import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
 import mongoose from 'mongoose';
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
+//  helpers 
 
 function buildOrderStatusFilter(status: string): OrderStatus | null {
     const map: Record<string, OrderStatus> = {
@@ -83,7 +83,7 @@ async function resolveStaffRegionId(
     return region ? (region._id as mongoose.Types.ObjectId) : null;
 }
 
-// ─── controllers ─────────────────────────────────────────────────────────────
+//  controllers 
 
 // @desc    Get all orders — super_admin sees all; other roles see only their region
 // @route   GET /api/v1/admin/orders
@@ -104,14 +104,14 @@ export const getAllOrders = asyncHandler(
 
         const query: any = {};
 
-        // ── Status filter ───────────────────────────────────────────────────
+        //  Status filter 
         if (status !== 'all') {
             const mapped = buildOrderStatusFilter(status as string);
             if (!mapped) return next(new AppError('Invalid status value', 400));
             query.orderStatus = mapped;
         }
 
-        // ── Region-based visibility ─────────────────────────────────────────
+        //  Region-based visibility 
         // super_admin: no region restriction
         // all other roles: restricted to their assigned region
         const staffRegionId = await resolveStaffRegionId(req.user);
@@ -127,7 +127,7 @@ export const getAllOrders = asyncHandler(
             query.region = new mongoose.Types.ObjectId(regionFilter as string);
         }
 
-        // ── Other filters ───────────────────────────────────────────────────
+        //  Other filters 
         if (minAmount || maxAmount) {
             query.totalAmount = {};
             if (minAmount) query.totalAmount.$gte = Number(minAmount);
@@ -174,7 +174,7 @@ export const getAllOrders = asyncHandler(
 
         const formattedOrders = await Promise.all(orders.map(formatOrder));
 
-        // ── Stats (scoped to region if not super_admin) ─────────────────────
+        //  Stats (scoped to region if not super_admin) 
         const statsQuery = staffRegionId ? { region: staffRegionId } : {};
         const statsRaw = await Order.aggregate([
             { $match: statsQuery },

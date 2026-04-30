@@ -10,7 +10,7 @@ import CloudinaryService from '../../services/cloudinary';
 import { sendEmail, driverEmailTemplates } from '../../utils/driverEmail';
 import { resolveStaffRegionId } from '../../helpers/regionScope';
 
-// ─── activity logger ──────────────────────────────────────────────────────────
+//  activity logger 
 
 const logDriverActivity = async (
     driverId: string,
@@ -28,7 +28,7 @@ const logDriverActivity = async (
     }
 };
 
-// ─── GET all drivers ─────────────────────────────────────────────────────────
+//  GET all drivers 
 
 // @desc    Get all drivers — region-scoped for non-super-admin staff
 // @route   GET /api/v1/drivers
@@ -47,7 +47,7 @@ export const getAllDrivers = asyncHandler(async (req: Request, res: Response) =>
 
     const query: any = {};
 
-    // ── Region scoping ────────────────────────────────────────────────────────
+    //  Region scoping 
     const staffRegionId = await resolveStaffRegionId(req.user);
 
     if (staffRegionId) {
@@ -537,33 +537,33 @@ export const getDashboardSummary = asyncHandler(async (req: Request, res: Respon
 
 
 
-// ─── NEW: Assign a specific driver to an order ────────────────────────────────
- 
+//  NEW: Assign a specific driver to an order 
+
 export const assignDriverToOrder = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
         if (!req.user) return next(new AppError('Not authenticated', 401));
- 
+
         const { orderNumber } = req.params;
         const { driverId, distanceKm = 3.5, isPriority = false, note = '' } = req.body;
- 
+
         if (!driverId) return next(new AppError('driverId is required', 400));
- 
-        // ── 1. Validate order ────────────────────────────────────────────────
+
+        //  1. Validate order 
         const staffRegionId = await resolveStaffRegionId(req.user);
         const orderFilter: any = { orderNumber };
         if (staffRegionId) orderFilter.region = staffRegionId;
- 
+
         const order = await Order.findOne(orderFilter).populate('shippingAddress');
         if (!order) return next(new AppError('Order not found or not in your region', 404));
- 
+
         const assignableStatuses = ['pending', 'paid', 'confirmed', 'processing'];
         if (!assignableStatuses.includes(order.orderStatus)) {
             return next(
                 new AppError(`Order cannot be assigned at status '${order.orderStatus}'`, 400),
             );
         }
- 
-        // ── 2. No active delivery already ────────────────────────────────────
+
+        //  2. No active delivery already 
         const existingDelivery = await DriverDelivery.findOne({
             orderId: order._id,
             status: { $nin: ['cancelled', 'rejected'] },
@@ -571,18 +571,18 @@ export const assignDriverToOrder = asyncHandler(
         if (existingDelivery) {
             return next(new AppError('Order already has an active delivery assignment', 409));
         }
- 
-        // ── 3. Validate driver ───────────────────────────────────────────────
+
+        //  3. Validate driver 
         const driver = await Driver.findById(driverId).populate('userId', 'name email');
         if (!driver) return next(new AppError('Driver not found', 404));
- 
+
         if (driver.verificationStatus !== 'verified') {
             return next(new AppError('Driver is not verified', 400));
         }
         if (driver.status !== 'active') {
             return next(new AppError(`Driver status is '${driver.status}' — must be active`, 400));
         }
- 
+
         const driverBusy = await DriverDelivery.findOne({
             driverId: driver._id,
             status: {
@@ -590,20 +590,20 @@ export const assignDriverToOrder = asyncHandler(
             },
         });
         if (driverBusy) return next(new AppError('Driver already has an active delivery', 400));
- 
-        // ── 4. Build delivery record ─────────────────────────────────────────
+
+        //  4. Build delivery record 
         const shippingAddr = order.shippingAddress as any;
         const deliveryAddress =
             typeof shippingAddr === 'string'
                 ? shippingAddr
                 : [shippingAddr?.address, shippingAddr?.localGovernment, shippingAddr?.state]
-                      .filter(Boolean)
-                      .join(', ');
- 
+                    .filter(Boolean)
+                    .join(', ');
+
         const fare = 300 //calculateFare(Number(distanceKm), Boolean(isPriority));
         const pin = "jkjdhcjh" //generateDeliveryPin();
         const now = new Date();
- 
+
         const delivery = await DriverDelivery.create({
             orderId: order._id,
             driverId: driver._id,
@@ -623,17 +623,21 @@ export const assignDriverToOrder = asyncHandler(
                 { status: 'accepted', timestamp: now, note: note || 'Driver assigned by admin' },
             ],
         });
- 
-        // ── 5. Update driver + order status ──────────────────────────────────
+
+        //  5. Update driver + order status 
         await Driver.findByIdAndUpdate(driver._id, { status: 'on-delivery', lastActive: now });
- 
+
         await order.updateStatus(
             'processing',
             note || `Driver ${(driver.userId as any)?.name || driverId} assigned by admin`,
             req.user.id,
         );
- 
-        // ── 6. Ensure driver wallet exists ───────────────────────────────────
+
+        
+        order.driverId = driverId;
+        await order.save();
+
+        //  6. Ensure driver wallet exists 
         const walletExists = await DriverWallet.findOne({ driverId: driver._id });
         if (!walletExists) {
             await DriverWallet.create({
@@ -645,7 +649,7 @@ export const assignDriverToOrder = asyncHandler(
                 totalDeliveries: 0,
             });
         }
- 
+
         (res as AppResponse).data(
             {
                 delivery: {
@@ -672,4 +676,3 @@ export const assignDriverToOrder = asyncHandler(
         );
     },
 );
- 

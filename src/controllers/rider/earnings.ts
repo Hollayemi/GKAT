@@ -5,7 +5,7 @@ import DriverDelivery from '../../models/DriverDelivery';
 import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
 import mongoose from 'mongoose';
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
+//  helpers 
 
 const getNextPayoutDate = (frequency: PayoutFrequency): Date => {
     const now = new Date();
@@ -17,7 +17,6 @@ const getNextPayoutDate = (frequency: PayoutFrequency): Date => {
             return next;
         }
         case 'weekly': {
-            // Every Friday
             const next = new Date(now);
             const day = next.getDay();
             const daysUntilFriday = (5 - day + 7) % 7 || 7;
@@ -26,7 +25,6 @@ const getNextPayoutDate = (frequency: PayoutFrequency): Date => {
             return next;
         }
         case 'twice_monthly': {
-            // 15th and 30th
             const next = new Date(now);
             if (now.getDate() < 15) {
                 next.setDate(15);
@@ -39,7 +37,6 @@ const getNextPayoutDate = (frequency: PayoutFrequency): Date => {
             return next;
         }
         case 'monthly': {
-            // Last day of the month
             const next = new Date(now.getFullYear(), now.getMonth() + 1, 0);
             next.setHours(8, 0, 0, 0);
             return next;
@@ -47,9 +44,223 @@ const getNextPayoutDate = (frequency: PayoutFrequency): Date => {
     }
 };
 
-// ─── @desc    Get wallet summary
-// ─── @route   GET /api/v1/driver-app/earnings/wallet
-// ─── @access  Private (driver)
+function startOfISOWeek(date: Date): Date {
+    const d = new Date(date);
+    const day = d.getDay(); // 0 = Sun
+    const diff = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+}
+
+const DAY_LABELS   = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+export const getEarningsOverview = asyncHandler(
+    async (req: Request, res: Response, next: NextFunction) => {
+        if (!req.user) return next(new AppError('Not authenticated', 401));
+
+        const driver = await Driver.findOne({ userId: req.user._id });
+        if (!driver) return next(new AppError('Driver profile not found', 404));
+
+        const wallet = await DriverWallet.findOne({ driverId: driver._id });
+        if (!wallet) return next(new AppError('Wallet not found', 404));
+
+        const period   = ((req.query.period  as string) || 'weekly').toLowerCase();
+        const pageNum  = parseInt((req.query.page  as string) || '1');
+        const limitNum = parseInt((req.query.limit as string) || '20');
+        const now      = new Date();
+
+        const activeTimeResult = await DriverDelivery.aggregate([
+            {
+                $match: {
+                    driverId:    driver._id,
+                    status:      'delivered',
+                    acceptedAt:  { $exists: true },
+                    deliveredAt: { $exists: true },
+                },
+            },
+            {
+                $project: {
+                    durationMs: { $subtract: ['$deliveredAt', '$acceptedAt'] },
+                },
+            },
+            {
+                $group: { _id: null, totalMs: { $sum: '$durationMs' } },
+            },
+        ]);
+
+        const totalActiveMs = activeTimeResult[0]?.totalMs || 0;
+        const activeHours   = parseFloat((totalActiveMs / 3_600_000).toFixed(1));
+
+        //  2. Earning Activity chart data 
+        let chartData: Array<{ label: string; earned: number; deliveries: number }> = [];
+
+        if (period === 'weekly') {
+            // Current ISO week  Mon … Sun
+            const weekStart = startOfISOWeek(now);
+            const weekEnd   = new Date(weekStart);
+            weekEnd.setDate(weekEnd.getDate() + 7);
+
+            const rows = await DriverDelivery.aggregate([
+                {
+                    $match: {
+                        driverId:    driver._id,
+                        status:      'delivered',
+                        deliveredAt: { $gte: weekStart, $lt: weekEnd },
+                    },
+                },
+                {
+                    $group: {
+                        _id:       { $isoDayOfWeek: '$deliveredAt' }, // 1=Mon … 7=Sun
+                        earned:    { $sum: '$fareBreakdown.totalEarned' },
+                        deliveries:{ $sum: 1 },
+                    },
+                },
+            ]);
+
+            const byDay: Record<number, { earned: number; deliveries: number }> = {};
+            rows.forEach(r => { byDay[r._id] = { earned: r.earned, deliveries: r.deliveries }; });
+
+            chartData = DAY_LABELS.map((label, i) => ({
+                label,
+                earned:     byDay[i + 1]?.earned     || 0,
+                deliveries: byDay[i + 1]?.deliveries || 0,
+            }));
+
+        } else if (period === 'monthly') {
+            // Current calendar year  Jan … Dec
+            const yearStart = new Date(now.getFullYear(), 0, 1);
+            const yearEnd   = new Date(now.getFullYear() + 1, 0, 1);
+
+            const rows = await DriverDelivery.aggregate([
+                {
+                    $match: {
+                        driverId:    driver._id,
+                        status:      'delivered',
+                        deliveredAt: { $gte: yearStart, $lt: yearEnd },
+                    },
+                },
+                {
+                    $group: {
+                        _id:       { $month: '$deliveredAt' }, // 1–12
+                        earned:    { $sum: '$fareBreakdown.totalEarned' },
+                        deliveries:{ $sum: 1 },
+                    },
+                },
+            ]);
+
+            const byMonth: Record<number, { earned: number; deliveries: number }> = {};
+            rows.forEach(r => { byMonth[r._id] = { earned: r.earned, deliveries: r.deliveries }; });
+
+            chartData = MONTH_LABELS.map((label, i) => ({
+                label,
+                earned:     byMonth[i + 1]?.earned     || 0,
+                deliveries: byMonth[i + 1]?.deliveries || 0,
+            }));
+
+        } else {
+            // yearly — last 5 calendar years
+            const currentYear = now.getFullYear();
+            const years       = Array.from({ length: 5 }, (_, i) => currentYear - 4 + i);
+            const rangeStart  = new Date(years[0], 0, 1);
+            const rangeEnd    = new Date(currentYear + 1, 0, 1);
+
+            const rows = await DriverDelivery.aggregate([
+                {
+                    $match: {
+                        driverId:    driver._id,
+                        status:      'delivered',
+                        deliveredAt: { $gte: rangeStart, $lt: rangeEnd },
+                    },
+                },
+                {
+                    $group: {
+                        _id:       { $year: '$deliveredAt' },
+                        earned:    { $sum: '$fareBreakdown.totalEarned' },
+                        deliveries:{ $sum: 1 },
+                    },
+                },
+            ]);
+
+            const byYear: Record<number, { earned: number; deliveries: number }> = {};
+            rows.forEach(r => { byYear[r._id] = { earned: r.earned, deliveries: r.deliveries }; });
+
+            chartData = years.map(yr => ({
+                label:      String(yr),
+                earned:     byYear[yr]?.earned     || 0,
+                deliveries: byYear[yr]?.deliveries || 0,
+            }));
+        }
+
+        // Total displayed in the chart tooltip / header
+        const chartTotal = chartData.reduce((sum, d) => sum + d.earned, 0);
+
+        //  3. Withdrawal History (paginated from wallet transactions) 
+        const allWithdrawals = wallet.transactions
+            .filter(t => t.category === 'withdrawal' || t.category === 'auto_payout')
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        const totalWithdrawals = allWithdrawals.length;
+        const skip             = (pageNum - 1) * limitNum;
+        const withdrawalHistory = allWithdrawals.slice(skip, skip + limitNum);
+
+        //  4. Respond 
+        (res as AppResponse).data(
+            {
+                //  Top section 
+                wallet: {
+                    balance:        wallet.balance,
+                    totalEarned:    wallet.totalEarned,
+                    totalWithdrawn: wallet.totalWithdrawn,
+                },
+
+                //  Stats cards 
+                stats: {
+                    activeHours,                              // "50 Hours — Active Time"
+                    totalDeliveries: driver.completedDeliveries, // "250 — Total deliveries"
+                },
+
+                //  Earning Activity bar chart 
+                earningActivity: {
+                    period,                                   // 'weekly' | 'monthly' | 'yearly'
+                    total: chartTotal,                        // ₦62,350.12 — shown in tooltip
+                    data: chartData,
+                    // e.g. weekly:
+                    // [
+                    //   { label: "MON", earned: 28000, deliveries: 12 },
+                    //   { label: "TUE", earned: 43500, deliveries: 19 },
+                    //   { label: "WED", earned: 15000, deliveries:  7 },
+                    //   { label: "THU", earned: 32000, deliveries: 14 },
+                    //   { label: "FRI", earned: 62350, deliveries: 27 },
+                    //   { label: "SAT", earned:     0, deliveries:  0 },
+                    //   { label: "SUN", earned:     0, deliveries:  0 },
+                    // ]
+                },
+
+                //  Withdrawal History list 
+                withdrawalHistory: {
+                    transactions: withdrawalHistory,
+                    pagination: {
+                        page:  pageNum,
+                        limit: limitNum,
+                        total: totalWithdrawals,
+                        pages: Math.ceil(totalWithdrawals / limitNum),
+                    },
+                },
+
+                //  For Settings (⚙️) and Withdraw modals 
+                bankAccounts:        wallet.bankAccounts,
+                autoPayoutSettings:  wallet.autoPayoutSettings,
+            },
+            'Earnings overview retrieved successfully'
+        );
+    }
+);
+
+//  @desc    Get wallet summary
+//  @route   GET /api/v1/driver-app/earnings/wallet
+//  @access  Private (driver)
 export const getWallet = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -59,7 +270,6 @@ export const getWallet = asyncHandler(async (req: Request, res: Response, next: 
     const wallet = await DriverWallet.findOne({ driverId: driver._id });
     if (!wallet) return next(new AppError('Wallet not found', 404));
 
-    // Earnings stats
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfWeek = new Date(now);
@@ -127,9 +337,9 @@ export const getWallet = asyncHandler(async (req: Request, res: Response, next: 
     );
 });
 
-// ─── @desc    Get transaction history
-// ─── @route   GET /api/v1/driver-app/earnings/transactions
-// ─── @access  Private (driver)
+//  @desc    Get transaction history
+//  @route   GET /api/v1/driver-app/earnings/transactions
+//  @access  Private (driver)
 export const getTransactions = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -146,7 +356,6 @@ export const getTransactions = asyncHandler(async (req: Request, res: Response, 
     if (type) transactions = transactions.filter(t => t.type === type);
     if (category) transactions = transactions.filter(t => t.category === category);
 
-    // Sort newest first
     transactions = transactions.sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
@@ -169,9 +378,9 @@ export const getTransactions = asyncHandler(async (req: Request, res: Response, 
     );
 });
 
-// ─── @desc    Withdraw earnings to bank account
-// ─── @route   POST /api/v1/driver-app/earnings/withdraw
-// ─── @access  Private (driver)
+//  @desc    Withdraw earnings to bank account
+//  @route   POST /api/v1/driver-app/earnings/withdraw
+//  @access  Private (driver)
 export const withdrawEarnings = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -217,9 +426,6 @@ export const withdrawEarnings = asyncHandler(async (req: Request, res: Response,
         `Withdrawal to ${bankAccount.bankName} - ${bankAccount.accountNumber}`
     );
 
-    // TODO: Integrate with payment provider (Paystack Transfer API) here
-    // await paystackTransferService.initiate({ amount, bankCode: bankAccount.bankCode, accountNumber: bankAccount.accountNumber })
-
     (res as AppResponse).data(
         {
             amount: withdrawAmount,
@@ -234,9 +440,9 @@ export const withdrawEarnings = asyncHandler(async (req: Request, res: Response,
     );
 });
 
-// ─── @desc    Add bank account
-// ─── @route   POST /api/v1/driver-app/earnings/bank-accounts
-// ─── @access  Private (driver)
+//  @desc    Add bank account
+//  @route   POST /api/v1/driver-app/earnings/bank-accounts
+//  @access  Private (driver)
 export const addBankAccount = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -260,7 +466,6 @@ export const addBankAccount = asyncHandler(async (req: Request, res: Response, n
         return next(new AppError('Maximum of 5 bank accounts allowed', 400));
     }
 
-    // Check for duplicate account number
     const duplicate = wallet.bankAccounts.find(b => b.accountNumber === accountNumber);
     if (duplicate) {
         return next(new AppError('This bank account has already been added', 409));
@@ -286,9 +491,9 @@ export const addBankAccount = asyncHandler(async (req: Request, res: Response, n
     );
 });
 
-// ─── @desc    Delete bank account
-// ─── @route   DELETE /api/v1/driver-app/earnings/bank-accounts/:accountId
-// ─── @access  Private (driver)
+//  @desc    Delete bank account
+//  @route   DELETE /api/v1/driver-app/earnings/bank-accounts/:accountId
+//  @access  Private (driver)
 export const deleteBankAccount = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -307,7 +512,6 @@ export const deleteBankAccount = asyncHandler(async (req: Request, res: Response
     const wasDefault = wallet.bankAccounts[index].isDefault;
     wallet.bankAccounts.splice(index, 1);
 
-    // Auto-assign new default if needed
     if (wasDefault && wallet.bankAccounts.length > 0) {
         wallet.bankAccounts[0].isDefault = true;
     }
@@ -320,9 +524,9 @@ export const deleteBankAccount = asyncHandler(async (req: Request, res: Response
     );
 });
 
-// ─── @desc    Set default bank account
-// ─── @route   PATCH /api/v1/driver-app/earnings/bank-accounts/:accountId/default
-// ─── @access  Private (driver)
+//  @desc    Set default bank account
+//  @route   PATCH /api/v1/driver-app/earnings/bank-accounts/:accountId/default
+//  @access  Private (driver)
 export const setDefaultBankAccount = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -348,10 +552,10 @@ export const setDefaultBankAccount = asyncHandler(async (req: Request, res: Resp
     );
 });
 
-// ─── @desc    Get / update auto-payout settings
-// ─── @route   GET  /api/v1/driver-app/earnings/auto-payout
-// ─── @route   PUT  /api/v1/driver-app/earnings/auto-payout
-// ─── @access  Private (driver)
+//  @desc    Get / update auto-payout settings
+//  @route   GET  /api/v1/driver-app/earnings/auto-payout
+//  @route   PUT  /api/v1/driver-app/earnings/auto-payout
+//  @access  Private (driver)
 export const getAutoPayoutSettings = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -411,9 +615,9 @@ export const updateAutoPayoutSettings = asyncHandler(async (req: Request, res: R
     );
 });
 
-// ─── @desc    Get earnings breakdown for a date range
-// ─── @route   GET /api/v1/driver-app/earnings/summary
-// ─── @access  Private (driver)
+//  @desc    Get earnings breakdown for a date range
+//  @route   GET /api/v1/driver-app/earnings/summary
+//  @access  Private (driver)
 export const getEarningsSummary = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -468,12 +672,12 @@ export const getEarningsSummary = asyncHandler(async (req: Request, res: Respons
 
     const totals = summary.reduce(
         (acc, day) => {
-            acc.totalEarned += day.totalEarned;
-            acc.baseFare += day.baseFare;
+            acc.totalEarned   += day.totalEarned;
+            acc.baseFare      += day.baseFare;
             acc.distanceBonus += day.distanceBonus;
-            acc.priorityFee += day.priorityFee;
-            acc.deliveries += day.deliveries;
-            acc.totalKm += day.totalKm;
+            acc.priorityFee   += day.priorityFee;
+            acc.deliveries    += day.deliveries;
+            acc.totalKm       += day.totalKm;
             return acc;
         },
         { totalEarned: 0, baseFare: 0, distanceBonus: 0, priorityFee: 0, deliveries: 0, totalKm: 0 }

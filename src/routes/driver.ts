@@ -32,7 +32,7 @@ router.use(protect);
 router.get('/dashboard/summary', checkPermission('view_users'), getDashboardSummary);
 
 
-// ── Driver assignment ──────────────────────────────────────────────────────────
+//  Driver assignment 
 router.get('/available', checkPermission('view_users'), getAvailableDrivers);
 
 

@@ -53,7 +53,7 @@ const csvUpload = multer({
 
 const router = Router();
 
-// ── Public routes ─────────────────────────────────────────────────────────────
+//  Public routes 
 router.get('/deals/deals-of-the-day', getDealsOfTheDay);
 router.get('/sku/:sku', getProductBySku);
 router.get('/:id', getProduct);
@@ -62,7 +62,7 @@ router.get('/:id', getProduct);
 router.use(ifToken);
 router.get('/', getProducts);
 
-// ── Admin-protected routes ────────────────────────────────────────────────────
+//  Admin-protected routes 
 router.use(protect);
 router.use(authorize('admin'));
 
@@ -83,7 +83,7 @@ router.delete('/:id/deals', removeFromDeals);
 router.get('/:id/preview', getProductPreview);
 router.get('/:id/stock-history', getStockHistory);
 
-// ── CSV Import / Export ───────────────────────────────────────────────────────
+//  CSV Import / Export 
 // Download blank template
 router.get('/import/template', downloadImportTemplate);
 
@@ -93,7 +93,7 @@ router.post('/import', csvUpload.single('file'), importProductsFromCsv);
 // Export current catalogue to CSV (supports same query filters as GET /)
 router.get('/all/export', exportProductsToCsv);
 
-// ── CRUD with image upload ────────────────────────────────────────────────────
+//  CRUD with image upload 
 router.post('/', upload.array('images', 5), validateProductCreate, createProduct);
 router.put('/', upload.array('images', 5), validateProductUpdate, updateProduct);
 router.delete('/:id', deleteProduct);

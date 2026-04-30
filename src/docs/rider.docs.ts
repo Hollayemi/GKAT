@@ -690,6 +690,28 @@
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  *
+ * 
+ * /rider/earnings/overview:
+ *   get:
+ *     summary: Get earnings overview
+ *     description: Returns wallet balance, total earned, and earnings breakdown for today, this week and this month.
+ *     tags: [Rider - Earnings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Wallet retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/SuccessEnvelope'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/WalletDetail'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *
  * /rider/earnings/wallet:
  *   get:
