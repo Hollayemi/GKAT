@@ -27,7 +27,7 @@ export interface IDriver extends Document {
     licenseExpiry?: Date;
 
     // Work Information
-    region: string;
+    region: Types.ObjectId;
     assignedBranch?: string;
     employmentType: 'full-time' | 'part-time' | 'contract';
 
@@ -136,7 +136,8 @@ const DriverSchema = new Schema<IDriver>({
 
     // Work Information
     region: {
-        type: String,
+        type: Schema.Types.ObjectId,
+        ref: 'Region',
         required: [true, 'Region is required'],
         trim: true,
         index: true

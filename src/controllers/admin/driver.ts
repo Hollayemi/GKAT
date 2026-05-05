@@ -78,6 +78,7 @@ export const getAllDrivers = asyncHandler(async (req: Request, res: Response) =>
         Driver.find(query)
             .select('-password -passwordSetupToken -passwordSetupExpiry')
             .populate('userId', 'name email')
+            .populate('region', 'name')
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limitNum)
@@ -130,8 +131,6 @@ export const createDriver = asyncHandler(async (req: Request, res: Response, nex
     } = req.body;
 
 
-
-
     const existingDriver = await Driver.findOne({ phone });
     if (existingDriver) return next(new AppError('Phone number already exists', 400, 'DUPLICATE_PHONE'));
 
@@ -144,9 +143,10 @@ export const createDriver = asyncHandler(async (req: Request, res: Response, nex
 
     if (req.files) {
         const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-        if (files.vehicle?.[0]) {
+        console.log(Object.keys(files));
+        if (files.vehiclePhoto?.[0]) {
             try {
-                const result = await CloudinaryService.uploadImage(files.vehicle[0], 'go-kart/drivers/profiles');
+                const result = await CloudinaryService.uploadImage(files.vehiclePhoto[0], 'go-kart/drivers/profiles');
                 vehiclePhotoUrl = result.url;
             } catch (error: any) {
                 return next(new AppError(`Profile photo upload failed: ${error.message}`, 400));
@@ -170,9 +170,14 @@ export const createDriver = asyncHandler(async (req: Request, res: Response, nex
         }
     }
 
-    let existingUser: any = await User.findOne({ phone }).lean();
+    let existingUser: any = await User.findOne({ phoneNumber:phone }).lean();
     if (!existingUser) {
         existingUser = await User.create({ phoneNumber: phone, residentArea: city || state || 'Unknown', name: fullName, email, role: 'driver' });
+    }
+
+    console.log('vehiclePhotoUrl:', vehiclePhotoUrl, 'profilePhotoUrl:', profilePhotoUrl, 'driversLicenseUrl:', driversLicenseUrl);
+    if (!vehiclePhotoUrl || !profilePhotoUrl || !driversLicenseUrl) {
+        return next(new AppError(`Unable to get image URL`, 400));
     }
 
     const driver = await Driver.create({
@@ -186,6 +191,15 @@ export const createDriver = asyncHandler(async (req: Request, res: Response, nex
     });
 
     await driver.save();
+
+    await DriverWallet.create({
+        driverId: driver._id,
+        userId: existingUser._id,
+        balance: 0,
+        totalEarned: 0,
+        totalWithdrawn: 0,
+        totalDeliveries: 0,
+    });
 
     await logDriverActivity(driver._id.toString(), existingUser.name, 'Registration', 'Driver account created', { vehicleType: driver.vehicleType, region: driver.region, employmentType: driver.employmentType }, undefined, req.ip);
 
@@ -556,8 +570,7 @@ export const assignDriverToOrder = asyncHandler(
         const order = await Order.findOne(orderFilter).populate('shippingAddress');
         if (!order) return next(new AppError('Order not found or not in your region', 404));
 
-        const assignableStatuses = ['pending', 'paid', 'confirmed', 'processing'];
-        if (!assignableStatuses.includes(order.orderStatus)) {
+        if (order.orderStatus.toLowerCase() !== "processing") {
             return next(
                 new AppError(`Order cannot be assigned at status '${order.orderStatus}'`, 400),
             );
@@ -633,7 +646,7 @@ export const assignDriverToOrder = asyncHandler(
             req.user.id,
         );
 
-        
+
         order.driverId = driverId;
         await order.save();
 
