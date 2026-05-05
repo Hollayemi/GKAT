@@ -42,7 +42,10 @@ export const getAvailableOrders = asyncHandler(async (req: Request, res: Respons
     }
 
     // Find deliveries broadcasted to this driver&apos;sregion that are not yet accepted
-    const available = await Order.find({ orderStatus: "processing" }).populate('shippingAddress');
+    const available = await Order.find({ orderStatus: "processing" })
+    .populate('shippingAddress')
+    .populate('userId', 'name avatar')
+    .sort({ createdAt: -1 }).limit(5);
     // const available = await DriverDelivery.find({
     //     status: '',
     //     expiresAt: { $gt: new Date() }
@@ -467,7 +470,7 @@ export const getDeliveryHistory = asyncHandler(async (req: Request, res: Respons
     if (status && status !== 'all') {
         query.status = status;
     } else {
-        query.status = { $in: ['delivered', 'cancelled', 'rejected', "accepted"] };
+        query.status = { $in: ['delivered', 'cancelled', 'rejected', "accepted", "on-delivery"] };
     }
 
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);

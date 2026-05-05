@@ -641,7 +641,7 @@ export const assignDriverToOrder = asyncHandler(
         await Driver.findByIdAndUpdate(driver._id, { status: 'on-delivery', lastActive: now });
 
         await order.updateStatus(
-            'processing',
+            'shipped',
             note || `Driver ${(driver.userId as any)?.name || driverId} assigned by admin`,
             req.user.id,
         );

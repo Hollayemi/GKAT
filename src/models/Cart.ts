@@ -7,7 +7,7 @@ export interface ICartItem {
     variantId?: Types.ObjectId;
     name: string;
     brand?: string;
-    category: string;
+    category: Types.ObjectId;
     price: number;
     quantity: number;
     image?: string;
@@ -105,7 +105,7 @@ const cartItemSchema = new Schema<ICartItem>({
         type: String
     },
     category: {
-        type: String,
+        type: Schema.Types.ObjectId,
         required: true,
         ref: "Category"
     },

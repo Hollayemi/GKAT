@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import Order from '../../models/Orders';
 import Driver from '../../models/Driver';
+import DriverWallet from '../../models/DriverWallet';
 import DriverDelivery from '../../models/DriverDelivery';
 import Address from '../../models/Address';
 import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
@@ -40,7 +41,7 @@ export const assignDriverToOrder = asyncHandler(async (req: Request, res: Respon
     if (!order) return next(new AppError('Order not found or not in your region', 404));
 
     // Only paid or confirmed orders can be assigned
-    if (!['paid', 'confirmed'].includes(order.orderStatus)) {
+    if (order.orderStatus !== "processing") {
         return next(new AppError(
             `Cannot assign driver to order with status "${order.orderStatus}". Order must be paid or confirmed.`,
             400
@@ -111,11 +112,23 @@ export const assignDriverToOrder = asyncHandler(async (req: Request, res: Respon
     });
 
     // Update order status to processing
-    await order.updateStatus('processing', `Driver assigned by admin: ${(driver.userId as any)?.name || driver._id}`);
+    await order.updateStatus('shipped', `Driver assigned by admin: ${(driver.userId as any)?.name || driver._id}`);
 
     // Mark driver as on-delivery
     driver.status = 'on-delivery';
     await driver.save();
+
+        const walletExists = await DriverWallet.findOne({ driverId: driver._id });
+            if (!walletExists) {
+                await DriverWallet.create({
+                    driverId: driver._id,
+                    userId: driver.userId,
+                    balance: 0,
+                    totalEarned: 0,
+                    totalWithdrawn: 0,
+                    totalDeliveries: 0,
+                });
+            }
 
     // Notify customer with delivery PIN
     try {

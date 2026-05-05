@@ -5,7 +5,7 @@ export interface IOrderItem {
     variantId?: Types.ObjectId;
     name: string;
     brand?: string;
-    category: string;
+    category: any;
     price: number;
     quantity: number;
     image?: string;
@@ -133,7 +133,7 @@ const orderItemSchema = new Schema<IOrderItem>({
     variantId: { type: Schema.Types.ObjectId },
     name: { type: String, required: true },
     brand: { type: String },
-    category: { type: String, required: true },
+    category: { type: Object, required: true },
     price: { type: Number, required: true, min: 0 },
 
     quantity: { type: Number, required: true, min: 1 },
