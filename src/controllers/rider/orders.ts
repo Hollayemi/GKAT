@@ -42,7 +42,7 @@ export const getAvailableOrders = asyncHandler(async (req: Request, res: Respons
     }
 
     // Find deliveries broadcasted to this driver&apos;sregion that are not yet accepted
-    const available = await Order.find({ status: "processing" }).populate('shippingAddress');
+    const available = await Order.find({ orderStatus: "processing" }).populate('shippingAddress');
     // const available = await DriverDelivery.find({
     //     status: '',
     //     expiresAt: { $gt: new Date() }
