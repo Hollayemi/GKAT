@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError, AppResponse, asyncHandler } from "../../middleware/error";
 import NigeriaStates from '../../models/config/nigeriaStates';
-import Banks from '../../models/config/banks.model';
+import {Banks} from '../../models/config/banks.model';
 
 export const getNigeriaStates = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const states = await NigeriaStates.find().exec();
@@ -9,6 +9,6 @@ export const getNigeriaStates = asyncHandler(async (req: Request, res: Response,
 });
 
 export const getBanks = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-    const states = await Banks.find().exec();
-    (res as AppResponse).data(states, 'Nigeria Banks retrieved successfully');
+    const banks = await Banks.find().exec();
+    (res as AppResponse).data(banks, 'Nigeria Banks retrieved successfully');
 });
