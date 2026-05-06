@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
+import { seedBanks} from "./models/config/banks.model"
 
 import connectDB from './config/database';
 import {
@@ -145,6 +146,7 @@ process.on('unhandledRejection', (err: Error) => {
 });
 
 // seedRoles()
+seedBanks()
 
 
 process.on('uncaughtException', (err: Error) => {

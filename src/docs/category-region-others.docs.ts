@@ -548,5 +548,28 @@
  *                       items:
  *                         type: object
  *                         description: State document with arrays of LGA names keyed by state name
+ * 
+ * 
+ * /banks:
+ *   get:
+ *     summary: Get Nigerian Banks
+ *     description: Returns all Nigerian Banks with their short-code ans code.
+ *     tags: [Others]
+ *     security: []
+ *     responses:
+ *       200:
+ *         description: Nigeria Banks data retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/SuccessEnvelope'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         description: Banks document
  */
 export {};
