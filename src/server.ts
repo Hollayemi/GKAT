@@ -66,15 +66,13 @@ app.get('/health', (req, res) => {
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './config/swagger';
 
-// Add this route
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   customSiteTitle: 'Go-Kart API Docs',
   swaggerOptions: {
-    persistAuthorization: true, // keeps JWT token between page refreshes
+    persistAuthorization: true,
   },
 }));
 
-// Also expose the raw JSON spec (useful for Postman import)
 app.get('/api-docs.json', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.send(swaggerSpec);

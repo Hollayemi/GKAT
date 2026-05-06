@@ -16,7 +16,6 @@ export const getAdverts = asyncHandler(async (req: Request, res: Response, next:
 
     const query: any = {};
 
-    // Filter by active status if provided
     if (isActive !== undefined) {
         query.isActive = isActive === 'true';
     }
@@ -84,13 +83,11 @@ export const createAdvert = asyncHandler(async (req: Request, res: Response, nex
     //     return next(new AppError('Not authorized to perform this action', 403));
     // }
 
-    // Validate required fields
     const { title } = req.body;
     if (!title) {
         return next(new AppError('Title is required', 400));
     }
 
-    // Handle image upload
     if (!req.file) {
         return next(new AppError('Advert image is required', 400));
     }
@@ -131,15 +128,12 @@ export const updateAdvert = asyncHandler(async (req: Request, res: Response, nex
         return next(new AppError('Advert not found', 404));
     }
 
-    // Handle image upload if new image is provided
     if (req.file) {
         try {
-            // Delete old image
+           
             if (advert.image) {
                 await CloudinaryService.deleteImage(advert.image);
             }
-
-            // Upload new image
             const uploadResult = await CloudinaryService.uploadImage(req.file, 'go-kart/adverts');
             req.body.image = uploadResult.url;
         } catch (error: any) {
@@ -222,7 +216,6 @@ export const trackAdvertClick = asyncHandler(async (req: Request, res: Response,
         return next(new AppError('Advert not found', 404));
     }
 
-    // Increment click count
     advert.clicks += 1;
     await advert.save();
 

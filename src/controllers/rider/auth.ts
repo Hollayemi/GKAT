@@ -6,18 +6,7 @@ import User from '../../models/User';
 import DriverWallet from '../../models/DriverWallet';
 import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
 
-/**
- * Driver-specific auth actions.
- *
- * sendOTP / verifyOTP / refreshToken are NOT here — they live in
- * the shared auth controller and are imported directly into the route.
- * The shared controller already handles role differentiation via
- * User.role === 'driver' | 'user'.
- */
 
-//  @desc    First-time password setup (token from onboarding email)
-//  @route   POST /api/v1/driver-app/auth/set-password
-//  @access  Public (token-based)
 export const setupPassword = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { token, password, confirmPassword } = req.body;
 
@@ -54,9 +43,6 @@ export const setupPassword = asyncHandler(async (req: Request, res: Response, ne
     (res as AppResponse).success('Password set successfully. You can now log in.');
 });
 
-//  @desc    Toggle driver online / offline
-//  @route   PATCH /api/v1/driver-app/auth/toggle-availability
-//  @access  Private (driver)
 export const toggleAvailability = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -81,9 +67,6 @@ export const toggleAvailability = asyncHandler(async (req: Request, res: Respons
     );
 });
 
-//  @desc    Get logged-in driver profile + wallet summary
-//  @route   GET /api/v1/driver-app/auth/me
-//  @access  Private (driver)
 export const getMe = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -99,9 +82,6 @@ export const getMe = asyncHandler(async (req: Request, res: Response, next: Next
     (res as AppResponse).data({ driver, wallet }, 'Profile retrieved successfully');
 });
 
-//  @desc    Register / update FCM push token for this device
-//  @route   PATCH /api/v1/driver-app/auth/fcm-token
-//  @access  Private (driver)
 export const updateFcmToken = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 

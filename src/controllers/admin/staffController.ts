@@ -1,8 +1,4 @@
-/**
- * Staff controller — region-based updates:
- *  • getAllStaff: super_admin sees all; other roles see only staff in their region.
- *  • getStaffById, login, create, update, lifecycle methods are unchanged.
- */
+
 import { Request, Response, NextFunction } from 'express';
 import Staff, { IStaff } from '../../models/admin/Staff.model';
 import Role from '../../models/admin/Roles.models';
@@ -11,7 +7,6 @@ import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
 import { sendEmail } from '../../utils/email';
 import { resolveStaffRegionId } from '../../helpers/regionScope';
 
-//  helpers 
 
 const logActivity = async (userId: string, userName: string, action: string, description: string, metadata?: any, ipAddress?: string) => {
     try {
@@ -38,25 +33,18 @@ const sendTokenResponse = (staff: IStaff, statusCode: number, res: AppResponse, 
     );
 };
 
-//  controllers 
 
-// @desc    Get all staff — region-scoped for non-super-admin
-// @route   GET /api/v1/staff
-// @access  Private/Admin
 export const getAllStaff = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { search, status, role, page = 1, limit = 10 } = req.query;
 
     const query: any = {};
 
-    //  Region scoping 
     const staffRegionId = await resolveStaffRegionId(req.user);
 
     if (staffRegionId) {
-        // Match on region field — supports both ObjectId string and name string
         query.$or = [
             { region: staffRegionId.toString() },   // stored as ObjectId string
         ];
-        // Also try the region name so legacy records are included
         const { default: Region } = require('../../models/config/region.model');
         const regionDoc = await Region.findById(staffRegionId).lean();
         if (regionDoc) {
@@ -66,7 +54,6 @@ export const getAllStaff = asyncHandler(async (req: Request, res: Response, next
 
     if (search) {
         const searchCond = { $or: [{ fullName: { $regex: search, $options: 'i' } }, { email: { $regex: search, $options: 'i' } }] };
-        // Merge with existing $or if present
         if (query.$or) {
             query.$and = [{ $or: query.$or }, searchCond];
             delete query.$or;
@@ -112,9 +99,6 @@ export const getAllStaff = asyncHandler(async (req: Request, res: Response, next
     );
 });
 
-// @desc    Get single staff by ID
-// @route   GET /api/v1/staff/one
-// @access  Private/Admin
 export const getStaffById = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const staff = await Staff.findById(req.query.id || req.user?.id)
         .populate('role', 'name displayName permissions')
@@ -136,9 +120,6 @@ export const getStaffById = asyncHandler(async (req: Request, res: Response, nex
     }, 'Staff retrieved successfully');
 });
 
-// @desc    Create new staff member
-// @route   POST /api/v1/staff
-// @access  Private/Admin
 export const createStaff = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { fullName, email, phone, role, region, branch, permissions } = req.body;
 
@@ -167,9 +148,6 @@ export const createStaff = asyncHandler(async (req: Request, res: Response, next
     }, 'Staff member created successfully', 201);
 });
 
-// @desc    Login staff
-// @route   POST /api/v1/staff/login
-// @access  Public
 export const loginStaff = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { email, password } = req.body;
     if (!email) return next(new AppError('Please provide email', 400));
@@ -184,9 +162,6 @@ export const loginStaff = asyncHandler(async (req: Request, res: Response, next:
     sendTokenResponse(staff, 200, res as AppResponse, 'Admin login successful');
 });
 
-// @desc    Update staff member
-// @route   PUT /api/v1/staff/:id
-// @access  Private/Admin
 export const updateStaff = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { fullName, email, phone, role, region, branch } = req.body;
     const staff = await Staff.findById(req.params.id);
@@ -221,9 +196,6 @@ export const updateStaff = asyncHandler(async (req: Request, res: Response, next
     }, 'Staff member updated successfully');
 });
 
-// @desc    Update staff role and permissions
-// @route   PUT /api/v1/staff/:id/role
-// @access  Private/Admin
 export const updateStaffRole = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { roleId, permissions } = req.body;
     if (!roleId) return next(new AppError('Role ID is required', 400));
@@ -239,9 +211,6 @@ export const updateStaffRole = asyncHandler(async (req: Request, res: Response, 
     (res as AppResponse).data({ staff }, 'Role and permissions updated successfully');
 });
 
-// @desc    Delete staff member
-// @route   DELETE /api/v1/staff/:id
-// @access  Private/Admin
 export const deleteStaff = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const staff = await Staff.findById(req.params.id);
     if (!staff) return next(new AppError('Staff member not found', 404));
@@ -251,9 +220,6 @@ export const deleteStaff = asyncHandler(async (req: Request, res: Response, next
     (res as AppResponse).success('Staff member deleted successfully');
 });
 
-// @desc    Suspend staff account
-// @route   POST /api/v1/staff/:id/suspend
-// @access  Private/Admin
 export const suspendStaff = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { reason, duration, notifyUser = true } = req.body;
     if (!reason) return next(new AppError('Suspension reason is required', 400));
@@ -274,9 +240,6 @@ export const suspendStaff = asyncHandler(async (req: Request, res: Response, nex
     (res as AppResponse).data({ _id: staff._id, status: staff.status, suspendedAt: staff.suspendedAt, suspendedUntil: staff.suspendedUntil, reason: staff.suspensionReason }, 'Account suspended successfully');
 });
 
-// @desc    Unsuspend staff account
-// @route   POST /api/v1/staff/:id/unsuspend
-// @access  Private/Admin
 export const unsuspendStaff = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const staff = await Staff.findById(req.params.id);
     if (!staff) return next(new AppError('Staff member not found', 404));
@@ -287,9 +250,6 @@ export const unsuspendStaff = asyncHandler(async (req: Request, res: Response, n
     (res as AppResponse).data({ staff }, 'Account unsuspended successfully');
 });
 
-// @desc    Disable staff account
-// @route   POST /api/v1/staff/:id/disable
-// @access  Private/Admin
 export const disableStaff = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { reason, notifyUser = true } = req.body;
     if (!reason) return next(new AppError('Disablement reason is required', 400));
@@ -303,9 +263,6 @@ export const disableStaff = asyncHandler(async (req: Request, res: Response, nex
     (res as AppResponse).data({ _id: staff._id, status: staff.status, disabledAt: staff.disabledAt, reason: staff.disablementReason }, 'Account disabled successfully');
 });
 
-// @desc    Enable staff account
-// @route   POST /api/v1/staff/:id/enable
-// @access  Private/Admin
 export const enableStaff = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const staff = await Staff.findById(req.params.id);
     if (!staff) return next(new AppError('Staff member not found', 404));
@@ -316,9 +273,6 @@ export const enableStaff = asyncHandler(async (req: Request, res: Response, next
     (res as AppResponse).data({ staff }, 'Account enabled successfully');
 });
 
-// @desc    Reset staff password
-// @route   POST /api/v1/staff/:id/reset-password
-// @access  Private/Admin
 export const resetPassword = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { notifyUser = true } = req.body;
     const staff = await Staff.findById(req.params.id);
@@ -332,9 +286,6 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response, ne
     (res as AppResponse).data({ userId: staff._id, emailSent, ...(notifyUser ? {} : { temporaryPassword }) }, 'Password reset successfully');
 });
 
-// @desc    Bulk suspend staff
-// @route   POST /api/v1/staff/bulk/suspend
-// @access  Private/Admin
 export const bulkSuspend = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { ids, reason } = req.body;
     if (!ids || !Array.isArray(ids) || ids.length === 0) return next(new AppError('Staff IDs array is required', 400));
@@ -346,9 +297,6 @@ export const bulkSuspend = asyncHandler(async (req: Request, res: Response, next
     (res as AppResponse).data({ modifiedCount: result.modifiedCount, matchedCount: result.matchedCount }, `${result.modifiedCount} staff member(s) suspended successfully`);
 });
 
-// @desc    Bulk delete staff
-// @route   DELETE /api/v1/staff/bulk/delete
-// @access  Private/Admin
 export const bulkDelete = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { ids } = req.body;
     if (!ids || !Array.isArray(ids) || ids.length === 0) return next(new AppError('Staff IDs array is required', 400));
@@ -358,9 +306,6 @@ export const bulkDelete = asyncHandler(async (req: Request, res: Response, next:
     (res as AppResponse).data({ deletedCount: result.deletedCount }, `${result.deletedCount} staff member(s) deleted successfully`);
 });
 
-// @desc    Get staff activity logs
-// @route   GET /api/v1/staff/:id/activity-logs
-// @access  Private/Admin
 export const getActivityLogs = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { page = 1, limit = 20 } = req.query;
     const staff = await Staff.findById(req.params.id);

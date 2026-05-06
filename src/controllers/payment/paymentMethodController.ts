@@ -3,9 +3,6 @@ import PaymentMethod from '../../models/PaymentMethod';
 import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
 import PaymentMethodModel from '../../models/PaymentMethod';
 
-// @desc    Get all payment methods (admin — includes disabled)
-// @route   GET /api/v1/admin/payment-methods
-// @access  Private/Admin
 export const getAllPaymentMethods = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
         const methods = await PaymentMethod.find().sort({ sortOrder: 1 });
@@ -13,9 +10,6 @@ export const getAllPaymentMethods = asyncHandler(
     }
 );
 
-// @desc    Get enabled payment methods (public — for checkout)
-// @route   GET /api/v1/payment/methods
-// @access  Public
 export const getEnabledPaymentMethods = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
         const methods = await PaymentMethod.find({ enabled: true }).sort({ sortOrder: 1 });
@@ -23,9 +17,6 @@ export const getEnabledPaymentMethods = asyncHandler(
     }
 );
 
-// @desc    Toggle a payment method enabled/disabled
-// @route   PATCH /api/v1/admin/payment-methods/:id/toggle
-// @access  Private/Admin
 export const togglePaymentMethod = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
         const method = await PaymentMethod.findOne({ id: req.params.id });
@@ -44,9 +35,6 @@ export const togglePaymentMethod = asyncHandler(
     }
 );
 
-// @desc    Update a payment method&apos;sdetails
-// @route   PUT /api/v1/admin/payment-methods/:id
-// @access  Private/Admin
 export const updatePaymentMethod = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
         const { name, description, logo, enabled, sortOrder } = req.body;

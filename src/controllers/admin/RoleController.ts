@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import Role from '../../models/admin/Roles.models';
 import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
 
-// Available permissions with metadata
 const PERMISSIONS = [
     {
         id: 'view_users',
@@ -56,18 +55,12 @@ const PERMISSIONS = [
     }
 ];
 
-// @desc    Get all roles
-// @route   GET /api/v1/roles
-// @access  Private/Admin
 export const getAllRoles = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const roles = await Role.find().sort({ createdAt: 1 }).lean();
 
     (res as AppResponse).data(roles, 'Roles retrieved successfully');
 });
 
-// @desc    Get single role
-// @route   GET /api/v1/roles/:id
-// @access  Private/Admin
 export const getRoleById = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const role = await Role.findById(req.params.id).lean();
 
@@ -78,19 +71,14 @@ export const getRoleById = asyncHandler(async (req: Request, res: Response, next
     (res as AppResponse).data({ role }, 'Role retrieved successfully');
 });
 
-// @desc    Create new role
-// @route   POST /api/v1/roles
-// @access  Private/Admin (with manage_roles permission)
 export const createRole = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { name, displayName, permissions } = req.body;
 
-    // Check if role already exists
     const existingRole = await Role.findOne({ name: name.toLowerCase() });
     if (existingRole) {
         return next(new AppError('Role with this name already exists', 400, 'DUPLICATE_ROLE'));
     }
 
-    // Validate permissions
     const validPermissionIds = PERMISSIONS.map(p => p.id);
     const invalidPermissions = permissions.filter((p: string) => !validPermissionIds.includes(p));
 
@@ -111,9 +99,6 @@ export const createRole = asyncHandler(async (req: Request, res: Response, next:
     (res as AppResponse).data({ role }, 'Role created successfully', 201);
 });
 
-// @desc    Update role
-// @route   PUT /api/v1/roles/:id
-// @access  Private/Admin (with manage_roles permission)
 export const updateRole = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { name, displayName, permissions } = req.body;
 
@@ -123,7 +108,6 @@ export const updateRole = asyncHandler(async (req: Request, res: Response, next:
         return next(new AppError('Role not found', 404));
     }
 
-    // Check if new name conflicts with existing role
     if (name && name !== role.name) {
         const existingRole = await Role.findOne({ name: name.toLowerCase() });
         if (existingRole) {
@@ -131,7 +115,6 @@ export const updateRole = asyncHandler(async (req: Request, res: Response, next:
         }
     }
 
-    // Validate permissions if provided
     if (permissions) {
         const validPermissionIds = PERMISSIONS.map(p => p.id);
         const invalidPermissions = permissions.filter((p: string) => !validPermissionIds.includes(p));
@@ -145,7 +128,6 @@ export const updateRole = asyncHandler(async (req: Request, res: Response, next:
         }
     }
 
-    // Update fields
     if (name) role.name = name.toLowerCase();
     if (displayName) role.displayName = displayName;
     if (permissions) role.permissions = permissions;
@@ -155,9 +137,6 @@ export const updateRole = asyncHandler(async (req: Request, res: Response, next:
     (res as AppResponse).data({ role }, 'Role updated successfully');
 });
 
-// @desc    Delete role
-// @route   DELETE /api/v1/roles/:id
-// @access  Private/Admin (with manage_roles permission)
 export const deleteRole = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const role = await Role.findById(req.params.id);
 
@@ -165,7 +144,6 @@ export const deleteRole = asyncHandler(async (req: Request, res: Response, next:
         return next(new AppError('Role not found', 404));
     }
 
-    // Check if any staff members are using this role
     const Staff = require('../models/Staff').default;
     const staffCount = await Staff.countDocuments({ role: req.params.id });
 
@@ -181,16 +159,10 @@ export const deleteRole = asyncHandler(async (req: Request, res: Response, next:
     (res as AppResponse).success('Role deleted successfully');
 });
 
-// @desc    Get all available permissions
-// @route   GET /api/v1/permissions
-// @access  Private/Admin
 export const getAllPermissions = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     (res as AppResponse).data(PERMISSIONS, 'Permissions retrieved successfully');
 });
 
-// @desc    Add permission to role
-// @route   POST /api/v1/roles/:id/permissions
-// @access  Private/Admin (with manage_roles permission)
 export const addPermissionToRole = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { permissionId } = req.body;
 
@@ -204,13 +176,11 @@ export const addPermissionToRole = asyncHandler(async (req: Request, res: Respon
         return next(new AppError('Role not found', 404));
     }
 
-    // Validate permission exists
     const validPermissionIds = PERMISSIONS.map(p => p.id);
     if (!validPermissionIds.includes(permissionId)) {
         return next(new AppError('Invalid permission ID', 400));
     }
 
-    // Check if permission already exists
     if (role.permissions.includes(permissionId)) {
         return next(new AppError('Permission already exists in this role', 400));
     }
@@ -221,9 +191,6 @@ export const addPermissionToRole = asyncHandler(async (req: Request, res: Respon
     (res as AppResponse).data({ role }, 'Permission added to role successfully');
 });
 
-// @desc    Remove permission from role
-// @route   DELETE /api/v1/roles/:id/permissions/:permissionId
-// @access  Private/Admin (with manage_roles permission)
 export const removePermissionFromRole = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { permissionId } = req.params;
 

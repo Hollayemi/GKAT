@@ -7,9 +7,6 @@ import UserNotification from '../../models/Notification';
 import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
 import CloudinaryService from '../../services/cloudinary';
 
-//  @desc    Home screen stats
-//  @route   GET /api/v1/driver-app/profile/home
-//  @access  Private (driver)
 export const getHomeStats = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -19,7 +16,6 @@ export const getHomeStats = asyncHandler(async (req: Request, res: Response, nex
 
     if (!driver) return next(new AppError('Driver profile not found', 404));
 
-    // Check for active delivery
     const activeDelivery = await DriverDelivery.findOne({
         driverId: driver._id,
         status: { $in: ['accepted', 'arrived_at_store', 'picked_up', 'in_transit', 'arrived_at_customer'] }
@@ -64,9 +60,6 @@ export const getHomeStats = asyncHandler(async (req: Request, res: Response, nex
     );
 });
 
-//  @desc    Get driver notifications
-//  @route   GET /api/v1/driver-app/profile/notifications
-//  @access  Private (driver)
 export const getNotifications = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -87,9 +80,6 @@ export const getNotifications = asyncHandler(async (req: Request, res: Response,
     );
 });
 
-//  @desc    Mark notification as read
-//  @route   PATCH /api/v1/driver-app/profile/notifications/:id/read
-//  @access  Private (driver)
 export const markNotificationRead = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -105,9 +95,6 @@ export const markNotificationRead = asyncHandler(async (req: Request, res: Respo
     (res as AppResponse).success('Notification marked as read');
 });
 
-//  @desc    Mark all notifications as read
-//  @route   PATCH /api/v1/driver-app/profile/notifications/read-all
-//  @access  Private (driver)
 export const markAllNotificationsRead = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -116,9 +103,6 @@ export const markAllNotificationsRead = asyncHandler(async (req: Request, res: R
     (res as AppResponse).success('All notifications marked as read');
 });
 
-//  @desc    Update driver profile (name, photo)
-//  @route   PUT /api/v1/driver-app/profile
-//  @access  Private (driver)
 export const updateProfile = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -169,9 +153,6 @@ export const updateProfile = asyncHandler(async (req: Request, res: Response, ne
     (res as AppResponse).data({ driver: updated }, 'Profile updated successfully');
 });
 
-//  @desc    Get driver performance stats
-//  @route   GET /api/v1/driver-app/profile/stats
-//  @access  Private (driver)
 export const getPerformanceStats = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -252,9 +233,6 @@ export const getPerformanceStats = asyncHandler(async (req: Request, res: Respon
     );
 });
 
-//  @desc    Update notification preferences
-//  @route   PUT /api/v1/driver-app/profile/notification-preferences
-//  @access  Private (driver)
 export const updateNotificationPreferences = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 

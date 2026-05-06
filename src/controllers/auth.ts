@@ -45,9 +45,6 @@ const sendTokenResponse = (user: IUser, statusCode: number, res: AppResponse, me
         );
 };
 
-// @desc    Login user with phone number and send OTP
-// @route   POST /api/v1/auth/login
-// @access  Public
 export const login = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { phoneNumber, password } = req.body;
 
@@ -57,7 +54,6 @@ export const login = asyncHandler(async (req: Request, res: Response, next: Next
         return next(new AppError('Please provide phone number', 400));
     }
 
-    // Find user by phone number
     const user = await User.findOne({ phoneNumber }).select('+otp +otpExpiry +password');
 
     if (!user) {
@@ -66,31 +62,14 @@ export const login = asyncHandler(async (req: Request, res: Response, next: Next
 
 
 
-    // If user is admin, verify password
-    // if (user.role === 'admin') {
-    //     if (!password) {
-    //         return next(new AppError('Please provide password for admin login', 400));
-    //     }
 
-    //     // Check if password is correct
-    //     const isPasswordMatch = await bcrypt.compare(password, user?.password || '');
-    //     if (!isPasswordMatch) {
-    //         return next(new AppError('Invalid password', 401));
-    //     }
 
-    //     // For admin, send token immediately without OTP
-    //     sendTokenResponse(user, 200, res as AppResponse, 'Admin login successful');
-    //     return;
-    // }
 
-    // For non-admin users, generate and send OTP
     const otp = user.generateOTP();
     await user.save({ validateBeforeSave: false });
 
-    // TODO: Send OTP via SMS service (Twilio)
     console.log(`OTP for ${phoneNumber}: ${otp}`);
 
-    // Send OTP via Twilio SMS
     const smsResult = await sendOTPViaSMS(phoneNumber, otp);
 
     if (!smsResult.success && process.env.NODE_ENV === 'production') {
@@ -104,7 +83,6 @@ export const login = asyncHandler(async (req: Request, res: Response, next: Next
         requiresOTP: true
     };
 
-    // Include OTP in response for development
     if (process.env.NODE_ENV === 'development') {
         responseData.otp = otp;
     }
@@ -112,9 +90,6 @@ export const login = asyncHandler(async (req: Request, res: Response, next: Next
     (res as AppResponse).data(responseData, 'OTP sent successfully for login');
 });
 
-// @desc    Verify OTP for login
-// @route   POST /api/v1/auth/verify-login-otp
-// @access  Public
 export const verifyLoginOTP = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { phoneNumber, otp } = req.body;
 
@@ -128,20 +103,14 @@ export const verifyLoginOTP = asyncHandler(async (req: Request, res: Response, n
         return next(new AppError('User not found', 404));
     }
 
-    // Skip OTP verification for admin users
-    // if (user.role === 'admin') {
-    //     return next(new AppError('Admin users should use password login', 400));
-    // }
 
     if (!user.verifyOTP(otp)) {
         return next(new AppError('Invalid or expired OTP', 401));
     }
 
-    // Clear OTP fields
     user.otp = undefined;
     user.otpExpiry = undefined;
 
-    // Mark phone as verified if not already
     if (!user.isPhoneVerified) {
         user.isPhoneVerified = true;
     }
@@ -150,9 +119,6 @@ export const verifyLoginOTP = asyncHandler(async (req: Request, res: Response, n
     sendTokenResponse(user, 200, res as AppResponse, 'Login successful');
 });
 
-// @desc    Send OTP to phone number
-// @route   POST /api/v1/auth/send-otp
-// @access  Public
 export const sendOTP = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { phoneNumber, residentArea } = req.body;
 
@@ -170,12 +136,10 @@ export const sendOTP = asyncHandler(async (req: Request, res: Response, next: Ne
         });
     }
 
-    // Generate OTP
     const otp = user.generateOTP();
     await user.save({ validateBeforeSave: false });
 
 
-    // Send OTP via Twilio SMS
     const smsResult = await sendOTPViaSMS(phoneNumber, otp);
 
     if (!smsResult.success && process.env.NODE_ENV === 'production') {
@@ -183,26 +147,20 @@ export const sendOTP = asyncHandler(async (req: Request, res: Response, next: Ne
     }
 
 
-    // TODO Reminder: Send OTP via SMS service (Twilio)
     console.log(`OTP for ${phoneNumber}: ${otp}`);
 
-    // For development, include OTP in response
     const responseData: any = {
         phoneNumber,
         message: 'OTP sent successfully'
     };
 
-    // this will be deleted in production
     if (process.env.NODE_ENV === 'development') {
-        responseData.otp = otp; // Only in development
+        responseData.otp = otp;
     }
 
     (res as AppResponse).data(responseData, 'OTP sent successfully');
 });
 
-// @desc    Verify OTP
-// @route   POST /api/v1/auth/verify-otp
-// @access  Public
 export const verifyOTP = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { phoneNumber, otp } = req.body;
 
@@ -228,9 +186,6 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response, next: 
     sendTokenResponse(user, 200, res as AppResponse, 'Phone verified successfully');
 });
 
-// @desc    Resend OTP
-// @route   POST /api/v1/auth/resend-otp
-// @access  Public
 export const resendOTP = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { phoneNumber } = req.body;
 
@@ -244,14 +199,11 @@ export const resendOTP = asyncHandler(async (req: Request, res: Response, next: 
         return next(new AppError('User not found', 404));
     }
 
-    // Generate new OTP
     const otp = user.generateOTP();
     await user.save({ validateBeforeSave: false });
 
-    // when the twilio service is ready, iwill handle it here
     console.log(`New OTP for ${phoneNumber}: ${otp}`);
 
-    // Send OTP via Twilio SMS
     const smsResult = await sendOTPViaSMS(phoneNumber, otp);
 
     if (!smsResult.success && process.env.NODE_ENV === 'production') {
@@ -271,9 +223,6 @@ export const resendOTP = asyncHandler(async (req: Request, res: Response, next: 
     (res as AppResponse).data(responseData, 'OTP resent successfully');
 });
 
-// @desc    Complete profile
-// @route   PUT /api/v1/auth/complete-profile
-// @access  Private
 export const completeProfile = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { name, email, referredBy, avatar } = req.body; //avatar will be base64 string 
 
@@ -305,12 +254,10 @@ export const completeProfile = asyncHandler(async (req: Request, res: Response, 
     }
 
 
-    // Update profile
     if (name) user.name = name;
     if (imageUrl) user.avatar = imageUrl.url; // Store the URL of the uploaded image
     if (email) user.email = email;
 
-    // Handle referral
     if (referredBy && !user.referredBy) {
         const referrer = await User.findOne({ referralCode: referredBy });
         if (referrer) {
@@ -337,9 +284,6 @@ export const completeProfile = asyncHandler(async (req: Request, res: Response, 
     );
 });
 
-// @desc    Update notification settings
-// @route   PUT /api/v1/auth/notifications
-// @access  Private
 export const updateNotificationSettings = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const {
         push_notification,
@@ -375,15 +319,11 @@ export const updateNotificationSettings = asyncHandler(async (req: Request, res:
     app_update !== undefined && (user.notification_pref.app_update = app_update);
     policy !== undefined && (user.notification_pref.policy = policy);
 
-    // user.notification_pref.push_notification = enabled;
     await user.save();
 
     (res as AppResponse).success('Notification settings updated');
 });
 
-// @desc    Update biometric settings
-// @route   PUT /api/v1/auth/biometrics
-// @access  Private
 export const updateBiometricSettings = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { enabled } = req.body;
 
@@ -403,9 +343,6 @@ export const updateBiometricSettings = asyncHandler(async (req: Request, res: Re
     (res as AppResponse).success('Biometric settings updated');
 });
 
-// @desc    Get current user
-// @route   GET /api/v1/auth/me
-// @access  Private
 export const getMe = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
         return next(new AppError('Not authenticated', 401));
@@ -420,9 +357,6 @@ export const getMe = asyncHandler(async (req: Request, res: Response, next: Next
     (res as AppResponse).data({ user: userData }, 'User retrieved successfully');
 });
 
-// @desc    Logout user
-// @route   POST /api/v1/auth/logout
-// @access  Private
 export const logout = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
         return next(new AppError('Not authenticated', 401));
@@ -441,9 +375,6 @@ export const logout = asyncHandler(async (req: Request, res: Response, next: Nex
     (res as AppResponse).success('Logged out successfully');
 });
 
-// @desc    Refresh access token
-// @route   POST /api/v1/auth/refresh-token
-// @access  Public
 export const refreshToken = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { refreshToken } = req.body;
 

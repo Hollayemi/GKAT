@@ -24,9 +24,6 @@ const calculateFare = (distanceKm: number, isPriority = false) => {
 const generateDeliveryPin = (): string =>
     Math.floor(1000 + Math.random() * 9000).toString();
 
-//  @desc    Get available orders in driver&apos;sregion (broadcast)
-//  @route   GET /api/v1/driver-app/orders/available
-//  @access  Private (driver)
 export const getAvailableOrders = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -41,7 +38,6 @@ export const getAvailableOrders = asyncHandler(async (req: Request, res: Respons
         return next(new AppError('Your account is not active', 403));
     }
 
-    // Find deliveries broadcasted to this driver&apos;sregion that are not yet accepted
     const available = await Order.find({ orderStatus: "processing" })
     .populate('shippingAddress')
     .populate('userId', 'name avatar')
@@ -65,9 +61,6 @@ export const getAvailableOrders = asyncHandler(async (req: Request, res: Respons
     );
 });
 
-//  @desc    Accept an order
-//  @route   POST /api/v1/driver-app/orders/:deliveryId/accept
-//  @access  Private (driver)
 export const acceptOrder = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -142,9 +135,6 @@ export const acceptOrder = asyncHandler(async (req: Request, res: Response, next
     (res as AppResponse).data({ delivery: populated }, 'Order accepted successfully');
 });
 
-//  @desc    Reject an order
-//  @route   POST /api/v1/driver-app/orders/:deliveryId/reject
-//  @access  Private (driver)
 export const rejectOrder = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -172,9 +162,6 @@ export const rejectOrder = asyncHandler(async (req: Request, res: Response, next
     (res as AppResponse).success('Order rejected');
 });
 
-//  @desc    Update delivery status (arrived_at_store → picked_up → in_transit → arrived_at_customer)
-//  @route   PATCH /api/v1/driver-app/orders/:deliveryId/status
-//  @access  Private (driver)
 export const updateDeliveryStatus = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -264,9 +251,6 @@ export const updateDeliveryStatus = asyncHandler(async (req: Request, res: Respo
     (res as AppResponse).data({ delivery }, `Status updated to '${status}'`);
 });
 
-//  @desc    Confirm delivery with customer PIN
-//  @route   POST /api/v1/driver-app/orders/:deliveryId/confirm-delivery
-//  @access  Private (driver)
 export const confirmDelivery = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -367,9 +351,6 @@ export const confirmDelivery = asyncHandler(async (req: Request, res: Response, 
     );
 });
 
-//  @desc    Cancel an active delivery (before pickup only)
-//  @route   POST /api/v1/driver-app/orders/:deliveryId/cancel
-//  @access  Private (driver)
 export const cancelDelivery = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -432,9 +413,6 @@ export const cancelDelivery = asyncHandler(async (req: Request, res: Response, n
     (res as AppResponse).success('Delivery cancelled');
 });
 
-//  @desc    Get driver&apos;scurrent active delivery
-//  @route   GET /api/v1/driver-app/orders/active
-//  @access  Private (driver)
 export const getActiveDelivery = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -455,9 +433,6 @@ export const getActiveDelivery = asyncHandler(async (req: Request, res: Response
     (res as AppResponse).data({ delivery: delivery || null }, 'Active delivery retrieved');
 });
 
-//  @desc    Get delivery history with pagination
-//  @route   GET /api/v1/driver-app/orders/history
-//  @access  Private (driver)
 export const getDeliveryHistory = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -499,9 +474,6 @@ export const getDeliveryHistory = asyncHandler(async (req: Request, res: Respons
     );
 });
 
-//  @desc    Get single delivery details
-//  @route   GET /api/v1/driver-app/orders/:deliveryId
-//  @access  Private (driver)
 export const getDeliveryDetails = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -524,9 +496,6 @@ export const getDeliveryDetails = asyncHandler(async (req: Request, res: Respons
     (res as AppResponse).data({ delivery }, 'Delivery details retrieved');
 });
 
-//  @desc    Rate customer after delivery
-//  @route   POST /api/v1/driver-app/orders/:deliveryId/rate-customer
-//  @access  Private (driver)
 export const rateCustomer = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -562,9 +531,6 @@ export const rateCustomer = asyncHandler(async (req: Request, res: Response, nex
     );
 });
 
-//  @desc    Dispatch order to drivers (admin/system)
-//  @route   POST /api/v1/driver-app/orders/dispatch
-//  @access  Private (admin)
 export const dispatchOrderToDrivers = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { orderId, region, isPriority = false } = req.body;
 

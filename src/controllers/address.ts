@@ -3,9 +3,6 @@ import Address from '../models/Address';
 import User from '../models/User';
 import { AppError, asyncHandler, AppResponse } from '../middleware/error';
 
-// @desc    Get all addresses for a user
-// @route   GET /api/v1/addresses
-// @access  Private
 export const getAddresses = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
         return next(new AppError('Not authenticated', 401));
@@ -20,9 +17,6 @@ export const getAddresses = asyncHandler(async (req: Request, res: Response, nex
     }, 'Addresses retrieved successfully');
 });
 
-// @desc    Get single address
-// @route   GET /api/v1/addresses/:id
-// @access  Private
 export const getAddress = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
         return next(new AppError('Not authenticated', 401));
@@ -40,9 +34,6 @@ export const getAddress = asyncHandler(async (req: Request, res: Response, next:
     (res as AppResponse).data({ address }, 'Address retrieved successfully');
 });
 
-// @desc    Create new address
-// @route   POST /api/v1/addresses
-// @access  Private
 export const createAddress = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
         return next(new AppError('Not authenticated', 401));
@@ -78,9 +69,6 @@ export const createAddress = asyncHandler(async (req: Request, res: Response, ne
     );
 });
 
-// @desc    Update address
-// @route   PUT /api/v1/addresses/:id
-// @access  Private
 export const updateAddress = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
         return next(new AppError('Not authenticated', 401));
@@ -116,9 +104,6 @@ export const updateAddress = asyncHandler(async (req: Request, res: Response, ne
     (res as AppResponse).data({ address }, 'Address updated successfully');
 });
 
-// @desc    Delete address
-// @route   DELETE /api/v1/addresses/:id
-// @access  Private
 export const deleteAddress = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
         return next(new AppError('Not authenticated', 401));
@@ -163,9 +148,6 @@ export const deleteAddress = asyncHandler(async (req: Request, res: Response, ne
     (res as AppResponse).success('Address deleted successfully');
 });
 
-// @desc    Set default address
-// @route   PATCH /api/v1/addresses/:id/default
-// @access  Private
 export const setDefaultAddress = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
         return next(new AppError('Not authenticated', 401));
@@ -196,9 +178,6 @@ export const setDefaultAddress = asyncHandler(async (req: Request, res: Response
     (res as AppResponse).data({ address }, 'Default address set successfully');
 });
 
-// @desc    Get default address
-// @route   GET /api/v1/addresses/default
-// @access  Private
 export const getDefaultAddress = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
         return next(new AppError('Not authenticated', 401));

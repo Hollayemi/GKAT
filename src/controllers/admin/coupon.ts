@@ -2,9 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import Coupon from '../../models/Coupon';
 import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
 
-// @desc    Get all coupons (with filtering and stats)
-// @route   GET /api/v1/admin/coupons
-// @access  Private/Admin
 export const getCoupons = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const {
         status,
@@ -162,9 +159,6 @@ export const getCoupons = asyncHandler(async (req: Request, res: Response, next:
     );
 });
 
-// @desc    Get single coupon
-// @route   GET /api/v1/admin/coupons/:id
-// @access  Private/Admin
 export const getCoupon = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const coupon = await Coupon.findById(req.params.id)
         .populate('createdBy', 'name email');
@@ -176,9 +170,6 @@ export const getCoupon = asyncHandler(async (req: Request, res: Response, next: 
     (res as AppResponse).data({ coupon }, 'Coupon retrieved successfully');
 });
 
-// @desc    Create new coupon
-// @route   POST /api/v1/admin/coupons
-// @access  Private/Admin
 export const createCoupon = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
         return next(new AppError('Not authenticated', 401));
@@ -278,9 +269,6 @@ export const createCoupon = asyncHandler(async (req: Request, res: Response, nex
     }
 });
 
-// @desc    Update coupon
-// @route   PUT /api/v1/admin/coupons/:id
-// @access  Private/Admin
 export const updateCoupon = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     let coupon = await Coupon.findById(req.params.id);
 
@@ -331,9 +319,6 @@ export const updateCoupon = asyncHandler(async (req: Request, res: Response, nex
     (res as AppResponse).data({ coupon }, 'Coupon updated successfully');
 });
 
-// @desc    Delete coupon
-// @route   DELETE /api/v1/admin/coupons/:id
-// @access  Private/Admin
 export const deleteCoupon = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const coupon = await Coupon.findById(req.params.id);
 
@@ -359,9 +344,6 @@ export const deleteCoupon = asyncHandler(async (req: Request, res: Response, nex
     (res as AppResponse).success('Coupon deleted successfully');
 });
 
-// @desc    Toggle coupon status (enable/disable)
-// @route   PATCH /api/v1/admin/coupons/:id/toggle-status
-// @access  Private/Admin
 export const toggleCouponStatus = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const coupon = await Coupon.findById(req.params.id);
 
@@ -378,9 +360,6 @@ export const toggleCouponStatus = asyncHandler(async (req: Request, res: Respons
     );
 });
 
-// @desc    Change coupon status (draft/active)
-// @route   PATCH /api/v1/admin/coupons/:id/status
-// @access  Private/Admin
 export const changeCouponStatus = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { status } = req.body;
 
@@ -403,9 +382,6 @@ export const changeCouponStatus = asyncHandler(async (req: Request, res: Respons
     );
 });
 
-// @desc    Bulk update coupons
-// @route   PATCH /api/v1/admin/coupons/bulk-update
-// @access  Private/Admin
 export const bulkUpdateCoupons = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { couponIds, updates } = req.body;
 

@@ -4,9 +4,6 @@ import Category, { ICategory } from '../../models/config/category.model';
 import Product from '../../models/admin/Product';
 import CloudinaryService from '../../services/cloudinary';
 
-// @desc    Get all categories
-// @route   GET /api/v1/categories
-// @access  Public
 export const getAllCategories = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const categories = await Category.findActiveCategories();
 
@@ -16,9 +13,6 @@ export const getAllCategories = asyncHandler(async (req: Request, res: Response,
     );
 });
 
-// @desc    Get all categories with product count
-// @route   GET /api/v1/categories/with-count
-// @access  Public
 export const getCategoriesWithCount = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const categoriesWithCounts = await Category.getCategoriesWithProductCount();
 
@@ -28,9 +22,6 @@ export const getCategoriesWithCount = asyncHandler(async (req: Request, res: Res
     );
 });
 
-// @desc    Get single category
-// @route   GET /api/v1/categories/:id
-// @access  Public
 export const getCategory = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { id } = req.params;
 
@@ -46,9 +37,6 @@ export const getCategory = asyncHandler(async (req: Request, res: Response, next
     );
 });
 
-// @desc    Get category with related products
-// @route   GET /api/v1/categories/filter/:id
-// @access  Public
 export const getCategoryWithProducts = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { id } = req.params;
     const {
@@ -66,13 +54,11 @@ export const getCategoryWithProducts = asyncHandler(async (req: Request, res: Re
         return next(new AppError('Category not found', 404));
     }
 
-    // Build product query
     const productQuery: any = {
         category: id,
         status: status
     };
 
-    // Add price filter if provided
     if (minPrice || maxPrice) {
         productQuery.salesPrice = {};
         if (minPrice) productQuery.salesPrice.$gte = parseFloat(minPrice as string);
@@ -83,7 +69,6 @@ export const getCategoryWithProducts = asyncHandler(async (req: Request, res: Re
     const limitNum = parseInt(limit as string);
     const skip = (pageNum - 1) * limitNum;
 
-    // Get products for this category
     const [products, totalProducts] = await Promise.all([
         Product.find(productQuery)
         .populate('category')
@@ -115,23 +100,15 @@ export const getCategoryWithProducts = asyncHandler(async (req: Request, res: Re
     );
 });
 
-// @desc    Create new category with icon upload
-// @route   POST /api/v1/categories
-// @access  Private/Admin
 export const createCategory = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-    // if (!req.user?.isAdmin) {
-    //     return next(new AppError('Not authorized to perform this action', 403));
-    // }
 
     const { name } = req.body;
 
-    // Check if category already exists
     const existingCategory = await Category.findByName(name);
     if (existingCategory) {
         return next(new AppError('Category with this name already exists', 400));
     }
 
-    // Handle icon upload if provided
     let iconUrl = '';
     if (req.file) {
         try {
@@ -156,13 +133,7 @@ export const createCategory = asyncHandler(async (req: Request, res: Response, n
     );
 });
 
-// @desc    Update category with optional icon upload
-// @route   PUT /api/v1/categories/:id
-// @access  Private/Admin
 export const updateCategory = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-    // if (!req.user?.isAdmin) {
-    //     return next(new AppError('Not authorized to perform this action', 403));
-    // }
 
     const { id } = req.params;
     const updates = req.body;
@@ -178,17 +149,14 @@ export const updateCategory = asyncHandler(async (req: Request, res: Response, n
         }
     }
 
-    // Handle icon upload if new icon is provided
     if (req.file) {
         try {
             const category = await Category.findById(id);
             
-            // Delete old icon if exists
             if (category && category.icon) {
                 await CloudinaryService.deleteImage(category.icon);
             }
 
-            // Upload new icon
             const uploadResult = await CloudinaryService.uploadImage(req.file, 'go-kart/categories');
             updates.icon = uploadResult.url;
         } catch (error: any) {
@@ -215,9 +183,6 @@ export const updateCategory = asyncHandler(async (req: Request, res: Response, n
     );
 });
 
-// @desc    Delete category
-// @route   DELETE /api/v1/categories/:id
-// @access  Private/Admin
 export const deleteCategory = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user?.isAdmin) {
         return next(new AppError('Not authorized to perform this action', 403));
@@ -231,7 +196,6 @@ export const deleteCategory = asyncHandler(async (req: Request, res: Response, n
         return next(new AppError('Category not found', 404));
     }
 
-    // Delete icon from Cloudinary if exists
     if (category.icon) {
         try {
             await CloudinaryService.deleteImage(category.icon);
@@ -248,9 +212,6 @@ export const deleteCategory = asyncHandler(async (req: Request, res: Response, n
     );
 });
 
-// @desc    Search categories
-// @route   GET /api/v1/categories/search
-// @access  Public
 export const searchCategories = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { q } = req.query;
 
@@ -266,9 +227,6 @@ export const searchCategories = asyncHandler(async (req: Request, res: Response,
     );
 });
 
-// @desc    Toggle category active status
-// @route   PATCH /api/v1/categories/:id/toggle-active
-// @access  Private/Admin
 export const toggleCategoryActive = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user?.isAdmin) {
         return next(new AppError('Not authorized to perform this action', 403));
@@ -293,9 +251,6 @@ export const toggleCategoryActive = asyncHandler(async (req: Request, res: Respo
     );
 });
 
-// @desc    Reorder categories
-// @route   PUT /api/v1/categories/reorder
-// @access  Private/Admin
 export const reorderCategories = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user?.isAdmin) {
         return next(new AppError('Not authorized to perform this action', 403));

@@ -4,7 +4,7 @@ import Order from '../../models/Orders';
 import Cart from '../../models/Cart';
 import logger from '../../utils/logger';
 import { getSupportedPaymentMethods } from './paymentMethodController';
-import { buildCartSummary } from '../cart';
+import { buildCartSummary } from '../../helpers/buildCartSummary';
 
 
 class PurchaseController {

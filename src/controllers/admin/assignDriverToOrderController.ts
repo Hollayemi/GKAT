@@ -22,9 +22,6 @@ const calculateFare = (distanceKm: number, isPriority = false) => {
 const generateDeliveryPin = (): string =>
     Math.floor(1000 + Math.random() * 9000).toString();
 
-// @desc    Admin assigns a specific driver to an order
-// @route   POST /api/v1/admin/orders/:orderNumber/assign-driver
-// @access  Private/Admin
 export const assignDriverToOrder = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -40,7 +37,6 @@ export const assignDriverToOrder = asyncHandler(async (req: Request, res: Respon
     const order = await Order.findOne(orderQuery).populate('userId', 'name email');
     if (!order) return next(new AppError('Order not found or not in your region', 404));
 
-    // Only paid or confirmed orders can be assigned
     if (order.orderStatus !== "processing") {
         return next(new AppError(
             `Cannot assign driver to order with status "${order.orderStatus}". Order must be paid or confirmed.`,
@@ -48,7 +44,6 @@ export const assignDriverToOrder = asyncHandler(async (req: Request, res: Respon
         ));
     }
 
-    // Validate driver
     const driver = await Driver.findById(driverId).populate('userId', 'name email phoneNumber');
     if (!driver) return next(new AppError('Driver not found', 404));
 
@@ -59,7 +54,6 @@ export const assignDriverToOrder = asyncHandler(async (req: Request, res: Respon
         return next(new AppError(`Driver account is ${driver.status} and cannot be assigned`, 400));
     }
 
-    // Check driver is not already on a delivery
     const activeDelivery = await DriverDelivery.findOne({
         driverId: driver._id,
         status: { $in: ['accepted', 'arrived_at_store', 'picked_up', 'in_transit', 'arrived_at_customer'] }
@@ -68,7 +62,6 @@ export const assignDriverToOrder = asyncHandler(async (req: Request, res: Respon
         return next(new AppError('Driver is currently on an active delivery', 409));
     }
 
-    // Check no existing active delivery for this order
     const existingOrderDelivery = await DriverDelivery.findOne({
         orderId: order._id,
         status: { $nin: ['cancelled', 'rejected'] }
@@ -77,7 +70,6 @@ export const assignDriverToOrder = asyncHandler(async (req: Request, res: Respon
         return next(new AppError('This order already has an active delivery assignment', 409));
     }
 
-    // Resolve delivery address
     let deliveryAddress = 'Customer Location';
     try {
         const addressDoc = await Address.findById(order.shippingAddress).lean() as any;
@@ -102,7 +94,6 @@ export const assignDriverToOrder = asyncHandler(async (req: Request, res: Respon
         fareBreakdown: fare,
         deliveryPin: pin,
         broadcastedAt: now,
-        // Admin-assigned deliveries get a longer window (1 hour)
         expiresAt: new Date(now.getTime() + 60 * 60 * 1000),
         status: 'accepted',
         statusHistory: [
@@ -111,10 +102,8 @@ export const assignDriverToOrder = asyncHandler(async (req: Request, res: Respon
         ],
     });
 
-    // Update order status to processing
     await order.updateStatus('shipped', `Driver assigned by admin: ${(driver.userId as any)?.name || driver._id}`);
 
-    // Mark driver as on-delivery
     driver.status = 'on-delivery';
     await driver.save();
 
@@ -130,7 +119,6 @@ export const assignDriverToOrder = asyncHandler(async (req: Request, res: Respon
                 });
             }
 
-    // Notify customer with delivery PIN
     try {
         await NotificationController.saveAndSendNotification({
             userId: order.userId.toString(),
@@ -186,7 +174,6 @@ export const getAvailableDrivers = asyncHandler(async (req: Request, res: Respon
         verificationStatus: 'verified',
     };
  
-    // Region scoping
     if (staffRegionId) {
         query.region = staffRegionId.toString();
     } else if (region) {
@@ -200,13 +187,11 @@ export const getAvailableDrivers = asyncHandler(async (req: Request, res: Respon
         ];
     }
  
-    // Get all matching drivers
     const drivers = await Driver.find(query)
         .populate('userId', 'name email phoneNumber avatar')
         .select('-password -passwordSetupToken -passwordSetupExpiry')
         .lean();
  
-    // Find driver IDs that are currently on an active delivery
     const busyDriverIds = await DriverDelivery.find({
         status: { $in: ['accepted', 'arrived_at_store', 'picked_up', 'in_transit', 'arrived_at_customer'] }
     }).distinct('driverId');

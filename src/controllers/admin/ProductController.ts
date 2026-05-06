@@ -20,7 +20,6 @@ import { parse } from 'csv-parse/sync';
 import { stringify } from 'csv-stringify/sync';
 
 
-//  Helpers 
 
 function haversineDistanceKm(
     lat1: number, lng1: number,
@@ -62,7 +61,6 @@ async function findNearestRegionId(
     return nearest;
 }
 
-/** Generate a unique SKU like GK-XXXXXX */
 async function generateUniqueSku(prefix = 'GK'): Promise<string> {
     let sku = '';
     let isUnique = false;
@@ -75,21 +73,18 @@ async function generateUniqueSku(prefix = 'GK'): Promise<string> {
     return sku;
 }
 
-/** Build product overview stats (total, in-stock, low-stock, out-of-stock, categories) */
 async function buildProductOverview() {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
 
-    // Current counts
     const [
         totalProducts,
         inStockCount,
         lowStockCount,
         outOfStockCount,
         categoryCount,
-        // Last-month counts for % change
         lastMonthTotal,
         lastMonthInStock,
         lastMonthLowStock,
@@ -101,7 +96,6 @@ async function buildProductOverview() {
         Product.countDocuments({ stockQuantity: 0 }),
         Product.distinct('category').then(cats => cats.length),
 
-        // Last month snapshots (products created before end of last month)
         Product.countDocuments({ createdAt: { $lte: endOfLastMonth } }),
         Product.countDocuments({ createdAt: { $lte: endOfLastMonth }, stockQuantity: { $gt: 10 } }),
         Product.countDocuments({ createdAt: { $lte: endOfLastMonth }, stockQuantity: { $gt: 0, $lte: 10 } }),
@@ -144,7 +138,6 @@ async function buildProductOverview() {
 }
 
 
-//  CSV helpers 
 
 const CSV_TEMPLATE_HEADERS = [
     'productName',
@@ -181,11 +174,7 @@ function buildCsvRow(product: any): Record<string, string> {
 }
 
 
-//  Controllers 
 
-// @desc    Get all products (with overview stats)
-// @route   GET /api/v1/product
-// @access  Public
 export const getProducts = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const {
         category,
@@ -301,8 +290,6 @@ export const getProducts = asyncHandler(async (req: Request, res: Response, next
         };
     }
 
-    // Attach overview when explicitly requested OR when on the first page with no heavy filters
-    // Frontend can pass ?includeOverview=true on the initial load
     if (includeOverview === 'true') {
         responseData.overview = await buildProductOverview();
     }
@@ -311,18 +298,12 @@ export const getProducts = asyncHandler(async (req: Request, res: Response, next
 });
 
 
-// @desc    Get products overview stats only
-// @route   GET /api/v1/product/overview
-// @access  Private/Admin
 export const getProductsOverview = asyncHandler(async (_req: Request, res: Response) => {
     const overview = await buildProductOverview();
     (res as AppResponse).data(overview, 'Products overview retrieved successfully');
 });
 
 
-// @desc    Get single product
-// @route   GET /api/v1/product/:id
-// @access  Public
 export const getProduct = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const product = await Product.findById(req.params.id)
         .populate('createdBy', 'name email')
@@ -336,9 +317,6 @@ export const getProduct = asyncHandler(async (req: Request, res: Response, next:
 });
 
 
-// @desc    Get product by SKU
-// @route   GET /api/v1/product/sku/:sku
-// @access  Public
 export const getProductBySku = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const product = await Product.findOne({ sku: req.params.sku.toUpperCase() })
         .populate('createdBy', 'name email');
@@ -347,9 +325,6 @@ export const getProductBySku = asyncHandler(async (req: Request, res: Response, 
 });
 
 
-// @desc    Create new product with image upload
-// @route   POST /api/v1/product
-// @access  Private/Admin
 export const createProduct = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -383,9 +358,6 @@ export const createProduct = asyncHandler(async (req: Request, res: Response, ne
 });
 
 
-// @desc    Update product with optional image upload
-// @route   PUT /api/v1/product
-// @access  Private/Admin
 export const updateProduct = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -424,9 +396,6 @@ export const updateProduct = asyncHandler(async (req: Request, res: Response, ne
 });
 
 
-// @desc    Delete product
-// @route   DELETE /api/v1/product/:id
-// @access  Private/Admin
 export const deleteProduct = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const product = await Product.findById(req.params.id);
     if (!product) return next(new AppError('Product not found', 404));
@@ -444,9 +413,6 @@ export const deleteProduct = asyncHandler(async (req: Request, res: Response, ne
 });
 
 
-// @desc    Update product stock
-// @route   PATCH /api/v1/product/:id/stock
-// @access  Private/Admin
 export const updateStock = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { stockQuantity, variantId, variantStock } = req.body;
     const product = await Product.findById(req.params.id);
@@ -469,9 +435,6 @@ export const updateStock = asyncHandler(async (req: Request, res: Response, next
 });
 
 
-// @desc    Add product variant
-// @route   POST /api/v1/product/:id/variants
-// @access  Private/Admin
 export const addVariant = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const product = await Product.findById(req.params.id);
     if (!product) return next(new AppError('Product not found', 404));
@@ -485,9 +448,6 @@ export const addVariant = asyncHandler(async (req: Request, res: Response, next:
 });
 
 
-// @desc    Update product variant
-// @route   PUT /api/v1/product/:id/variants/:variantId
-// @access  Private/Admin
 export const updateVariant = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const product = await Product.findById(req.params.id);
     if (!product) return next(new AppError('Product not found', 404));
@@ -501,9 +461,6 @@ export const updateVariant = asyncHandler(async (req: Request, res: Response, ne
 });
 
 
-// @desc    Delete product variant
-// @route   DELETE /api/v1/product/:id/variants/:variantId
-// @access  Private/Admin
 export const deleteVariant = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const product = await Product.findById(req.params.id);
     if (!product) return next(new AppError('Product not found', 404));
@@ -517,9 +474,6 @@ export const deleteVariant = asyncHandler(async (req: Request, res: Response, ne
 });
 
 
-// @desc    Update regional distribution
-// @route   PUT /api/v1/product/:id/distribution
-// @access  Private/Admin
 export const updateRegionalDistribution = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const product = await Product.findById(req.params.id);
     if (!product) return next(new AppError('Product not found', 404));
@@ -530,9 +484,6 @@ export const updateRegionalDistribution = asyncHandler(async (req: Request, res:
 });
 
 
-// @desc    Get low stock products
-// @route   GET /api/v1/product/low-stock/products
-// @access  Private/Admin
 export const getLowStockProducts = asyncHandler(async (req: Request, res: Response) => {
     const products = await Product.find({
         $expr: { $lte: ['$stockQuantity', '$minimumStockAlert'] }
@@ -545,9 +496,6 @@ export const getLowStockProducts = asyncHandler(async (req: Request, res: Respon
 });
 
 
-// @desc    Bulk update products
-// @route   PATCH /api/v1/product/bulk-update
-// @access  Private/Admin
 export const bulkUpdateProducts = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { productIds, updates } = req.body;
 
@@ -568,9 +516,6 @@ export const bulkUpdateProducts = asyncHandler(async (req: Request, res: Respons
 });
 
 
-// @desc    Set deals of the day
-// @route   POST /api/v1/product/deals-of-the-day
-// @access  Private/Admin
 export const setDealsOfTheDay = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { productId, percentage, startDate, endDate, status = 'active' } = req.body;
 
@@ -596,9 +541,6 @@ export const setDealsOfTheDay = asyncHandler(async (req: Request, res: Response,
 });
 
 
-// @desc    Get deals of the day
-// @route   GET /api/v1/product/deals/deals-of-the-day
-// @access  Public
 export const getDealsOfTheDay = asyncHandler(async (req: Request, res: Response) => {
     const { limit = 10 } = req.query;
     const deals = await Product.find({
@@ -616,9 +558,6 @@ export const getDealsOfTheDay = asyncHandler(async (req: Request, res: Response)
 });
 
 
-// @desc    Remove product from deals
-// @route   DELETE /api/v1/product/:id/deals
-// @access  Private/Admin
 export const removeFromDeals = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const product = await Product.findByIdAndUpdate(
         req.params.id,
@@ -630,9 +569,6 @@ export const removeFromDeals = asyncHandler(async (req: Request, res: Response, 
 });
 
 
-// @desc    Get product preview with full analytics
-// @route   GET /api/v1/product/:id/preview
-// @access  Private/Admin
 export const getProductPreview = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const productId = req.params.id;
     if (!mongoose.Types.ObjectId.isValid(productId)) return next(new AppError('Invalid product ID', 400));
@@ -759,9 +695,6 @@ export const getProductPreview = asyncHandler(async (req: Request, res: Response
 });
 
 
-// @desc    Get stock movement history with filters
-// @route   GET /api/v1/product/:id/stock-history
-// @access  Private/Admin
 export const getStockHistory = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const productId = req.params.id;
     const { days = 7, limit = 20, page = 1 } = req.query;
@@ -799,17 +732,12 @@ export const getStockHistory = asyncHandler(async (req: Request, res: Response, 
 });
 
 
-//  CSV Import 
 
-// @desc    Download CSV import template
-// @route   GET /api/v1/product/import/template
-// @access  Private/Admin
 export const downloadImportTemplate = asyncHandler(async (_req: Request, res: Response) => {
-    // Build one example row so admins know what values are expected
     const exampleRow: Record<string, string> = {
         productName: 'Indomie Instant Noodles',
-        sku: '',                  // leave blank → auto-generated
-        productId: '',            // leave blank → auto-generated
+        sku: '',                  
+        productId: '',           
         brand: 'De-United Foods',
         category: 'Food & Beverages',
         description: 'A pack of 40 indomie chicken flavour noodles.',
@@ -833,10 +761,6 @@ export const downloadImportTemplate = asyncHandler(async (_req: Request, res: Re
 });
 
 
-// @desc    Import products from CSV
-// @route   POST /api/v1/product/import
-// @access  Private/Admin
-// Expects: multipart/form-data with a single "file" field (CSV file)
 export const importProductsFromCsv = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
     if (!req.file) return next(new AppError('Please upload a CSV file', 400));
@@ -854,7 +778,6 @@ export const importProductsFromCsv = asyncHandler(async (req: Request, res: Resp
 
     if (!rows.length) return next(new AppError('CSV file is empty', 400));
 
-    // Validate required fields present in headers
     const requiredHeaders = ['productName', 'salesPrice', 'unitType', 'unitQuantity', 'stockQuantity', 'description'];
     const csvHeaders = Object.keys(rows[0]);
     const missingHeaders = requiredHeaders.filter(h => !csvHeaders.includes(h));
@@ -862,7 +785,6 @@ export const importProductsFromCsv = asyncHandler(async (req: Request, res: Resp
         return next(new AppError(`Missing required CSV columns: ${missingHeaders.join(', ')}`, 400));
     }
 
-    // Build a category name → ObjectId cache for the batch
     const categoryCache: Map<string, string> = new Map();
 
     const created: any[] = [];
@@ -870,15 +792,13 @@ export const importProductsFromCsv = asyncHandler(async (req: Request, res: Resp
 
     for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
-        const rowNum = i + 2; // 1-indexed + header row
+        const rowNum = i + 2;
 
         try {
-            //  Resolve / generate SKU 
             let sku = row.sku?.trim().toUpperCase();
             if (!sku) {
                 sku = await generateUniqueSku('GK');
             } else {
-                // Check uniqueness
                 const exists = await Product.findOne({ sku });
                 if (exists) {
                     errors.push({ row: rowNum, message: `SKU "${sku}" already exists — skipped` });
@@ -886,7 +806,6 @@ export const importProductsFromCsv = asyncHandler(async (req: Request, res: Resp
                 }
             }
 
-            //  Resolve category 
             const categoryName = row.category?.trim();
             let categoryId: string | undefined;
             if (categoryName) {
@@ -905,7 +824,6 @@ export const importProductsFromCsv = asyncHandler(async (req: Request, res: Resp
                 }
             }
 
-            //  Validate required fields 
             const productName = row.productName?.trim();
             if (!productName) {
                 errors.push({ row: rowNum, message: 'productName is required' });
@@ -938,7 +856,6 @@ export const importProductsFromCsv = asyncHandler(async (req: Request, res: Resp
                 continue;
             }
 
-            //  Build product doc 
             const productDoc: any = {
                 productName,
                 sku,
@@ -960,7 +877,6 @@ export const importProductsFromCsv = asyncHandler(async (req: Request, res: Resp
                 regionalDistribution: [],
             };
 
-            // Override productId if provided; otherwise the model pre-save hook generates it
             if (row.productId?.trim()) {
                 const pidExists = await Product.findOne({ productId: row.productId.trim() });
                 if (pidExists) {
@@ -991,11 +907,7 @@ export const importProductsFromCsv = asyncHandler(async (req: Request, res: Resp
 });
 
 
-//  CSV Export 
 
-// @desc    Export products as CSV (format matches import template)
-// @route   GET /api/v1/product/export
-// @access  Private/Admin
 export const exportProductsToCsv = asyncHandler(async (req: Request, res: Response) => {
     const {
         status,

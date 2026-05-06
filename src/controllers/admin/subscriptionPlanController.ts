@@ -3,9 +3,6 @@ import SubscriptionPlan from '../../models/SubscriptionPlan';
 import UserSubscription from '../../models/UserSubscription';
 import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
 
-// @desc    Get all subscription plans
-// @route   GET /api/v1/admin/subscription-plans
-// @access  Private/Admin
 export const getAllPlans = asyncHandler(async (req: Request, res: Response) => {
     const { isActive, page = 1, limit = 20 } = req.query;
 
@@ -26,7 +23,6 @@ export const getAllPlans = asyncHandler(async (req: Request, res: Response) => {
         SubscriptionPlan.countDocuments(query)
     ]);
 
-    // Attach active subscriber count per plan
     const plansWithStats = await Promise.all(
         plans.map(async (plan) => {
             const activeCount = await UserSubscription.countDocuments({
@@ -52,9 +48,6 @@ export const getAllPlans = asyncHandler(async (req: Request, res: Response) => {
     );
 });
 
-// @desc    Get single subscription plan
-// @route   GET /api/v1/admin/subscription-plans/:id
-// @access  Private/Admin
 export const getPlan = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const plan = await SubscriptionPlan.findById(req.params.id)
         .populate('createdBy', 'fullName email')
@@ -73,9 +66,6 @@ export const getPlan = asyncHandler(async (req: Request, res: Response, next: Ne
     );
 });
 
-// @desc    Create subscription plan
-// @route   POST /api/v1/admin/subscription-plans
-// @access  Private/Admin
 export const createPlan = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
@@ -108,16 +98,12 @@ export const createPlan = asyncHandler(async (req: Request, res: Response, next:
     (res as AppResponse).data({ plan }, 'Subscription plan created successfully', 201);
 });
 
-// @desc    Update subscription plan
-// @route   PUT /api/v1/admin/subscription-plans/:id
-// @access  Private/Admin
 export const updatePlan = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
     const plan = await SubscriptionPlan.findById(req.params.id);
     if (!plan) return next(new AppError('Subscription plan not found', 404));
 
-    // Check name uniqueness if changing
     if (req.body.name && req.body.name.trim() !== plan.name) {
         const existing = await SubscriptionPlan.findOne({
             name: req.body.name.trim(),
@@ -144,9 +130,6 @@ export const updatePlan = asyncHandler(async (req: Request, res: Response, next:
     (res as AppResponse).data({ plan }, 'Subscription plan updated successfully');
 });
 
-// @desc    Toggle plan active status
-// @route   PATCH /api/v1/admin/subscription-plans/:id/toggle
-// @access  Private/Admin
 export const togglePlan = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const plan = await SubscriptionPlan.findById(req.params.id);
     if (!plan) return next(new AppError('Subscription plan not found', 404));
@@ -161,9 +144,6 @@ export const togglePlan = asyncHandler(async (req: Request, res: Response, next:
     );
 });
 
-// @desc    Delete subscription plan (only if no active subscribers)
-// @route   DELETE /api/v1/admin/subscription-plans/:id
-// @access  Private/Admin
 export const deletePlan = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const plan = await SubscriptionPlan.findById(req.params.id);
     if (!plan) return next(new AppError('Subscription plan not found', 404));
@@ -187,9 +167,6 @@ export const deletePlan = asyncHandler(async (req: Request, res: Response, next:
     (res as AppResponse).success('Subscription plan deleted successfully');
 });
 
-// @desc    Get all user subscriptions (with filters)
-// @route   GET /api/v1/admin/subscription-plans/subscriptions
-// @access  Private/Admin
 export const getAllSubscriptions = asyncHandler(async (req: Request, res: Response) => {
     const {
         status,
@@ -207,7 +184,6 @@ export const getAllSubscriptions = asyncHandler(async (req: Request, res: Respon
     const limitNum = parseInt(limit as string);
     const skip = (pageNum - 1) * limitNum;
 
-    // If search, look up by user name/phone
     let userIds: string[] | undefined;
     if (search) {
         const User = require('../../models/User').default;
@@ -233,7 +209,6 @@ export const getAllSubscriptions = asyncHandler(async (req: Request, res: Respon
         UserSubscription.countDocuments(query)
     ]);
 
-    // Summary stats
     const [activeTotal, revenueResult] = await Promise.all([
         UserSubscription.countDocuments({ status: 'active', endDate: { $gt: new Date() } }),
         UserSubscription.aggregate([

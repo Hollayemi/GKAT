@@ -6,7 +6,6 @@ import StaffModel, { IStaff } from '../../models/admin/Staff.model';
 import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
 import mongoose from 'mongoose';
 
-//  helpers 
 
 function buildOrderStatusFilter(status: string): OrderStatus | null {
     const map: Record<string, OrderStatus> = {
@@ -67,27 +66,20 @@ async function resolveStaffRegionId(
 ): Promise<mongoose.Types.ObjectId | null> {
     const roleName: string = staff.role?.name ?? '';
 
-    // Super admin sees every region
     if (roleName === 'super_admin') return null;
 
     const regionValue: string | undefined = staff.region;
     if (!regionValue) return null;
 
-    // Try as ObjectId first
     if (mongoose.Types.ObjectId.isValid(regionValue)) {
         return new mongoose.Types.ObjectId(regionValue);
     }
 
-    // Otherwise treat as region name
     const region = await Region.findOne({ name: { $regex: new RegExp(`^${regionValue}$`, 'i') } }).lean();
     return region ? (region._id as mongoose.Types.ObjectId) : null;
 }
 
-//  controllers 
 
-// @desc    Get all orders — super_admin sees all; other roles see only their region
-// @route   GET /api/v1/admin/orders
-// @access  Private/Admin
 export const getAllOrders = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
         const {
@@ -104,30 +96,23 @@ export const getAllOrders = asyncHandler(
 
         const query: any = {};
 
-        //  Status filter 
         if (status !== 'all') {
             const mapped = buildOrderStatusFilter(status as string);
             if (!mapped) return next(new AppError('Invalid status value', 400));
             query.orderStatus = mapped;
         }
 
-        //  Region-based visibility 
-        // super_admin: no region restriction
-        // all other roles: restricted to their assigned region
         const staffRegionId = await resolveStaffRegionId(req.user);
 
         if (staffRegionId) {
-            // Staff can only see orders for their region
             query.region = staffRegionId;
         } else if (regionFilter) {
-            // super_admin can additionally filter by a specific region
             if (!mongoose.Types.ObjectId.isValid(regionFilter as string)) {
                 return next(new AppError('Invalid regionId filter', 400));
             }
             query.region = new mongoose.Types.ObjectId(regionFilter as string);
         }
 
-        //  Other filters 
         if (minAmount || maxAmount) {
             query.totalAmount = {};
             if (minAmount) query.totalAmount.$gte = Number(minAmount);
@@ -174,7 +159,6 @@ export const getAllOrders = asyncHandler(
 
         const formattedOrders = await Promise.all(orders.map(formatOrder));
 
-        //  Stats (scoped to region if not super_admin) 
         const statsQuery = staffRegionId ? { region: staffRegionId } : {};
         const statsRaw = await Order.aggregate([
             { $match: statsQuery },
@@ -207,7 +191,6 @@ export const getAllOrders = asyncHandler(
                     currentPage: pageNum,
                     limit: limitNum,
                 },
-                // Inform client whether this is a region-scoped view
                 scopedToRegion: staffRegionId ? staffRegionId.toString() : null,
             },
             'Orders retrieved successfully',
@@ -215,9 +198,6 @@ export const getAllOrders = asyncHandler(
     },
 );
 
-// @desc    Get single order by orderNumber
-// @route   GET /api/v1/admin/orders/:orderNumber
-// @access  Private/Admin
 export const getOrderById = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
         const { orderNumber } = req.params;
@@ -226,7 +206,6 @@ export const getOrderById = asyncHandler(
 
         const filterQuery: any = { orderNumber };
         if (staffRegionId) {
-            // Non-super-admin may only read orders in their region
             filterQuery.region = staffRegionId;
         }
 
@@ -246,9 +225,6 @@ export const getOrderById = asyncHandler(
     },
 );
 
-// @desc    Cancel an order
-// @route   PATCH /api/v1/admin/orders/:orderNumber/cancel
-// @access  Private/Admin
 export const cancelOrder = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
         if (!req.user) return next(new AppError('Not authenticated', 401));
@@ -289,9 +265,6 @@ export const cancelOrder = asyncHandler(
     },
 );
 
-// @desc    Update order status
-// @route   PATCH /api/v1/admin/orders/:orderNumber/status
-// @access  Private/Admin
 export const updateOrderStatus = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
         if (!req.user) return next(new AppError('Not authenticated', 401));
@@ -317,9 +290,6 @@ export const updateOrderStatus = asyncHandler(
     },
 );
 
-// @desc    Transfer an order to a different courier / add tracking
-// @route   PATCH /api/v1/admin/orders/:orderNumber/transfer
-// @access  Private/Admin
 export const transferOrder = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
         if (!req.user) return next(new AppError('Not authenticated', 401));

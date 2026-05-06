@@ -5,7 +5,6 @@ import Region from "../../models/config/region.model";
 import { asyncHandler, AppResponse, AppError } from "../../middleware/error";
 import mongoose from "mongoose";
 
-//  helpers 
 
 function formatDate(date?: Date | string | null): string {
     if (!date) return "-";
@@ -96,10 +95,6 @@ function buildUserQuery(params: { search?: string; dateFrom?: string; dateTo?: s
     return query;
 }
 
-/**
- * Resolve the region ObjectId for the requesting staff.
- * Returns null for super_admin (no region restriction).
- */
 async function resolveStaffRegionId(staff: any): Promise<mongoose.Types.ObjectId | null> {
     if (!staff) return null;
     const roleName: string = staff.role?.name ?? "";
@@ -116,15 +111,8 @@ async function resolveStaffRegionId(staff: any): Promise<mongoose.Types.ObjectId
     return region ? (region._id as mongoose.Types.ObjectId) : null;
 }
 
-//  controllers 
 
-/**
- * GET /api/v1/admin/customers
- *
- * Region behaviour:
- *   • super_admin  → sees ALL customers across every region
- *   • other roles  → sees only customers whose orders belong to the staff's region
- */
+
 export const getAllCustomers = asyncHandler(async (req: Request, res: Response) => {
     const {
         page = 1,
@@ -138,7 +126,6 @@ export const getAllCustomers = asyncHandler(async (req: Request, res: Response) 
 
     const staffRegionId = await resolveStaffRegionId(req.user);
 
-    //  If region-scoped, first collect user IDs that have orders in the region
     let allowedUserIds: mongoose.Types.ObjectId[] | null = null;
 
     if (staffRegionId) {
@@ -153,7 +140,6 @@ export const getAllCustomers = asyncHandler(async (req: Request, res: Response) 
     });
 
     if (allowedUserIds !== null) {
-        // Merge: user must be in the allowed set AND match any text/date filter
         baseQuery._id = { $in: allowedUserIds };
     }
 
@@ -189,7 +175,6 @@ export const getAllCustomers = asyncHandler(async (req: Request, res: Response) 
     if (badge === "frequent_buyer") customers = customers.filter(c => c.badges.includes("Frequent Buyer"));
     else if (badge === "new_user") customers = customers.filter(c => c.badges.includes("New User"));
 
-    //  Stats (scoped to region) 
     const statsUserQuery: any = {};
     if (allowedUserIds !== null) statsUserQuery._id = { $in: allowedUserIds };
 
@@ -233,9 +218,6 @@ export const getAllCustomers = asyncHandler(async (req: Request, res: Response) 
     );
 });
 
-/**
- * GET /api/v1/admin/customers/stats
- */
 export const getCustomerStats = asyncHandler(async (_req: Request, res: Response) => {
     const [users, orders] = await Promise.all([User.find().lean(), Order.find().lean()]);
     const totalCustomers = users.length;
@@ -257,9 +239,7 @@ export const getCustomerStats = asyncHandler(async (_req: Request, res: Response
     );
 });
 
-/**
- * GET /api/v1/admin/customers/:id
- */
+
 export const getSingleCustomer = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { id } = req.params;
     const staffRegionId = await resolveStaffRegionId(req.user);
@@ -290,9 +270,7 @@ export const getSingleCustomer = asyncHandler(async (req: Request, res: Response
     );
 });
 
-/**
- * GET /api/v1/admin/customers/:id/orders
- */
+
 export const getCustomerOrders = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { id } = req.params;
     const staffRegionId = await resolveStaffRegionId(req.user);
@@ -313,9 +291,6 @@ export const getCustomerOrders = asyncHandler(async (req: Request, res: Response
     (res as AppResponse).data(formatted, "Customer orders retrieved");
 });
 
-/**
- * GET /api/v1/admin/customers/export
- */
 export const exportCustomers = asyncHandler(async (req: Request, res: Response) => {
     const { search = "", status = "all", badge = "all", dateFrom, dateTo } = req.query;
 
@@ -376,7 +351,6 @@ export const exportCustomers = asyncHandler(async (req: Request, res: Response) 
     res.status(200).send(csv);
 });
 
-//  loyalty & activity helpers 
 
 function calculateLoyaltyProgress(user: any, orders: any[]) {
     const progress: any[] = [];

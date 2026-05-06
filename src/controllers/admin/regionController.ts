@@ -2,9 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import { AppResponse, AppError, asyncHandler } from '../../middleware/error';
 import Region, { IRegion } from '../../models/config/region.model';
 
-// @desc    Get all regions
-// @route   GET /api/v1/regions
-// @access  Public
 export const getAllRegions = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const regions = await Region.findActiveRegions();
 
@@ -14,9 +11,6 @@ export const getAllRegions = asyncHandler(async (req: Request, res: Response, ne
     );
 });
 
-// @desc    Get all regions with product count
-// @route   GET /api/v1/regions/with-count
-// @access  Public
 export const getRegionsWithCount = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const regionsWithCounts = await Region.getRegionsWithProductCount();
 
@@ -26,9 +20,6 @@ export const getRegionsWithCount = asyncHandler(async (req: Request, res: Respon
     );
 });
 
-// @desc    Get single region
-// @route   GET /api/v1/regions/:id
-// @access  Public
 export const getRegion = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { id } = req.params;
 
@@ -44,19 +35,11 @@ export const getRegion = asyncHandler(async (req: Request, res: Response, next: 
     );
 });
 
-// @desc    Create new region
-// @route   POST /api/v1/regions
-// @access  Private/Admin
 export const createRegion = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-    // if (!req.user?.isAdmin) {
-    //     return next(new AppError('Not authorized to perform this action', 403));
-    // }
-
+   
     const { name, coordinates } = req.body;
 
     console.log(req.body)
-
-    // Check if region already exists
     const existingRegion = await Region.findByName(name);
     if (existingRegion) {
         return next(new AppError('Region with this name already exists', 400));
@@ -76,9 +59,6 @@ export const createRegion = asyncHandler(async (req: Request, res: Response, nex
     );
 });
 
-// @desc    Update region
-// @route   PUT /api/v1/regions/:id
-// @access  Private/Admin
 export const updateRegion = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user?.isAdmin) {
         return next(new AppError('Not authorized to perform this action', 403));
@@ -117,9 +97,6 @@ export const updateRegion = asyncHandler(async (req: Request, res: Response, nex
     );
 });
 
-// @desc    Delete region
-// @route   DELETE /api/v1/regions/:id
-// @access  Private/Admin
 export const deleteRegion = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user?.isAdmin) {
         return next(new AppError('Not authorized to perform this action', 403));
@@ -141,9 +118,6 @@ export const deleteRegion = asyncHandler(async (req: Request, res: Response, nex
     );
 });
 
-// @desc    Search regions
-// @route   GET /api/v1/regions/search
-// @access  Public
 export const searchRegions = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { q } = req.query;
 
@@ -159,9 +133,6 @@ export const searchRegions = asyncHandler(async (req: Request, res: Response, ne
     );
 });
 
-// @desc    Toggle region active status
-// @route   PATCH /api/v1/regions/:id/toggle-active
-// @access  Private/Admin
 export const toggleRegionActive = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user?.isAdmin) {
         return next(new AppError('Not authorized to perform this action', 403));
@@ -186,9 +157,6 @@ export const toggleRegionActive = asyncHandler(async (req: Request, res: Respons
     );
 });
 
-// @desc    Reorder regions
-// @route   PUT /api/v1/regions/reorder
-// @access  Private/Admin
 export const reorderRegions = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user?.isAdmin) {
         return next(new AppError('Not authorized to perform this action', 403));
