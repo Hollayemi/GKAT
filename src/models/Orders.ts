@@ -26,7 +26,7 @@ export interface IShippingAddress {
     isDefault?: boolean;
 }
 
-export type PaymentMethod = 'palmpay' | 'paystack' | 'opay' | 'cash_on_delivery';
+export type PaymentMethod = 'flutterwave' | 'paystack' | 'opay' | 'cash_on_delivery';
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded' | 'cancelled';
 export type OrderStatus = 'pending' | 'paid' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'returned' | 'refunded';
 
@@ -147,7 +147,7 @@ const paymentInfoSchema = new Schema<IPaymentInfo>({
     method: {
         type: String,
         required: true,
-        enum: ['palmpay', 'paystack', 'opay', 'cash_on_delivery'] as PaymentMethod[]
+        enum: ['flutterwave', 'paystack', 'opay', 'cash_on_delivery'] as PaymentMethod[]
     },
     reference: { type: String, trim: true },
     transactionId: { type: String, trim: true },

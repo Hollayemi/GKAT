@@ -10,6 +10,7 @@ export enum PaymentStatus {
 
 export enum PaymentChannel {
     PAYSTACK = 'PAYSTACK',
+    FLUTTERWAVE = 'FLUTTERWAVE',
     PALMPAY = 'PALMPAY',
     OPAY = 'OPAY',
     CASH_ON_DELIVERY = 'CASH_ON_DELIVERY'

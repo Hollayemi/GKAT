@@ -40,16 +40,10 @@ class PaymentGateway extends PaymentLogging {
         baseURL: string;
     };
 
-    protected palmpay: {
-        merchantId: string;
-        secretKey: string;
-        baseURL: string;
-    };
-
-    protected opay: {
-        merchantId: string;
+    protected flutterwave: {
         publicKey: string;
-        privateKey: string;
+        secretKey: string;
+        encryptionKey: string;
         baseURL: string;
     };
 
@@ -61,49 +55,20 @@ class PaymentGateway extends PaymentLogging {
             baseURL: 'https://api.paystack.co'
         };
 
-        this.palmpay = {
-            merchantId: process.env.PALMPAY_MERCHANT_ID || '',
-            secretKey: process.env.PALMPAY_SECRET_KEY || '',
-            // publicKey: process.env.PALMPAY_PUBLIC_KEY || '',
-            baseURL: process.env.PALMPAY_BASE_URL || 'https://api.palmpay.com'
-        };
-
-        this.opay = {
-            // secretKey: process.env.OPAY_SECRET_KEY || '',
-            merchantId: process.env.OPAY_MERCHANT_ID || '',
-            publicKey: process.env.OPAY_PUBLIC_KEY || '',
-            privateKey: process.env.OPAY_PRIVATE_KEY || '',
-            baseURL: 'https://sandbox-cashierapi.opayweb.com'
+        this.flutterwave = {
+            publicKey: process.env.FLUTTERWAVE_PUBLIC_KEY || '',
+            secretKey: process.env.FLUTTERWAVE_SECRET_KEY || '',
+            encryptionKey: process.env.FLUTTERWAVE_ENCRYPTION_KEY || '',
+            baseURL: process.env.FLUTTERWAVE_BASE_URL || 'https://api.flutterwave.com/v3'
         };
     }
 
-    private generatePalmPaySignature(data: any, timestamp: string): string {
-        const stringToSign = `${timestamp}${JSON.stringify(data)}`;
+    private generateFlutterwaveSignature(data: any): string {
+        const jsonString = JSON.stringify(data);
         return crypto
-            .createHmac('sha256', this.palmpay?.secretKey || '')
-            .update(stringToSign)
+            .createHmac('sha256', this.flutterwave.secretKey)
+            .update(jsonString)
             .digest('hex');
-    }
-
-    private generateOpaySignature(data: any, timestamp: string): string {
-        const orderedData = this.sortObjectKeys(data);
-        const stringToSign = `${JSON.stringify(orderedData)}${timestamp}${this.opay.privateKey}`;
-        return crypto
-            .createHash('sha512')
-            .update(stringToSign)
-            .digest('hex');
-    }
-
-    private sortObjectKeys(obj: any): any {
-        const sorted: any = {};
-        Object.keys(obj).sort().forEach(key => {
-            if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
-                sorted[key] = this.sortObjectKeys(obj[key]);
-            } else {
-                sorted[key] = obj[key];
-            }
-        });
-        return sorted;
     }
 
     async initializePaystackPayment(paymentData: PaymentData): Promise<PaymentResponse> {
@@ -156,117 +121,81 @@ class PaymentGateway extends PaymentLogging {
         }
     }
 
-    async initializePalmPayPayment(paymentData: PaymentData): Promise<PaymentResponse> {
+    async initializeFlutterwavePayment(paymentData: PaymentData): Promise<PaymentResponse> {
         try {
-            const timestamp = Date.now().toString();
             const requestData = {
-                merchantId: this.palmpay.merchantId,
+                tx_ref: paymentData.reference,
                 amount: paymentData.amount,
                 currency: paymentData.currency || 'NGN',
-                reference: paymentData.reference,
-                description: paymentData.description || 'Order Payment',
-                customerEmail: paymentData.email,
-                customerPhone: paymentData.phone,
-                callbackUrl: `${process.env.API_URL}/payment/callback?provider=palmpay&platform=mobile`,
-                metadata: {
+                redirect_url: `${process.env.API_URL}/payment/callback?provider=flutterwave&platform=browser`,
+                payment_options: 'card,ussd, banktransfer, mobilemoney',
+                customer: {
+                    email: paymentData.email,
+                    phonenumber: paymentData.phone || '08012345678',
+                    name: paymentData.metadata?.customerName || 'Customer'
+                },
+                customizations: {
+                    title: 'Order Payment',
+                    description: paymentData.description || 'Payment for order',
+                    logo: process.env.COMPANY_LOGO_URL || ''
+                },
+                meta: {
                     orderId: paymentData.orderId,
                     userId: paymentData.userId,
                     ...paymentData.metadata
                 }
             };
 
-            const signature = this.generatePalmPaySignature(requestData, timestamp);
+            console.log('Initializing Flutterwave payment with data:', requestData);
 
             const response: AxiosResponse = await axios.post(
-                `${this.palmpay.baseURL}/v1/payments/initialize`,
+                `${this.flutterwave.baseURL}/payments`,
                 requestData,
                 {
                     headers: {
-                        'Content-Type': 'application/json',
-                        'X-Timestamp': timestamp,
-                        'X-Signature': signature,
-                        'X-Merchant-Id': this.palmpay.merchantId
+                        Authorization: `Bearer ${this.flutterwave.secretKey}`,
+                        'Content-Type': 'application/json'
                     }
                 }
             );
 
-            return {
-                success: true,
-                data: response.data,
-                provider: 'palmpay'
-            };
-        } catch (error: any) {
-            console.error('PalmPay initialization error:', error.response?.data || error.message);
-            return {
-                success: false,
-                error: error.response?.data?.message || 'Payment initialization failed',
-                provider: 'palmpay'
-            };
-        }
-    }
+            console.log('Flutterwave initialization response:', response.data, paymentData);
 
-    async initializeOpayPayment(paymentData: PaymentData): Promise<PaymentResponse> {
-        try {
-            const timestamp = Date.now().toString();
-            const requestData = {
-                reference: paymentData.reference,
-                mchShortName: this.opay.merchantId,
-                productName: paymentData.description || 'Order Payment',
-                productDesc: paymentData.description || 'Order Payment',
-                userPhone: paymentData.phone,
-                userRequestIp: paymentData.userIp || '127.0.0.1',
-                amount: Math.round(paymentData.amount * 100), // Convert to kobo
-                currency: paymentData.currency || 'NGN',
-                osType: 'WEB',
-                callbackUrl: `${process.env.API_URL}/payment/callback?provider=opay&platform=mobile`,
-                returnUrl: `${process.env.API_URL}/payment/callback?provider=opay&platform=mobile`,
-                expireAt: Math.floor(Date.now() / 1000) + 3600, // 1 hour expiry
-                userClientIP: paymentData.userIp || '127.0.0.1'
-            };
+            await this.logPurchasePending({
+                paymentChannel: 'FLUTTERWAVE',
+                transaction_ref: paymentData.reference,
+                meta: paymentData,
+                amount: paymentData.amount,
+                userId: paymentData.userId
+            });
 
-            const signature = this.generateOpaySignature(requestData, timestamp);
-
-            const response: AxiosResponse = await axios.post(
-                `${this.opay.baseURL}/api/v3/cashier/initialize`,
-                requestData,
-                {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${this.opay.publicKey}`,
-                        'MerchantId': this.opay.merchantId,
-                        'Authorization-Signature': signature,
-                        'Authorization-Timestamp': timestamp
-                    }
-                }
-            );
-
-            if (response.data.code === '00000') {
+            if (response.data.status === 'success') {
                 return {
                     success: true,
                     data: {
-                        ...response.data.data,
-                        authorization_url: response.data.data.cashierUrl,
-                        paymentUrl: response.data.data.cashierUrl
+                        authorization_url: response.data.data.link,
+                        reference: response.data.data.tx_ref,
+                        ...response.data.data
                     },
-                    provider: 'opay'
+                    provider: 'flutterwave'
                 };
             } else {
                 return {
                     success: false,
                     error: response.data.message || 'Payment initialization failed',
-                    provider: 'opay'
+                    provider: 'flutterwave'
                 };
             }
         } catch (error: any) {
-            console.error('OPay initialization error:', error.response?.data || error.message);
+            console.error('Flutterwave initialization error:', error.response?.data || error.message);
+            this.initializationFailed({ meta: paymentData });
             return {
                 success: false,
                 error: error.response?.data?.message || 'Payment initialization failed',
-                provider: 'opay'
+                provider: 'flutterwave'
             };
         }
     }
-
 
     async verifyPaystackPayment(reference: string): Promise<PaymentResponse> {
         try {
@@ -321,10 +250,7 @@ class PaymentGateway extends PaymentLogging {
 
             const { orderId, userId } = metadata
 
-
             if (reference?.startsWith("PAY_SUB")) {
-
-
                 const subscription = await UserSubscription.findOne({
                     userId: userId,
                     paymentReference: reference
@@ -392,94 +318,124 @@ class PaymentGateway extends PaymentLogging {
         }
     }
 
-
-
-    async verifyPalmPayPayment(reference: string): Promise<PaymentResponse> {
+    async verifyFlutterwavePayment(reference: string): Promise<PaymentResponse> {
         try {
-            const timestamp = Date.now().toString();
-            const requestData = {
-                merchantId: this.palmpay.merchantId,
-                reference: reference
-            };
-
-            const signature = this.generatePalmPaySignature(requestData, timestamp);
-
-            const response: AxiosResponse = await axios.post(
-                `${this.palmpay.baseURL}/v1/payments/verify`,
-                requestData,
+            const response: AxiosResponse = await axios.get(
+                `${this.flutterwave.baseURL}/transactions/${reference}/verify`,
                 {
                     headers: {
-                        'Content-Type': 'application/json',
-                        'X-Timestamp': timestamp,
-                        'X-Signature': signature,
-                        'X-Merchant-Id': this.palmpay.merchantId
+                        Authorization: `Bearer ${this.flutterwave.secretKey}`,
+                        'Content-Type': 'application/json'
                     }
                 }
             );
+
+            if (!response.data || !response.data.data) {
+                return {
+                    success: false,
+                    error: 'Invalid response from payment gateway',
+                    provider: 'flutterwave'
+                };
+            }
+
+            const transactionData = response.data.data;
+
+            // Check if transaction was successful
+            if (transactionData.status !== 'successful') {
+                return {
+                    success: false,
+                    error: `Payment ${transactionData.status}`,
+                    provider: 'flutterwave',
+                    data: {
+                        status: transactionData.status,
+                        message: transactionData.processor_response
+                    }
+                };
+            }
+
+            // Extract metadata
+            const metadata = transactionData.meta || {};
+
+            // Verify the payment in our database
+            const verified = await this.VerifyPaymentLogging({
+                metadata,
+                response: transactionData
+            });
+
+            if (!verified) {
+                return {
+                    success: false,
+                    error: 'Payment verification failed',
+                    provider: 'flutterwave'
+                };
+            }
+
+            const { orderId, userId } = metadata
+
+            if (reference?.startsWith("PAY_SUB")) {
+                const subscription = await UserSubscription.findOne({
+                    userId: userId,
+                    paymentReference: reference
+                }).populate('planId');
+
+                if (!subscription) return {
+                    success: false,
+                    error: 'Subscription record not found for this reference',
+                    provider: 'flutterwave'
+                }
+
+                if (subscription.paymentStatus === 'completed') {
+                    return {
+                        success: false,
+                        error: 'Subscription is already active',
+                        provider: 'flutterwave'
+                    }
+                }
+
+                // Activate subscription
+                const plan = subscription.planSnapshot;
+                const now = new Date();
+                const endDate = new Date(now.getTime() + plan.durationDays * 24 * 60 * 60 * 1000);
+
+                subscription.paymentStatus = 'completed';
+                subscription.paymentCompletedAt = now;
+                subscription.status = 'active';
+                subscription.startDate = now;
+                subscription.endDate = endDate;
+                await subscription.save();
+            }
+
+            if (reference?.startsWith("PAY_ORD")) {
+                const order = await Order.findOne({ _id: metadata.orderId });
+                if (!order) {
+                    return {
+                        success: false,
+                        error: 'Order not found for this payment',
+                        provider: 'flutterwave'
+                    }
+                }
+                await order?.updateStatus("paid", 'Payment completed successfully');
+            }
 
             return {
                 success: true,
-                data: response.data,
-                provider: 'palmpay'
+                data: {
+                    ...metadata,
+                    orderSlugs: metadata.orderSlugs || [],
+                    reference: transactionData.tx_ref,
+                    amount: transactionData.amount,
+                    paidAt: transactionData.created_at,
+                    channel: transactionData.payment_type
+                },
+                provider: 'flutterwave'
             };
+
         } catch (error: any) {
-            console.error('PalmPay verification error:', error.response?.data || error.message);
+            console.error('Flutterwave verification error:', error.response?.data || error.message);
             return {
                 success: false,
                 error: error.response?.data?.message || 'Payment verification failed',
-                provider: 'palmpay'
-            };
-        }
-    }
-
-    async verifyOpayPayment(reference: string): Promise<PaymentResponse> {
-        try {
-            const timestamp = Date.now().toString();
-            const requestData = {
-                reference: reference,
-                orderNo: reference
-            };
-
-            const signature = this.generateOpaySignature(requestData, timestamp);
-
-            const response: AxiosResponse = await axios.post(
-                `${this.opay.baseURL}/api/v3/cashier/status`,
-                requestData,
-                {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${this.opay.publicKey}`,
-                        'MerchantId': this.opay.merchantId,
-                        'Authorization-Signature': signature,
-                        'Authorization-Timestamp': timestamp
-                    }
-                }
-            );
-
-            if (response.data.code === '00000') {
-                return {
-                    success: true,
-                    data: {
-                        ...response.data.data,
-                        id: response.data.data.orderNo,
-                        status: response.data.data.status,
-                        reference: response.data.data.reference
-                    },
-                    provider: 'opay'
-                };
-            } else {
-                return {
-                    success: false,
-                    error: response.data.message || 'Payment verification failed',
-                    provider: 'opay'
-                };
-            }
-        } catch (error: any) {
-            console.error('OPay verification error:', error.response?.data || error.message);
-            return {
-                success: false,
-                error: error.response?.data?.message || 'Payment verification failed',
-                provider: 'opay'
+                provider: 'flutterwave'
             };
         }
     }
@@ -488,10 +444,8 @@ class PaymentGateway extends PaymentLogging {
         switch (provider.toLowerCase()) {
             case 'paystack':
                 return await this.initializePaystackPayment(paymentData);
-            case 'palmpay':
-                return await this.initializePalmPayPayment(paymentData);
-            case 'opay':
-                return await this.initializeOpayPayment(paymentData);
+            case 'flutterwave':
+                return await this.initializeFlutterwavePayment(paymentData);
             default:
                 return {
                     success: false,
@@ -505,10 +459,8 @@ class PaymentGateway extends PaymentLogging {
         switch (provider.toLowerCase()) {
             case 'paystack':
                 return await this.verifyPaystackPayment(reference);
-            case 'palmpay':
-                return await this.verifyPalmPayPayment(reference);
-            case 'opay':
-                return await this.verifyOpayPayment(reference);
+            case 'flutterwave':
+                return await this.verifyFlutterwavePayment(reference);
             default:
                 return {
                     success: false,
@@ -531,14 +483,12 @@ class PaymentGateway extends PaymentLogging {
         return hash === signature;
     }
 
-    verifyPalmPayWebhook(payload: any, signature: string, timestamp: string): boolean {
-        const expectedSignature = this.generatePalmPaySignature(payload, timestamp);
-        return expectedSignature === signature;
-    }
-
-    verifyOpayWebhook(payload: any, signature: string, timestamp: string): boolean {
-        const expectedSignature = this.generateOpaySignature(payload, timestamp);
-        return expectedSignature === signature;
+    verifyFlutterwaveWebhook(payload: any, signature: string): boolean {
+        const hash = crypto
+            .createHmac('sha256', this.flutterwave.secretKey)
+            .update(JSON.stringify(payload))
+            .digest('hex');
+        return hash === signature;
     }
 
     getPaymentFees(provider: string, amount: number): number {
@@ -548,13 +498,8 @@ class PaymentGateway extends PaymentLogging {
                 cap: 200000,
                 fixed: 0
             },
-            palmpay: {
+            flutterwave: {
                 percentage: 1.4,
-                cap: 200000,
-                fixed: 0
-            },
-            opay: {
-                percentage: 2.5,
                 cap: 200000,
                 fixed: 0
             },

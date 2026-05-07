@@ -67,13 +67,9 @@ class PurchaseController {
                 case 'paystack':
                     isValid = paymentGateway.verifyPaystackWebhook(req.body, signature);
                     break;
-                case 'palmpay':
+                case 'flutterwave':
                     const timestamp = req.headers['x-timestamp'] as string;
-                    isValid = paymentGateway.verifyPalmPayWebhook(req.body, signature, timestamp);
-                    break;
-                case 'opay':
-                    const opayTimestamp = req.headers['authorization-timestamp'] as string;
-                    isValid = paymentGateway.verifyOpayWebhook(req.body, signature, opayTimestamp);
+                    isValid = paymentGateway.verifyFlutterwaveWebhook(req.body, signature);
                     break;
                 default:
                     return res.status(400).json({ error: 'Unsupported provider' });

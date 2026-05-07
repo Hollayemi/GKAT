@@ -172,7 +172,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
         metadata: {
             type: 'purchase',
             orderId: order._id.toString(),
-            orderSlugs: [order.orderSlug]
+            orderSlugs: order.orderSlug
         }
     };
 
@@ -217,7 +217,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
 // @route   POST /api/v1/order/repay
 // @access  Private
 export const repayOrder = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-    const { orderId, paymentMethod = 'paystack' } = req.body;
+    const { orderId, paymentMethod = 'flutterwave' } = req.body;
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
     const order = await Order.findOne({ _id: orderId, userId: req.user.id });
