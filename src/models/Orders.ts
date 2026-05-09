@@ -73,7 +73,7 @@ export interface IOrder extends Document {
    paymentInfo: IPaymentInfo;
    orderStatus: OrderStatus;
    pricing:any;
-   
+   distanceToCustomerKm: any;
     deliveryFee: number;
     driverId?: Types.ObjectId;
     serviceCharge: number;
@@ -203,6 +203,7 @@ const orderSchema = new Schema<IOrder, IOrderModel>({
     },
     deliveryFee: { type: Number, required: true, min: 0, default: 0 },
     driverId: { type: Schema.Types.ObjectId, ref: 'Driver' },
+    distanceToCustomerKm: { type: Number, min: 0 },
     serviceCharge: { type: Number, required: true, min: 0, default: 200 },
     tax: { type: Number, required: true, min: 0, default: 0 },
     discount: { type: Number, min: 0, default: 0 },

@@ -12,12 +12,12 @@ export const getProductPipeline = ({ query, sort, skip, limitNum }: any) => [
         }
     },
 
-    {
-        $unwind: {
-            path: "$regionalDistribution.region",
-            preserveNullAndEmptyArrays: true
-        },
-    },
+    // {
+    //     $unwind: {
+    //         path: "$regionalDistribution.region",
+    //         preserveNullAndEmptyArrays: true
+    //     },
+    // },
     { $set: { category: { $toObjectId: "$category" } } },
     {
         $lookup: {

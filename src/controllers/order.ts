@@ -12,16 +12,20 @@ import { findNearestRegion } from '../utils/geo';
 import mongoose from 'mongoose';
 import { buildCartSummary } from '../helpers/buildCartSummary';
 
+interface resolvedTypes {
+    id: mongoose.Types.ObjectId;
+    distance: any
+}
 
 async function resolveOrderRegion(
     lat: number | undefined,
     lng: number | undefined
-): Promise<mongoose.Types.ObjectId | null> {
+): Promise<resolvedTypes | null> {
     if (lat == null || lng == null) return null;
     const regions = await Region.find({ isActive: true }).lean();
     const nearest = findNearestRegion(lat, lng, regions);
     if (!nearest) return null;
-    return new mongoose.Types.ObjectId(nearest.regionId);
+    return ({id: new mongoose.Types.ObjectId(nearest.regionId), distance: nearest.distanceKm});
 }
 
 async function deductRegionalStock(
@@ -116,13 +120,14 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
         items: cart.items,
         shippingAddress,
         deliveryMethod,
-        region: resolvedRegionId ?? undefined,
+        region: resolvedRegionId?.id ?? undefined,
         paymentInfo: {
             method: paymentMethod,
             paymentStatus: 'pending',
             amount: cartSummary.pricing.totalAmount
         },
         orderStatus: 'pending',
+        distanceToCustomerKm: resolvedRegionId?.distance ?? undefined,
         deliveryFee: cart.deliveryFee ?? 0,
         serviceCharge: cart.serviceCharge ?? 0,
         pricing: cartSummary.pricing,
@@ -149,7 +154,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
             item.productId as mongoose.Types.ObjectId,
             item.variantId as mongoose.Types.ObjectId | undefined,
             item.quantity,
-            resolvedRegionId
+            resolvedRegionId?.id ?? null
         );
     }
 

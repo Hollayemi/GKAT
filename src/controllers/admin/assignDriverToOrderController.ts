@@ -189,6 +189,7 @@ export const getAvailableDrivers = asyncHandler(async (req: Request, res: Respon
  
     const drivers = await Driver.find(query)
         .populate('userId', 'name email phoneNumber avatar')
+        .populate('region', 'name')
         .select('-password -passwordSetupToken -passwordSetupExpiry')
         .lean();
  

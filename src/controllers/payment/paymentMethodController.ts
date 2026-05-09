@@ -6,7 +6,7 @@ import PaymentMethodModel from '../../models/PaymentMethod';
 export const getAllPaymentMethods = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
         const methods = await PaymentMethod.find().sort({ sortOrder: 1 });
-        (res as AppResponse).data({ paymentMethods: methods }, 'Payment methods retrieved');
+        (res as AppResponse).data(methods, 'Payment methods retrieved');
     }
 );
 

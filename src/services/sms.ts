@@ -27,11 +27,10 @@ export const sendOTPViaSMS = async (
     phoneNumber: string,
     otp: string
 ): Promise<SMSResult> => {
-    // In development, just log and skip real SMS
-    if (process.env.NODE_ENV === 'development') {
-        logger.info(`[DEV] OTP for ${phoneNumber}: ${otp}`);
-        return { success: true, messageId: 'dev-mode' };
-    }
+    // if (process.env.NODE_ENV === 'development') {
+    //     logger.info(`[DEV] OTP for ${phoneNumber}: ${otp}`);
+    //     return { success: true, messageId: 'dev-mode' };
+    // }
 
     if (!accountSid || !authToken || !twilioPhone) {
         logger.warn('Twilio not configured. OTP not sent via SMS.');
