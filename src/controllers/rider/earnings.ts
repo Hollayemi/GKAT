@@ -52,8 +52,8 @@ function startOfISOWeek(date: Date): Date {
     return d;
 }
 
-const DAY_LABELS   = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
-const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DAY_LABELS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export const getEarningsOverview = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
@@ -65,17 +65,17 @@ export const getEarningsOverview = asyncHandler(
         const wallet = await DriverWallet.findOne({ driverId: driver._id });
         if (!wallet) return next(new AppError('Wallet not found', 404));
 
-        const period   = ((req.query.period  as string) || 'weekly').toLowerCase();
-        const pageNum  = parseInt((req.query.page  as string) || '1');
+        const period = ((req.query.period as string) || 'weekly').toLowerCase();
+        const pageNum = parseInt((req.query.page as string) || '1');
         const limitNum = parseInt((req.query.limit as string) || '20');
-        const now      = new Date();
+        const now = new Date();
 
         const activeTimeResult = await DriverDelivery.aggregate([
             {
                 $match: {
-                    driverId:    driver._id,
-                    status:      'delivered',
-                    acceptedAt:  { $exists: true },
+                    driverId: driver._id,
+                    status: 'delivered',
+                    acceptedAt: { $exists: true },
                     deliveredAt: { $exists: true },
                 },
             },
@@ -90,28 +90,28 @@ export const getEarningsOverview = asyncHandler(
         ]);
 
         const totalActiveMs = activeTimeResult[0]?.totalMs || 0;
-        const activeHours   = parseFloat((totalActiveMs / 3_600_000).toFixed(1));
+        const activeHours = parseFloat((totalActiveMs / 3_600_000).toFixed(1));
 
         let chartData: Array<{ label: string; earned: number; deliveries: number }> = [];
 
         if (period === 'weekly') {
             const weekStart = startOfISOWeek(now);
-            const weekEnd   = new Date(weekStart);
+            const weekEnd = new Date(weekStart);
             weekEnd.setDate(weekEnd.getDate() + 7);
 
             const rows = await DriverDelivery.aggregate([
                 {
                     $match: {
-                        driverId:    driver._id,
-                        status:      'delivered',
+                        driverId: driver._id,
+                        status: 'delivered',
                         deliveredAt: { $gte: weekStart, $lt: weekEnd },
                     },
                 },
                 {
                     $group: {
-                        _id:       { $isoDayOfWeek: '$deliveredAt' }, 
-                        earned:    { $sum: '$fareBreakdown.totalEarned' },
-                        deliveries:{ $sum: 1 },
+                        _id: { $isoDayOfWeek: '$deliveredAt' },
+                        earned: { $sum: '$fareBreakdown.totalEarned' },
+                        deliveries: { $sum: 1 },
                     },
                 },
             ]);
@@ -121,28 +121,28 @@ export const getEarningsOverview = asyncHandler(
 
             chartData = DAY_LABELS.map((label, i) => ({
                 label,
-                earned:     byDay[i + 1]?.earned     || 0,
+                earned: byDay[i + 1]?.earned || 0,
                 deliveries: byDay[i + 1]?.deliveries || 0,
             }));
 
         } else if (period === 'monthly') {
-           
+
             const yearStart = new Date(now.getFullYear(), 0, 1);
-            const yearEnd   = new Date(now.getFullYear() + 1, 0, 1);
+            const yearEnd = new Date(now.getFullYear() + 1, 0, 1);
 
             const rows = await DriverDelivery.aggregate([
                 {
                     $match: {
-                        driverId:    driver._id,
-                        status:      'delivered',
+                        driverId: driver._id,
+                        status: 'delivered',
                         deliveredAt: { $gte: yearStart, $lt: yearEnd },
                     },
                 },
                 {
                     $group: {
-                        _id:       { $month: '$deliveredAt' }, // 1–12
-                        earned:    { $sum: '$fareBreakdown.totalEarned' },
-                        deliveries:{ $sum: 1 },
+                        _id: { $month: '$deliveredAt' }, // 1–12
+                        earned: { $sum: '$fareBreakdown.totalEarned' },
+                        deliveries: { $sum: 1 },
                     },
                 },
             ]);
@@ -152,30 +152,30 @@ export const getEarningsOverview = asyncHandler(
 
             chartData = MONTH_LABELS.map((label, i) => ({
                 label,
-                earned:     byMonth[i + 1]?.earned     || 0,
+                earned: byMonth[i + 1]?.earned || 0,
                 deliveries: byMonth[i + 1]?.deliveries || 0,
             }));
 
         } else {
             // yearly — last 5 calendar years
             const currentYear = now.getFullYear();
-            const years       = Array.from({ length: 5 }, (_, i) => currentYear - 4 + i);
-            const rangeStart  = new Date(years[0], 0, 1);
-            const rangeEnd    = new Date(currentYear + 1, 0, 1);
+            const years = Array.from({ length: 5 }, (_, i) => currentYear - 4 + i);
+            const rangeStart = new Date(years[0], 0, 1);
+            const rangeEnd = new Date(currentYear + 1, 0, 1);
 
             const rows = await DriverDelivery.aggregate([
                 {
                     $match: {
-                        driverId:    driver._id,
-                        status:      'delivered',
+                        driverId: driver._id,
+                        status: 'delivered',
                         deliveredAt: { $gte: rangeStart, $lt: rangeEnd },
                     },
                 },
                 {
                     $group: {
-                        _id:       { $year: '$deliveredAt' },
-                        earned:    { $sum: '$fareBreakdown.totalEarned' },
-                        deliveries:{ $sum: 1 },
+                        _id: { $year: '$deliveredAt' },
+                        earned: { $sum: '$fareBreakdown.totalEarned' },
+                        deliveries: { $sum: 1 },
                     },
                 },
             ]);
@@ -184,8 +184,8 @@ export const getEarningsOverview = asyncHandler(
             rows.forEach(r => { byYear[r._id] = { earned: r.earned, deliveries: r.deliveries }; });
 
             chartData = years.map(yr => ({
-                label:      String(yr),
-                earned:     byYear[yr]?.earned     || 0,
+                label: String(yr),
+                earned: byYear[yr]?.earned || 0,
                 deliveries: byYear[yr]?.deliveries || 0,
             }));
         }
@@ -198,14 +198,14 @@ export const getEarningsOverview = asyncHandler(
             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
         const totalWithdrawals = allWithdrawals.length;
-        const skip             = (pageNum - 1) * limitNum;
+        const skip = (pageNum - 1) * limitNum;
         const withdrawalHistory = allWithdrawals.slice(skip, skip + limitNum);
 
         (res as AppResponse).data(
             {
                 wallet: {
-                    balance:        wallet.balance,
-                    totalEarned:    wallet.totalEarned,
+                    balance: wallet.balance,
+                    totalEarned: wallet.totalEarned,
                     totalWithdrawn: wallet.totalWithdrawn,
                 },
 
@@ -226,15 +226,15 @@ export const getEarningsOverview = asyncHandler(
                 withdrawalHistory: {
                     transactions: withdrawalHistory,
                     pagination: {
-                        page:  pageNum,
+                        page: pageNum,
                         limit: limitNum,
                         total: totalWithdrawals,
                         pages: Math.ceil(totalWithdrawals / limitNum),
                     },
                 },
 
-                bankAccounts:        wallet.bankAccounts,
-                autoPayoutSettings:  wallet.autoPayoutSettings,
+                bankAccounts: wallet.bankAccounts,
+                autoPayoutSettings: wallet.autoPayoutSettings,
             },
             'Earnings overview retrieved successfully'
         );
@@ -290,6 +290,31 @@ export const getWallet = asyncHandler(async (req: Request, res: Response, next: 
         ])
     ]);
 
+    const deliveries = await DriverDelivery.find({
+        driverId: driver._id,
+    });
+
+    let totalActiveTime = 0;
+    let totalDistance = 0;
+    let totalDeliveries = 0;
+    let totalCompletedDeliveries = 0;
+
+    deliveries.forEach((delivery) => {
+        const history = delivery.statusHistory;
+        if (!history || history.length < 2) return;
+        const startTime = new Date(history[0].timestamp) as any;
+        const endTime = new Date(history[history.length - 1].timestamp) as any;
+        const diff = endTime - startTime;
+        totalActiveTime += diff;
+        totalDistance += delivery.distanceKm || 0;
+        totalDeliveries += 1;
+        if (delivery.status === 'delivered') totalCompletedDeliveries += 1;
+    });
+
+    const totalSeconds = Math.floor(totalActiveTime / 1000);
+    const totalMinutes = Math.floor(totalSeconds / 60);
+    const totalHours = (totalMinutes / 60).toFixed(2);
+
     (res as AppResponse).data(
         {
             balance: wallet.balance,
@@ -298,6 +323,13 @@ export const getWallet = asyncHandler(async (req: Request, res: Response, next: 
             totalDeliveries: wallet.totalDeliveries,
             bankAccounts: wallet.bankAccounts,
             autoPayoutSettings: wallet.autoPayoutSettings,
+            totalDistance: parseFloat(totalDistance.toFixed(2)),
+            totalCompletedDeliveries,
+            activeTime: {
+                totalSeconds,
+                totalMinutes,
+                totalHours,
+            },
             stats: {
                 today: {
                     earned: todayEarnings[0]?.total || 0,
@@ -630,12 +662,12 @@ export const getEarningsSummary = asyncHandler(async (req: Request, res: Respons
 
     const totals = summary.reduce(
         (acc, day) => {
-            acc.totalEarned   += day.totalEarned;
-            acc.baseFare      += day.baseFare;
+            acc.totalEarned += day.totalEarned;
+            acc.baseFare += day.baseFare;
             acc.distanceBonus += day.distanceBonus;
-            acc.priorityFee   += day.priorityFee;
-            acc.deliveries    += day.deliveries;
-            acc.totalKm       += day.totalKm;
+            acc.priorityFee += day.priorityFee;
+            acc.deliveries += day.deliveries;
+            acc.totalKm += day.totalKm;
             return acc;
         },
         { totalEarned: 0, baseFare: 0, distanceBonus: 0, priorityFee: 0, deliveries: 0, totalKm: 0 }

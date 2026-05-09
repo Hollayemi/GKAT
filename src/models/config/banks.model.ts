@@ -1,16 +1,822 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IBank extends Document {
-  bank: string;
+  id: number;
+  logo: string;
+  ussd: string;
+  name: string;
   code: string;
-  short_code: string | null;
+  longcode: string;
+  ussd_transfer: string;
+  slug: string;
 }
+
+const banks = [
+    {
+        "id": 697,
+        "name": "Branch International Financial Services Limited",
+        "slug": "branch",
+        "code": "FC40163",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/branch.png"
+    },
+    {
+        "id": 167,
+        "name": "Eyowo",
+        "slug": "eyowo",
+        "ussd": "*4255#",
+        "code": "50126",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/eyowo.png"
+    },
+    {
+        "longcode": "null",
+        "id": 705,
+        "name": "Platinum Mortgage Bank",
+        "slug": "platinum-mortgage-bank-ng",
+        "code": "268",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/platinum-mortgage-bank-ng.png"
+    },
+    {
+        "id": 283,
+        "name": "Corestep MFB",
+        "slug": "corestep-mfb",
+        "code": "50204",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/corestep-mfb.png"
+    },
+    {
+        "id": 108,
+        "name": "Bowen Microfinance Bank",
+        "slug": "bowen-microfinance-bank",
+        "code": "50931",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/bowen-microfinance-bank.png"
+    },
+    {
+        "id": 282,
+        "name": "Unical MFB",
+        "slug": "unical-mfb",
+        "code": "50871",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/unical-mfb.png"
+    },
+    {
+        "longcode": "51355",
+        "id": 701,
+        "name": "Waya Microfinance Bank",
+        "slug": "waya-microfinance-bank-ng",
+        "code": "51355",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/waya-microfinance-bank-ng.png"
+    },
+    {
+        "id": 629,
+        "name": "Titan Paystack",
+        "slug": "titan-paystack",
+        "code": "100039",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/titan-paystack.png"
+    },
+    {
+        "id": 69,
+        "name": "Rubies MFB",
+        "slug": "rubies-mfb",
+        "ussd": " *7797#",
+        "code": "125",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/rubies-mfb.png"
+    },
+    {
+        "longcode": "030159992",
+        "id": 10,
+        "name": "Heritage Bank",
+        "slug": "heritage-bank",
+        "ussd": "*745#",
+        "ussd_transfer": "*745*2*{{ amt }}*{{ acc }}#",
+        "code": "030",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/heritage-bank.png"
+    },
+    {
+        "longcode": "058152036",
+        "id": 9,
+        "name": "Guaranty Trust Bank",
+        "slug": "guaranty-trust-bank",
+        "ussd": "*737#",
+        "ussd_transfer": "*737*1*{{ amt }}*{{ acc }}#",
+        "code": "058",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/guaranty-trust-bank.png"
+    },
+    {
+        "longcode": "232150016",
+        "id": 16,
+        "name": "Sterling Bank",
+        "slug": "sterling-bank",
+        "ussd": "*822#",
+        "ussd_transfer": "*822*{{ amt }}*{{ acc }}#",
+        "code": "232",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/sterling-bank.png"
+    },
+    {
+        "id": 183,
+        "name": "GoMoney",
+        "slug": "gomoney",
+        "code": "100022",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/gomoney.png"
+    },
+    {
+        "id": 109,
+        "name": "Lagos Building Investment Company Plc.",
+        "slug": "lbic-plc",
+        "code": "90052",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/lbic-plc.png"
+    },
+    {
+        "longcode": "033153513",
+        "id": 18,
+        "name": "United Bank For Africa",
+        "slug": "united-bank-for-africa",
+        "ussd": "*919#",
+        "ussd_transfer": "*919*3*{{ amt }}*{{ acc }}#",
+        "code": "033",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/united-bank-for-africa.png"
+    },
+    {
+        "longcode": "51113",
+        "id": 286,
+        "name": "Safe Haven MFB",
+        "slug": "safe-haven-mfb-ng",
+        "code": "51113",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/safe-haven-mfb-ng.png"
+    },
+    {
+        "longcode": "050150010",
+        "id": 4,
+        "name": "Ecobank Nigeria",
+        "slug": "ecobank-nigeria",
+        "ussd": "*326#",
+        "code": "050",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/ecobank-nigeria.png"
+    },
+    {
+        "id": 614,
+        "name": "Aramoko MFB",
+        "slug": "aramoko-mfb",
+        "code": "50083",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/aramoko-mfb.png"
+    },
+    {
+        "id": 180,
+        "name": "Links MFB",
+        "slug": "links-mfb",
+        "code": "50549",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/links-mfb.png"
+    },
+    {
+        "id": 110,
+        "name": "Parkway - ReadyCash",
+        "slug": "parkway-ready-cash",
+        "code": "311",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/parkway-ready-cash.png"
+    },
+    {
+        "id": 174,
+        "name": "Abbey Mortgage Bank",
+        "slug": "abbey-mortgage-bank",
+        "ussd": "*332#",
+        "code": "801",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/abbey-mortgage-bank.png"
+    },
+    {
+        "id": 679,
+        "name": "ROCKSHIELD MICROFINANCE BANK",
+        "slug": "rockshield-microfinance-bank-ng",
+        "code": "50767",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/rockshield-microfinance-bank-ng.png"
+    },
+    {
+        "id": 67,
+        "name": "Kuda Bank",
+        "slug": "kuda-bank",
+        "ussd": "*894#",
+        "code": "50211",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/kuda-bank.png"
+    },
+    {
+        "id": 495,
+        "name": "Accion Microfinance Bank",
+        "slug": "accion-microfinance-bank-ng",
+        "ussd": "*572#",
+        "code": "602",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/accion-microfinance-bank-ng.png"
+    },
+    {
+        "id": 181,
+        "name": "Bainescredit MFB",
+        "slug": "bainescredit-mfb",
+        "code": "51229",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/bainescredit-mfb.png"
+    },
+    {
+        "longcode": "50743",
+        "id": 693,
+        "name": "Peace Microfinance Bank",
+        "slug": "peace-microfinance-bank-ng",
+        "code": "50743",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/peace-microfinance-bank-ng.png"
+    },
+    {
+        "longcode": "103015001",
+        "id": 70,
+        "name": "Globus Bank",
+        "slug": "globus-bank",
+        "ussd": "*989#",
+        "ussd_transfer": "*989*2*{{ amt }}*{{ acc }}#",
+        "code": "00103",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/globus-bank.png"
+    },
+    {
+        "id": 297,
+        "name": "Astrapolaris MFB LTD",
+        "slug": "astrapolaris-mfb",
+        "code": "MFB50094",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/astrapolaris-mfb.png"
+    },
+    {
+        "longcode": "null",
+        "id": 688,
+        "name": "Moniepoint MFB",
+        "slug": "moniepoint-mfb-ng",
+        "ussd": "*888#",
+        "code": "50515",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/moniepoint-mfb-ng.png"
+    },
+    {
+        "id": 23,
+        "name": "Suntrust Bank",
+        "slug": "suntrust-bank",
+        "ussd": "*5230#",
+        "code": "100",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/suntrust-bank.png"
+    },
+    {
+        "id": 188,
+        "name": "Above Only MFB",
+        "slug": "above-only-mfb",
+        "code": "51204",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/above-only-mfb.png"
+    },
+    {
+        "longcode": "215154097",
+        "id": 19,
+        "name": "Unity Bank",
+        "slug": "unity-bank",
+        "ussd": "*7799#",
+        "ussd_transfer": "*7799*1*{{ acc }}*{{ amt }}#",
+        "code": "215",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/unity-bank.png"
+    },
+    {
+        "longcode": "214150018",
+        "id": 8,
+        "name": "First City Monument Bank",
+        "slug": "first-city-monument-bank",
+        "ussd": "*329#",
+        "ussd_transfer": "*329*{{ amt }}*{{ acc }}#",
+        "code": "214",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/first-city-monument-bank.png"
+    },
+    {
+        "id": 365,
+        "name": "Solid Rock MFB",
+        "slug": "solid-rock-mfb",
+        "code": "50800",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/solid-rock-mfb.png"
+    },
+    {
+        "id": 72,
+        "name": "Sparkle Microfinance Bank",
+        "slug": "sparkle-microfinance-bank",
+        "code": "51310",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/sparkle-microfinance-bank.png"
+    },
+    {
+        "id": 295,
+        "name": "Refuge Mortgage Bank",
+        "slug": "refuge-mortgage-bank",
+        "code": "90067",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/refuge-mortgage-bank.png"
+    },
+    {
+        "id": 636,
+        "name": "Ilaro Poly Microfinance Bank",
+        "slug": "ilaro-poly-microfinance-bank-ng",
+        "code": "50442",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/ilaro-poly-microfinance-bank-ng.png"
+    },
+    {
+        "id": 173,
+        "name": "Coronation Merchant Bank",
+        "slug": "coronation-merchant-bank-ng",
+        "code": "559",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/coronation-merchant-bank-ng.png"
+    },
+    {
+        "longcode": "50840",
+        "id": 690,
+        "name": "U&C Microfinance Bank Ltd (U AND C MFB)",
+        "slug": "uc-microfinance-bank-ltd-u-and-c-mfb-ng",
+        "code": "50840",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/uc-microfinance-bank-ltd-u-and-c-mfb-ng.png"
+    },
+    {
+        "id": 68,
+        "name": "TAJ Bank",
+        "slug": "taj-bank",
+        "ussd": "*898#",
+        "ussd_transfer": "*898*{{ amt }}*{{ acc }}#",
+        "code": "302",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/taj-bank.png"
+    },
+    {
+        "id": 233,
+        "name": "Lotus Bank",
+        "slug": "lotus-bank",
+        "ussd": "*5045#",
+        "code": "303",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/lotus-bank.png"
+    },
+    {
+        "longcode": "000031",
+        "id": 304,
+        "name": "PremiumTrust Bank",
+        "slug": "premiumtrust-bank-ng",
+        "ussd": "*858#",
+        "code": "105",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/premiumtrust-bank-ng.png"
+    },
+    {
+        "longcode": "120001",
+        "id": 302,
+        "name": "9mobile 9Payment Service Bank",
+        "slug": "9mobile-9payment-service-bank-ng",
+        "ussd": "*990# ",
+        "code": "120001",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/9mobile-9payment-service-bank-ng.png"
+    },
+    {
+        "longcode": "120003",
+        "id": 303,
+        "name": "MTN Momo PSB",
+        "slug": "mtn-momo-psb-ng",
+        "ussd": "*671#",
+        "code": "120003",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/mtn-momo-psb-ng.png"
+    },
+    {
+        "id": 75,
+        "name": "TCF MFB",
+        "slug": "tcf-mfb",
+        "code": "51211",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/tcf-mfb.png"
+    },
+    {
+        "id": 168,
+        "name": "Ibile Microfinance Bank",
+        "slug": "ibile-mfb",
+        "code": "51244",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/ibile-mfb.png"
+    },
+    {
+        "longcode": "865",
+        "id": 692,
+        "name": "CASHCONNECT MFB",
+        "slug": "cashconnect-mfb-ng",
+        "code": "865",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/cashconnect-mfb-ng.png"
+    },
+    {
+        "id": 172,
+        "name": "Infinity MFB",
+        "slug": "infinity-mfb",
+        "code": "50457",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/infinity-mfb.png"
+    },
+    {
+        "id": 25,
+        "name": "Providus Bank",
+        "slug": "providus-bank",
+        "code": "101",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/providus-bank.png"
+    },
+    {
+        "id": 682,
+        "name": "FirstTrust Mortgage Bank Nigeria",
+        "slug": "firsttrust-mortgage-bank-nigeria-ng",
+        "code": "413",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/firsttrust-mortgage-bank-nigeria-ng.png"
+    },
+    {
+        "id": 628,
+        "name": "Ekimogun MFB",
+        "slug": "ekimogun-mfb-ng",
+        "code": "50263",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/ekimogun-mfb-ng.png"
+    },
+    {
+        "id": 635,
+        "name": "Goodnews Microfinance Bank",
+        "slug": "goodnews-microfinance-bank-ng",
+        "code": "50739",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/goodnews-microfinance-bank-ng.png"
+    },
+    {
+        "id": 638,
+        "name": "Unilag Microfinance Bank",
+        "slug": "unilag-microfinance-bank-ng",
+        "code": "51316",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/unilag-microfinance-bank-ng.png"
+    },
+    {
+        "id": 176,
+        "name": "Rand Merchant Bank",
+        "slug": "rand-merchant-bank",
+        "code": "502",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/rand-merchant-bank.png"
+    },
+    {
+        "longcode": "032080474",
+        "id": 17,
+        "name": "Union Bank of Nigeria",
+        "slug": "union-bank-of-nigeria",
+        "ussd": "*826#",
+        "ussd_transfer": "*826*2*{{ amt }}*{{ acc }}#",
+        "code": "032",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/union-bank-of-nigeria.png"
+    },
+    {
+        "id": 177,
+        "name": "Firmus MFB",
+        "slug": "firmus-mfb",
+        "code": "51314",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/firmus-mfb.png"
+    },
+    {
+        "longcode": "076151006",
+        "id": 13,
+        "name": "Polaris Bank",
+        "slug": "polaris-bank",
+        "ussd": "*833#",
+        "ussd_transfer": "*833*{{ amt }}*{{ acc }}#",
+        "code": "076",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/polaris-bank.png"
+    },
+    {
+        "id": 285,
+        "name": "Stellas MFB",
+        "slug": "stellas-mfb",
+        "code": "51253",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/stellas-mfb.png"
+    },
+    {
+        "id": 695,
+        "name": "Solid Allianze MFB",
+        "slug": "solid-allianze-mfb",
+        "code": "51062",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/solid-allianze-mfb.png"
+    },
+    {
+        "id": 287,
+        "name": "Gateway Mortgage Bank LTD",
+        "slug": "gateway-mortgage-bank",
+        "code": "812",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/gateway-mortgage-bank.png"
+    },
+    {
+        "id": 74,
+        "name": "CEMCS Microfinance Bank",
+        "slug": "cemcs-microfinance-bank",
+        "code": "50823",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/cemcs-microfinance-bank.png"
+    },
+    {
+        "longcode": "50910",
+        "id": 691,
+        "name": "Consumer Microfinance Bank",
+        "slug": "consumer-microfinance-bank-ng",
+        "code": "50910",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/consumer-microfinance-bank-ng.png"
+    },
+    {
+        "id": 81,
+        "name": "Hasal Microfinance Bank",
+        "slug": "hasal-microfinance-bank",
+        "code": "50383",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/hasal-microfinance-bank.png"
+    },
+    {
+        "id": 82,
+        "name": "Carbon",
+        "slug": "carbon",
+        "code": "565",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/carbon.png"
+    },
+    {
+        "longcode": "082150017",
+        "id": 11,
+        "name": "Keystone Bank",
+        "slug": "keystone-bank",
+        "ussd": "*7111#",
+        "ussd_transfer": "*7111*{{ amt }}*{{ acc }}#",
+        "code": "082",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/keystone-bank.png"
+    },
+    {
+        "id": 615,
+        "name": "Ikoyi Osun MFB",
+        "slug": "ikoyi-osun-mfb",
+        "code": "50439",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/ikoyi-osun-mfb.png"
+    },
+    {
+        "id": 689,
+        "name": "AMPERSAND MICROFINANCE BANK",
+        "slug": "ampersand-microfinance-bank-ng",
+        "code": "51341",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/ampersand-microfinance-bank-ng.png"
+    },
+    {
+        "longcode": "null",
+        "id": 704,
+        "name": "Chikum Microfinance bank",
+        "slug": "chikum-microfinance-bank-ng",
+        "code": "312",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/chikum-microfinance-bank-ng.png"
+    },
+    {
+        "longcode": "090629",
+        "id": 707,
+        "name": "Amegy Microfinance Bank",
+        "slug": "amegy-microfinance-bank-ng",
+        "code": "090629",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/amegy-microfinance-bank-ng.png"
+    },
+    {
+        "longcode": "50453",
+        "id": 703,
+        "name": "Imowo MFB",
+        "slug": "imowo-mfb-ng",
+        "code": "50453",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/imowo-mfb-ng.png"
+    },
+    {
+        "longcode": "null",
+        "id": 706,
+        "name": "SAGE GREY FINANCE LIMITED",
+        "slug": "sage-grey-finance-limited-ng",
+        "code": "40165",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/sage-grey-finance-limited-ng.png"
+    },
+    {
+        "longcode": "null",
+        "id": 626,
+        "name": "Polyunwana MFB",
+        "slug": "polyunwana-mfb-ng",
+        "code": "50864",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/polyunwana-mfb-ng.png"
+    },
+    {
+        "longcode": "057150013",
+        "id": 21,
+        "name": "Zenith Bank",
+        "slug": "zenith-bank",
+        "ussd": "*966#",
+        "ussd_transfer": "*966*{{ amt }}*{{ acc }}#",
+        "code": "057",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/zenith-bank.png"
+    },
+    {
+        "longcode": "070150003",
+        "id": 6,
+        "name": "Fidelity Bank",
+        "slug": "fidelity-bank",
+        "ussd": "*770#",
+        "ussd_transfer": "*770*{{ acc }}*{{ amt }}#",
+        "code": "070",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/fidelity-bank.png"
+    },
+    {
+        "longcode": "068150015",
+        "id": 15,
+        "name": "Standard Chartered Bank",
+        "slug": "standard-chartered-bank",
+        "code": "068",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/standard-chartered-bank.png"
+    },
+    {
+        "id": 627,
+        "name": "Abulesoro MFB",
+        "slug": "abulesoro-mfb-ng",
+        "code": "51312",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/abulesoro-mfb-ng.png"
+    },
+    {
+        "id": 187,
+        "name": "Kadpoly MFB",
+        "slug": "kadpoly-mfb",
+        "code": "50502",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/kadpoly-mfb.png"
+    },
+    {
+        "id": 232,
+        "name": "QuickFund MFB",
+        "slug": "quickfund-mfb",
+        "code": "51293",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/quickfund-mfb.png"
+    },
+    {
+        "id": 26,
+        "name": "Parallex Bank",
+        "slug": "parallex-bank",
+        "ussd": "*1242#",
+        "code": "104",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/parallex-bank.png"
+    },
+    {
+        "id": 296,
+        "name": "Living Trust Mortgage Bank",
+        "slug": "living-trust-mortgage-bank",
+        "ussd": "*723*312#",
+        "code": "031",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/living-trust-mortgage-bank.png"
+    },
+    {
+        "longcode": "221159522",
+        "id": 14,
+        "name": "Stanbic IBTC Bank",
+        "slug": "stanbic-ibtc-bank",
+        "ussd": "*909#",
+        "ussd_transfer": "*909*22*{{ amt }}*{{ acc }}#",
+        "code": "221",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/stanbic-ibtc-bank.png"
+    },
+    {
+        "id": 186,
+        "name": "Tangerine Money",
+        "slug": "tangerine-money",
+        "code": "51269",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/tangerine-money.png"
+    },
+    {
+        "id": 64,
+        "name": "Ekondo Microfinance Bank",
+        "slug": "ekondo-microfinance-bank-ng",
+        "code": "098",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/ekondo-microfinance-bank-ng.png"
+    },
+    {
+        "longcode": "50315",
+        "id": 687,
+        "name": "FLOURISH MFB",
+        "slug": "flourish-mfb-ng",
+        "code": "50315",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/flourish-mfb-ng.png"
+    },
+    {
+        "longcode": "00107",
+        "id": 699,
+        "name": "Optimus Bank Limited",
+        "slug": "optimus-bank-ltd",
+        "ussd": "*930#",
+        "code": "107",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/optimus-bank-ltd.png"
+    },
+    {
+        "id": 637,
+        "name": "Dot Microfinance Bank",
+        "slug": "dot-microfinance-bank-ng",
+        "code": "50162",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/dot-microfinance-bank-ng.png"
+    },
+    {
+        "longcode": "511080896",
+        "id": 179,
+        "name": "Amju Unique MFB",
+        "slug": "amju-unique-mfb",
+        "code": "50926",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/amju-unique-mfb.png"
+    },
+    {
+        "longcode": "120002",
+        "id": 301,
+        "name": "HopePSB",
+        "slug": "hopepsb-ng",
+        "code": "120002",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/hopepsb-ng.png"
+    },
+    {
+        "longcode": "011151003",
+        "id": 7,
+        "name": "First Bank of Nigeria",
+        "slug": "first-bank-of-nigeria",
+        "ussd": "*894#",
+        "ussd_transfer": "*894*{{ amt }}*{{ acc }}#",
+        "code": "011",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/first-bank-of-nigeria.png"
+    },
+    {
+        "longcode": "063150162",
+        "id": 3,
+        "name": "Access Bank (Diamond)",
+        "slug": "access-bank-diamond",
+        "ussd": "*901#",
+        "ussd_transfer": "*901*2*{{ amt }}*{{ amt }}#",
+        "code": "063",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/access-bank-diamond.png"
+    },
+    {
+        "id": 630,
+        "name": "Uhuru MFB",
+        "slug": "uhuru-mfb-ng",
+        "code": "MFB51322",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/uhuru-mfb-ng.png"
+    },
+    {
+        "id": 609,
+        "name": "Safe Haven Microfinance Bank Limited",
+        "slug": "safe-haven-microfinance-bank-limited-ng",
+        "code": "951113",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/safe-haven-microfinance-bank-limited-ng.png"
+    },
+    {
+        "id": 632,
+        "name": "Shield MFB",
+        "slug": "shield-mfb-ng",
+        "code": "50582",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/shield-mfb-ng.png"
+    },
+    {
+        "longcode": "50171",
+        "id": 284,
+        "name": "Chanelle Microfinance Bank Limited",
+        "slug": "chanelle-microfinance-bank-limited-ng",
+        "code": "50171",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/chanelle-microfinance-bank-limited-ng.png"
+    },
+    {
+        "longcode": "301080020",
+        "id": 22,
+        "name": "Jaiz Bank",
+        "slug": "jaiz-bank",
+        "ussd": "*773#",
+        "ussd_transfer": "*773*{{ amt }}*{{ acc }}#",
+        "code": "301",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/jaiz-bank.png"
+    },
+    {
+        "longcode": "044150149",
+        "id": 1,
+        "name": "Access Bank",
+        "slug": "access-bank",
+        "ussd": "*901#",
+        "ussd_transfer": "*901*2*{{ amt }}*{{ amt }}#",
+        "code": "044",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/access-bank.png"
+    },
+    {
+        "id": 71,
+        "name": "VFD Microfinance Bank Limited",
+        "slug": "vfd",
+        "ussd": "*5037#",
+        "code": "566",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/vfd.png"
+    },
+    {
+        "id": 184,
+        "name": "Kredi Money MFB LTD",
+        "slug": "kredi-money-mfb",
+        "code": "50200",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/kredi-money-mfb.png"
+    },
+    {
+        "id": 178,
+        "name": "Mint MFB",
+        "slug": "mint-mfb",
+        "code": "50304",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/mint-mfb.png"
+    },
+    {
+        "longcode": "120004",
+        "id": 300,
+        "name": "Airtel Smartcash PSB",
+        "slug": "airtel-smartcash-psb-ng",
+        "code": "120004",
+        "logo": "https://supermx1.github.io/nigerian-banks-api/logos/airtel-smartcash-psb-ng.png"
+    }
+]
 
 const BankSchema = new Schema<IBank>(
   {
-    bank: { type: String, required: true, unique: true },
+    id: { type: Number, required: true, unique: true },
+    logo: { type: String, required: true },
+    ussd: { type: String, default: null },
+    name: { type: String, required: true, unique: true },
     code: { type: String, required: true, unique: true },
-    short_code: { type: String, default: null },
+    longcode: { type: String, default: null },
+    ussd_transfer: { type: String, default: null },
+    slug: { type: String, default: '' },
   },
   { timestamps: true }
 );
@@ -20,29 +826,6 @@ export const Banks = mongoose.model<IBank>('Bank', BankSchema);
 export const seedBanks = async () => {
   const count = await Banks.countDocuments();
   if (count === 0) {
-    const banks = [
-      { bank: "Access Bank", code: "044", short_code: "*901#" },
-      { bank: "First Bank of Nigeria", code: "011", short_code: "*894#" },
-      { bank: "Guaranty Trust Bank (GTB)", code: "058", short_code: "*737#" },
-      { bank: "Zenith Bank", code: "057", short_code: "*966#" },
-      { bank: "United Bank for Africa (UBA)", code: "033", short_code: "*919#" },
-      { bank: "Union Bank of Nigeria", code: "032", short_code: "*826#" },
-      { bank: "Fidelity Bank", code: "070", short_code: "*770#" },
-      { bank: "First City Monument Bank (FCMB)", code: "214", short_code: "*329#" },
-      { bank: "Stanbic IBTC Bank", code: "221", short_code: "*909#" },
-      { bank: "Sterling Bank", code: "232", short_code: "*822#" },
-      { bank: "Ecobank Nigeria", code: "050", short_code: "*326#" },
-      { bank: "Wema Bank", code: "035", short_code: "*945#" },
-      { bank: "Unity Bank", code: "215", short_code: "*7799#" },
-      { bank: "Heritage Bank", code: "030", short_code: "*745#" },
-      { bank: "Keystone Bank", code: "082", short_code: "*533#" },
-      { bank: "Jaiz Bank", code: "301", short_code: "*389#" },
-      { bank: "Polaris Bank", code: "076", short_code: "*833#" },
-      { bank: "Providus Bank", code: "101", short_code: null },
-      { bank: "Titan Trust Bank", code: "102", short_code: null },
-      { bank: "SunTrust Bank", code: "100", short_code: null },
-      { bank: "Globus Bank", code: "103", short_code: null },
-    ];
     await Banks.insertMany(banks);
     console.log('Banks seeded successfully');
   }

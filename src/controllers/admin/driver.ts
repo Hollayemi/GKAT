@@ -108,7 +108,7 @@ export const getDriverById = asyncHandler(async (req: Request, res: Response, ne
 
 export const createDriver = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const {
-        fullName, email, phone, city, state, vehicleType, vehiclePlateNumber,
+        fullName, email, phone, city, state, address, vehicleType, vehiclePlateNumber,
         region, employmentType, vehicleModel, vehicleColor, assignedBranch,
         licenseNumber, licenseExpiry, emergencyContactName, emergencyContactPhone,
         emergencyContactRelationship
@@ -166,6 +166,7 @@ export const createDriver = asyncHandler(async (req: Request, res: Response, nex
 
     const driver = await Driver.create({
         userId: existingUser._id, phone, vehicleType, vehicleModel,
+        state, city, address,
         vehiclePlateNumber: vehiclePlateNumber.toUpperCase().replace(/\s/g, ''),
         vehicleColor, profilePhoto: profilePhotoUrl, driversLicense: driversLicenseUrl,
         vehiclePhoto: vehiclePhotoUrl,
@@ -197,8 +198,8 @@ export const createDriver = asyncHandler(async (req: Request, res: Response, nex
 export const updateDriver = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const driver = await Driver.findById(req.params.id).populate('userId', 'name email').exec() as any;
     if (!driver) return next(new AppError('Driver not found', 404));
-    if (req.body.email && req.body.email !== driver.userId?.email) return next(new AppError('Email cannot be changed', 400));
-
+    // if (req.body.email && req.body.email !== driver.userId?.email) return next(new AppError('Email cannot be changed', 400));
+  console.log('Update data:', req.body);
     if (req.body.vehiclePlateNumber) {
         const plateNumber = req.body.vehiclePlateNumber.toUpperCase().replace(/\s/g, '');
         if (plateNumber !== driver.vehiclePlateNumber) {
@@ -207,8 +208,19 @@ export const updateDriver = asyncHandler(async (req: Request, res: Response, nex
         }
     }
 
+    
+  
     if (req.files) {
         const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+        if (files.vehiclePhoto?.[0]) {
+            try {
+                const result = await CloudinaryService.uploadImage(files.vehiclePhoto[0], 'go-kart/drivers/profiles');
+                const vehiclePhotoUrl = result.url;
+                req.body.vehiclePhoto = vehiclePhotoUrl
+            } catch (error: any) {
+                return next(new AppError(`Profile photo upload failed: ${error.message}`, 400));
+            }
+        }
         if (files.profilePhoto?.[0]) {
             try {
                 if (driver.profilePhoto) await CloudinaryService.deleteImage(driver.profilePhoto);
@@ -237,6 +249,8 @@ export const updateDriver = asyncHandler(async (req: Request, res: Response, nex
         };
     }
     if (req.body.vehiclePlateNumber) req.body.vehiclePlateNumber = req.body.vehiclePlateNumber.toUpperCase().replace(/\s/g, '');
+
+    
 
     const updatedDriver = await Driver.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true }).select('-password -passwordSetupToken -passwordSetupExpiry');
 

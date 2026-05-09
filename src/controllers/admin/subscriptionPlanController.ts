@@ -38,10 +38,10 @@ export const getAllPlans = asyncHandler(async (req: Request, res: Response) => {
         {
             plans: plansWithStats,
             pagination: {
-                page: pageNum,
+                currentPage: pageNum,
                 limit: limitNum,
                 total,
-                pages: Math.ceil(total / limitNum)
+                totalPages: Math.ceil(total / limitNum)
             }
         },
         'Subscription plans retrieved successfully'

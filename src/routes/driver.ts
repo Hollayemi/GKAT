@@ -55,6 +55,7 @@ router.put(
     checkPermission('view_users'),
     upload.fields([
         { name: 'profilePhoto', maxCount: 1 },
+        { name: 'vehiclePhoto', maxCount: 1 },
         { name: 'driversLicense', maxCount: 1 }
     ]),
     validateDriverUpdate,

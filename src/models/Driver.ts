@@ -12,6 +12,9 @@ export interface IDriver extends Document {
     // Basic Information
     userId: Types.ObjectId; // Reference to User model
     phone: string;
+    state?: string;
+    city?: string;
+    address?: string;
 
     // Vehicle Information
     vehicleType: 'motorcycle' | 'bicycle' | 'car' | 'van' | 'truck';
@@ -84,6 +87,18 @@ const DriverSchema = new Schema<IDriver>({
         ref: 'User',
         required: true,
         unique: true
+    },
+    state: {
+        type: String,
+        trim: true
+    },
+    city: {
+        type: String,
+        trim: true
+    },
+    address: {
+        type: String,
+        trim: true
     },
     phone: {
         type: String,
