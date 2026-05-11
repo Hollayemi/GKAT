@@ -101,6 +101,7 @@ import riderRoutes from './routes/rider';
 import customer from './routes/admin/customer';
 import subscriptionRoutes from './routes/subscription';
 import adminSubscriptionPlanRoutes from './routes/admin/subscriptionPlan';
+import dashboardOverview from './routes/dashboardOverview';
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/product', productRoutes);
@@ -123,6 +124,7 @@ app.use('/api/v1/', Others);
 app.use('/api/v1/admin/customers', customer);
 app.use('/api/v1/subscriptions', subscriptionRoutes);
 app.use('/api/v1/admin/subscription-plans', adminSubscriptionPlanRoutes);
+app.use('/api/v1/dashboard', dashboardOverview);
 
 app.use('*', handle404);
 

@@ -1,0 +1,391 @@
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans)}
+.wrap{padding:1.5rem 0;max-width:680px}
+.step-bar{display:flex;align-items:center;gap:0;margin-bottom:2rem}
+.step-item{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;position:relative}
+.step-item:not(:last-child)::after{content:'';position:absolute;top:14px;left:50%;width:100%;height:1px;background:var(--color-border-tertiary);z-index:0}
+.step-dot{width:28px;height:28px;border-radius:50%;border:1.5px solid var(--color-border-secondary);background:var(--color-background-primary);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:var(--color-text-secondary);position:relative;z-index:1;transition:all .2s}
+.step-dot.done{background:#E8317A;border-color:#E8317A;color:#fff}
+.step-dot.active{background:#fff;border-color:#E8317A;color:#E8317A;box-shadow:0 0 0 3px rgba(232,49,122,.12)}
+.step-label{font-size:11px;color:var(--color-text-tertiary);text-align:center;white-space:nowrap}
+.step-label.active{color:#E8317A;font-weight:500}
+.step-label.done{color:var(--color-text-secondary)}
+.card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:1.5rem}
+.section-title{font-size:15px;font-weight:500;color:var(--color-text-primary);margin-bottom:4px}
+.section-sub{font-size:13px;color:var(--color-text-secondary);margin-bottom:1.25rem;line-height:1.5}
+.field{margin-bottom:1rem}
+.field label{display:block;font-size:12px;color:var(--color-text-secondary);margin-bottom:5px;font-weight:500}
+.field input,.field select,.field textarea{width:100%;font-size:13px}
+.field textarea{height:80px;resize:vertical}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.hint{font-size:11px;color:var(--color-text-tertiary);margin-top:3px}
+.err{font-size:11px;color:var(--color-text-danger);margin-top:3px;display:none}
+.tag-grid{display:flex;flex-wrap:wrap;gap:8px}
+.spec-tag{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;border:0.5px solid var(--color-border-secondary);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;color:var(--color-text-secondary);background:var(--color-background-primary)}
+.spec-tag.sel{border-color:#E8317A;background:rgba(232,49,122,.07);color:#E8317A}
+.spec-tag .ti{font-size:14px}
+.doc-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:0.5px solid var(--color-border-tertiary)}
+.doc-row:last-child{border-bottom:none}
+.doc-icon{width:36px;height:36px;border-radius:var(--border-radius-md);background:var(--color-background-secondary);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.doc-icon .ti{font-size:18px;color:var(--color-text-secondary)}
+.doc-info{flex:1;min-width:0}
+.doc-name{font-size:13px;font-weight:500;color:var(--color-text-primary)}
+.doc-hint{font-size:11px;color:var(--color-text-tertiary);margin-top:2px}
+.doc-status{font-size:11px;display:flex;align-items:center;gap:4px}
+.doc-status.pending{color:var(--color-text-tertiary)}
+.doc-status.uploaded{color:var(--color-text-success)}
+.upload-btn{font-size:12px;padding:5px 12px;white-space:nowrap;border-radius:var(--border-radius-md);cursor:pointer;border:0.5px solid var(--color-border-secondary);background:var(--color-background-secondary);color:var(--color-text-secondary);transition:all .15s}
+.upload-btn:hover{border-color:#E8317A;color:#E8317A}
+.upload-btn.done{border-color:var(--color-border-success);color:var(--color-text-success);background:var(--color-background-success)}
+.fee-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.fee-card{border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:12px;text-align:center}
+.fee-card .mode{font-size:12px;color:var(--color-text-secondary);margin-bottom:6px;display:flex;align-items:center;justify-content:center;gap:5px}
+.fee-card input{text-align:center;font-weight:500;font-size:16px;border:none;border-bottom:1.5px solid var(--color-border-secondary);border-radius:0;padding:2px 0;width:100%}
+.fee-card .currency{font-size:11px;color:var(--color-text-tertiary);margin-top:4px}
+.nav-row{display:flex;justify-content:space-between;align-items:center;margin-top:1.5rem}
+.btn-ghost{padding:8px 18px;border-radius:var(--border-radius-md);font-size:13px;font-weight:500;cursor:pointer;border:0.5px solid var(--color-border-secondary);background:transparent;color:var(--color-text-secondary);transition:all .15s}
+.btn-ghost:hover{background:var(--color-background-secondary)}
+.btn-pink{padding:8px 22px;border-radius:var(--border-radius-md);font-size:13px;font-weight:500;cursor:pointer;border:none;background:#E8317A;color:#fff;transition:all .15s}
+.btn-pink:hover{background:#d01f68}
+.progress-bar{height:3px;background:var(--color-border-tertiary);border-radius:2px;margin-bottom:1.5rem;overflow:hidden}
+.progress-fill{height:100%;background:#E8317A;border-radius:2px;transition:width .3s}
+.badge-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:500}
+.badge.yellow{background:#FFFBEB;color:#92400E;border:0.5px solid #FDE68A}
+.badge.green{background:#ECFDF5;color:#065F46;border:0.5px solid #6EE7B7}
+.badge.blue{background:#EFF6FF;color:#1E3A8A;border:0.5px solid #93C5FD}
+.review-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--color-border-tertiary);font-size:13px}
+.review-row:last-child{border-bottom:none}
+.review-label{color:var(--color-text-secondary)}
+.review-val{font-weight:500;color:var(--color-text-primary);text-align:right;max-width:65%}
+.nba-note{font-size:12px;color:var(--color-text-secondary);background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:8px 12px;margin-top:8px;display:flex;align-items:flex-start;gap:8px}
+.nba-note .ti{font-size:14px;color:var(--color-text-tertiary);margin-top:1px;flex-shrink:0}
+.nba-note span{line-height:1.5}
+.sel-count{font-size:11px;color:var(--color-text-secondary);margin-bottom:10px}
+</style>
+<div class="wrap">
+<div class="step-bar" id="stepBar"></div>
+<div class="progress-bar"><div class="progress-fill" id="prog"></div></div>
+<div class="card" id="cardArea"></div>
+</div>
+<script>
+const STEPS=[
+  {id:'personal',label:'Personal'},
+  {id:'professional',label:'Professional'},
+  {id:'specialisms',label:'Specialisms'},
+  {id:'fees',label:'Fees'},
+  {id:'documents',label:'Documents'},
+  {id:'review',label:'Review'}
+];
+
+const SPECIALISMS=[
+  {id:'criminal',label:'Criminal law',icon:'ti-shield'},
+  {id:'employment',label:'Employment & labour',icon:'ti-briefcase'},
+  {id:'property',label:'Property & tenancy',icon:'ti-home'},
+  {id:'family',label:'Family law',icon:'ti-users'},
+  {id:'business',label:'Business & commerce',icon:'ti-building'},
+  {id:'constitutional',label:'Constitutional rights',icon:'ti-scale'},
+  {id:'consumer',label:'Consumer protection',icon:'ti-receipt'},
+  {id:'road',label:'Road traffic',icon:'ti-car'},
+  {id:'contracts',label:'Contracts & agreements',icon:'ti-file-text'},
+  {id:'tax',label:'Tax & revenue',icon:'ti-coin'},
+  {id:'ip',label:'Intellectual property',icon:'ti-bulb'},
+  {id:'immigration',label:'Immigration',icon:'ti-plane'},
+];
+
+const DOCS=[
+  {label:'Call to Bar certificate',hint:'Official certificate from the Nigerian Law School',icon:'ti-certificate'},
+  {label:'Law School certificate',hint:'Degree certificate from an accredited law faculty',icon:'ti-school'},
+  {label:'Practicing license 2025',hint:'Current Supreme Court practicing certificate for 2025',icon:'ti-id'},
+  {label:'Government-issued ID',hint:'National ID, International Passport, or Voter's Card',icon:'ti-user-check'},
+];
+
+const state={
+  step:0,
+  firstName:'',lastName:'',phone:'',avatarUrl:'',
+  nbaNumber:'',yearOfCall:'',calledAt:'',title:'',bio:'',location:'',state:'',languages:['English'],
+  specialisms:[],
+  fees:{message:5000,call:12000,video:18000},
+  docs:[false,false,false,false]
+};
+
+function renderBar(){
+  const bar=document.getElementById('stepBar');
+  bar.innerHTML=STEPS.map((s,i)=>{
+    const cls=i<state.step?'done':i===state.step?'active':'';
+    const lCls=i<state.step?'done':i===state.step?'active':'';
+    const icon=i<state.step?'<i class="ti ti-check"></i>':(i+1);
+    return `<div class="step-item">
+      <div class="step-dot ${cls}">${icon}</div>
+      <span class="step-label ${lCls}">${s.label}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('prog').style.width=((state.step/5)*100)+'%';
+}
+
+function fld(label,inputHtml,hint='',errId=''){
+  return `<div class="field">
+    <label>${label}</label>
+    ${inputHtml}
+    ${hint?`<p class="hint">${hint}</p>`:''}
+    ${errId?`<p class="err" id="${errId}"></p>`:''}
+  </div>`;
+}
+
+function inp(id,placeholder,type='text',val=''){
+  return `<input id="${id}" type="${type}" placeholder="${placeholder}" value="${val}" />`;
+}
+
+function sel(id,opts,curVal=''){
+  return `<select id="${id}">${opts.map(o=>`<option value="${o.v}" ${curVal==o.v?'selected':''}>${o.l}</option>`).join('')}</select>`;
+}
+
+const STATES=[{v:'',l:'Select state'},{v:'abia',l:'Abia'},{v:'adamawa',l:'Adamawa'},{v:'akwa-ibom',l:'Akwa Ibom'},{v:'anambra',l:'Anambra'},{v:'bauchi',l:'Bauchi'},{v:'bayelsa',l:'Bayelsa'},{v:'benue',l:'Benue'},{v:'borno',l:'Borno'},{v:'cross-river',l:'Cross River'},{v:'delta',l:'Delta'},{v:'ebonyi',l:'Ebonyi'},{v:'edo',l:'Edo'},{v:'ekiti',l:'Ekiti'},{v:'enugu',l:'Enugu'},{v:'fct',l:'FCT (Abuja)'},{v:'gombe',l:'Gombe'},{v:'imo',l:'Imo'},{v:'jigawa',l:'Jigawa'},{v:'kaduna',l:'Kaduna'},{v:'kano',l:'Kano'},{v:'katsina',l:'Katsina'},{v:'kebbi',l:'Kebbi'},{v:'kogi',l:'Kogi'},{v:'kwara',l:'Kwara'},{v:'lagos',l:'Lagos'},{v:'nasarawa',l:'Nasarawa'},{v:'niger',l:'Niger'},{v:'ogun',l:'Ogun'},{v:'ondo',l:'Ondo'},{v:'osun',l:'Osun'},{v:'oyo',l:'Oyo'},{v:'plateau',l:'Plateau'},{v:'rivers',l:'Rivers'},{v:'sokoto',l:'Sokoto'},{v:'taraba',l:'Taraba'},{v:'yobe',l:'Yobe'},{v:'zamfara',l:'Zamfara'}];
+
+const TITLES=[{v:'',l:'Select title'},{v:'Barrister & Solicitor',l:'Barrister & Solicitor'},{v:'Senior Advocate of Nigeria',l:'Senior Advocate of Nigeria (SAN)'},{v:'Associate',l:'Associate'},{v:'Partner',l:'Partner'},{v:'Principal Partner',l:'Principal Partner'},{v:'Solicitor',l:'Solicitor'}];
+
+const YEARS=[];for(let y=new Date().getFullYear();y>=1960;y--)YEARS.push({v:y,l:y});
+YEARS.unshift({v:'',l:'Year of call'});
+
+function navButtons(backLabel='Back',fwdLabel='Continue'){
+  const back=state.step===0?'':`<button class="btn-ghost" id="backBtn">${backLabel}</button>`;
+  return `<div class="nav-row">${back}<div></div><button class="btn-pink" id="fwdBtn">${state.step===5?'Submit application':fwdLabel}</button></div>`;
+}
+
+const stepRenderers=[
+  // Step 0: Personal
+  ()=>`
+    <p class="section-title">Personal information</p>
+    <p class="section-sub">This is used to personalise your profile. Your full name appears on your marketplace listing.</p>
+    <div class="field-row">
+      ${fld('First name',inp('fn','Adaeze','text',state.firstName),'','fnErr')}
+      ${fld('Last name',inp('ln','Okonkwo','text',state.lastName),'','lnErr')}
+    </div>
+    ${fld('Phone number',`<div style="display:flex;gap:8px"><div style="display:flex;align-items:center;padding:0 10px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);font-size:13px;color:var(--color-text-secondary);white-space:nowrap;background:var(--color-background-secondary)">🇳🇬 +234</div><input id="phone" type="tel" placeholder="080 0000 0000" value="${state.phone}" style="flex:1" /></div>`,'Nigerian number required','phoneErr')}
+    ${fld('Profile photo URL',inp('avatar','https://… (optional)','text',state.avatarUrl),'Leave blank to use your initials as an avatar')}
+    ${navButtons('','Continue')}
+  `,
+
+  // Step 1: Professional
+  ()=>`
+    <p class="section-title">Professional credentials</p>
+    <p class="section-sub">This information is verified against Nigerian Bar Association records before your profile goes live.</p>
+    ${fld('NBA registration number',inp('nba','NBA/LAG/2014/01847','text',state.nbaNumber),
+      '','nbaErr')}
+    <div class="nba-note"><i class="ti ti-info-circle"></i><span>Format: NBA / [3-letter state code] / [year] / [5-digit serial]. Example: NBA/LAG/2014/01847</span></div>
+    <div style="margin-top:1rem"></div>
+    <div class="field-row">
+      ${fld('Year of call',sel('yoc',YEARS,state.yearOfCall),'','yocErr')}
+      ${fld('Called at (e.g. 2014)',inp('calledAt','2014','text',state.calledAt))}
+    </div>
+    ${fld('Professional title',sel('title',TITLES,state.title),'','titleErr')}
+    ${fld('Location / city',inp('location','Victoria Island, Lagos','text',state.location))}
+    ${fld('State',sel('state_field',STATES,state.state),'','stateErr')}
+    ${fld('Bio',`<textarea id="bio" placeholder="Describe your practice area and experience in 2–4 sentences. Minimum 100 characters.">${state.bio}</textarea>`,'Shown publicly on your marketplace profile. Min 100 characters.','bioErr')}
+    ${navButtons()}
+  `,
+
+  // Step 2: Specialisms
+  ()=>`
+    <p class="section-title">Practice areas</p>
+    <p class="section-sub">Select 1–5 areas. Citizens searching the marketplace filter by specialism, so choose only what you actively practise.</p>
+    <p class="sel-count" id="selCount">${state.specialisms.length} / 5 selected</p>
+    <div class="tag-grid">
+      ${SPECIALISMS.map(s=>{
+        const sel=state.specialisms.includes(s.id);
+        return `<button class="spec-tag ${sel?'sel':''}" data-id="${s.id}" onclick="toggleSpec('${s.id}')">
+          <i class="ti ${s.icon}" aria-hidden="true"></i>${s.label}${sel?'<i class="ti ti-check" style="font-size:12px;opacity:.7"></i>':''}
+        </button>`;
+      }).join('')}
+    </div>
+    ${navButtons()}
+  `,
+
+  // Step 3: Fees
+  ()=>`
+    <p class="section-title">Consultation fees</p>
+    <p class="section-sub">Set your per-session fees in NGN. These are shown to citizens before they book. LawTicha deducts a 15% platform commission.</p>
+    <div class="fee-grid">
+      <div class="fee-card">
+        <div class="mode"><i class="ti ti-message-circle" aria-hidden="true"></i> Written</div>
+        <input id="feeMsg" type="number" value="${state.fees.message}" min="500" step="500" />
+        <p class="currency">NGN per session</p>
+      </div>
+      <div class="fee-card">
+        <div class="mode"><i class="ti ti-phone" aria-hidden="true"></i> Call</div>
+        <input id="feeCall" type="number" value="${state.fees.call}" min="2000" step="500" />
+        <p class="currency">NGN per session</p>
+      </div>
+      <div class="fee-card">
+        <div class="mode"><i class="ti ti-video" aria-hidden="true"></i> Video</div>
+        <input id="feeVid" type="number" value="${state.fees.video}" min="3000" step="500" />
+        <p class="currency">NGN per session</p>
+      </div>
+    </div>
+    <div class="nba-note" style="margin-top:1rem"><i class="ti ti-info-circle"></i><span>Minimums: written NGN 500 · call NGN 2,000 · video NGN 3,000. You receive the fee minus 15% platform commission.</span></div>
+    ${navButtons()}
+  `,
+
+  // Step 4: Documents
+  ()=>`
+    <p class="section-title">Verification documents</p>
+    <p class="section-sub">All four documents are required. They are reviewed by the LawTicha compliance team within 48–72 hours and are never shared publicly.</p>
+    <div>
+      ${DOCS.map((d,i)=>`
+        <div class="doc-row">
+          <div class="doc-icon"><i class="ti ${d.icon}" aria-hidden="true"></i></div>
+          <div class="doc-info">
+            <p class="doc-name">${d.label}</p>
+            <p class="doc-hint">${d.hint}</p>
+            ${state.docs[i]?`<p class="doc-status uploaded"><i class="ti ti-circle-check"></i> Uploaded</p>`
+              :`<p class="doc-status pending"><i class="ti ti-circle"></i> Not uploaded</p>`}
+          </div>
+          <button class="upload-btn ${state.docs[i]?'done':''}" onclick="uploadDoc(${i})" id="upBtn${i}">
+            ${state.docs[i]?'<i class="ti ti-check"></i> Done':'<i class="ti ti-upload"></i> Upload'}
+          </button>
+        </div>
+      `).join('')}
+    </div>
+    ${navButtons()}
+  `,
+
+  // Step 5: Review
+  ()=>{
+    const specLabels=state.specialisms.map(id=>SPECIALISMS.find(s=>s.id===id)?.label||id).join(', ');
+    const allDocs=state.docs.every(Boolean);
+    return `
+      <p class="section-title">Review your application</p>
+      <p class="section-sub">Check everything below. Once submitted, our team will verify your credentials within 48–72 hours and notify you by email.</p>
+      
+      <p style="font-size:12px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Personal</p>
+      <div class="review-row"><span class="review-label">Name</span><span class="review-val">${state.firstName||'—'} ${state.lastName||''}</span></div>
+      <div class="review-row"><span class="review-label">Phone</span><span class="review-val">${state.phone||'—'}</span></div>
+      
+      <p style="font-size:12px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px">Professional</p>
+      <div class="review-row"><span class="review-label">NBA number</span><span class="review-val" style="font-family:var(--font-mono);font-size:12px">${state.nbaNumber||'—'}</span></div>
+      <div class="review-row"><span class="review-label">Year of call</span><span class="review-val">${state.yearOfCall||'—'}</span></div>
+      <div class="review-row"><span class="review-label">Title</span><span class="review-val">${state.title||'—'}</span></div>
+      <div class="review-row"><span class="review-label">State</span><span class="review-val">${STATES.find(s=>s.v===state.state)?.l||'—'}</span></div>
+      
+      <p style="font-size:12px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px">Specialisms</p>
+      <div style="padding:6px 0">
+        <div class="badge-row">${state.specialisms.length?state.specialisms.map(id=>{const s=SPECIALISMS.find(x=>x.id===id);return `<span class="badge blue"><i class="ti ${s.icon}" style="font-size:11px"></i>${s.label}</span>`}).join(''):'<span style="font-size:13px;color:var(--color-text-tertiary)">None selected</span>'}</div>
+      </div>
+      
+      <p style="font-size:12px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px">Fees (NGN)</p>
+      <div class="review-row"><span class="review-label">Written</span><span class="review-val">NGN ${state.fees.message.toLocaleString()}</span></div>
+      <div class="review-row"><span class="review-label">Call</span><span class="review-val">NGN ${state.fees.call.toLocaleString()}</span></div>
+      <div class="review-row"><span class="review-label">Video</span><span class="review-val">NGN ${state.fees.video.toLocaleString()}</span></div>
+      
+      <p style="font-size:12px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px">Documents</p>
+      <div class="badge-row">
+        ${DOCS.map((d,i)=>`<span class="badge ${state.docs[i]?'green':'yellow'}">${state.docs[i]?'<i class="ti ti-check" style="font-size:11px"></i>':'<i class="ti ti-clock" style="font-size:11px"></i>'}${d.label}</span>`).join('')}
+      </div>
+      
+      ${!allDocs?`<div class="nba-note" style="margin-top:1rem;background:rgba(245,158,11,.08);border-left:3px solid #F59E0B;border-radius:0 var(--border-radius-md) var(--border-radius-md) 0"><i class="ti ti-alert-triangle" style="color:#F59E0B"></i><span style="color:#92400E">Some documents are missing. You can still submit — the compliance team will request them before approval.</span></div>`:''}
+      
+      <div class="nba-note" style="margin-top:.75rem"><i class="ti ti-lock"></i><span>By submitting, you confirm that all information is accurate and agree to the LawTicha Lawyer Terms of Service.</span></div>
+      ${navButtons('Back','Submit application')}
+    `;
+  }
+];
+
+function toggleSpec(id){
+  const idx=state.specialisms.indexOf(id);
+  if(idx>-1){state.specialisms.splice(idx,1)}
+  else if(state.specialisms.length<5){state.specialisms.push(id)}
+  render();
+}
+
+function uploadDoc(i){
+  state.docs[i]=!state.docs[i];
+  render();
+}
+
+function saveStep(){
+  if(state.step===0){
+    state.firstName=document.getElementById('fn')?.value||'';
+    state.lastName=document.getElementById('ln')?.value||'';
+    state.phone=document.getElementById('phone')?.value||'';
+    state.avatarUrl=document.getElementById('avatar')?.value||'';
+  } else if(state.step===1){
+    state.nbaNumber=document.getElementById('nba')?.value||'';
+    state.yearOfCall=document.getElementById('yoc')?.value||'';
+    state.calledAt=document.getElementById('calledAt')?.value||'';
+    state.title=document.getElementById('title')?.value||'';
+    state.location=document.getElementById('location')?.value||'';
+    state.state=document.getElementById('state_field')?.value||'';
+    state.bio=document.getElementById('bio')?.value||'';
+  } else if(state.step===3){
+    state.fees.message=parseInt(document.getElementById('feeMsg')?.value)||5000;
+    state.fees.call=parseInt(document.getElementById('feeCall')?.value)||12000;
+    state.fees.video=parseInt(document.getElementById('feeVid')?.value)||18000;
+  }
+}
+
+function validate(){
+  let ok=true;
+  if(state.step===0){
+    if(!state.firstName){showErr('fnErr','First name is required');ok=false}
+    if(!state.lastName){showErr('lnErr','Last name is required');ok=false}
+    if(!state.phone){showErr('phoneErr','Phone number is required');ok=false}
+  } else if(state.step===1){
+    const re=/^NBA\/[A-Z]{3}\/\d{4}\/\d{5}$/i;
+    if(!state.nbaNumber||!re.test(state.nbaNumber.trim())){showErr('nbaErr','Format: NBA/LAG/2014/01847');ok=false}
+    if(!state.yearOfCall){showErr('yocErr','Year of call is required');ok=false}
+    if(!state.title){showErr('titleErr','Title is required');ok=false}
+    if(!state.state){showErr('stateErr','State is required');ok=false}
+    if(state.bio.length<100){showErr('bioErr',`Bio too short (${state.bio.length}/100 chars)`);ok=false}
+  } else if(state.step===2){
+    if(!state.specialisms.length){ok=false}
+  }
+  return ok;
+}
+
+function showErr(id,msg){
+  const el=document.getElementById(id);
+  if(el){el.style.display='block';el.textContent=msg}
+}
+
+function render(){
+  renderBar();
+  document.getElementById('cardArea').innerHTML=stepRenderers[state.step]();
+  const fwd=document.getElementById('fwdBtn');
+  const back=document.getElementById('backBtn');
+  if(fwd) fwd.addEventListener('click',()=>{
+    saveStep();
+    if(state.step===5){
+      document.getElementById('cardArea').innerHTML=`
+        <div style="text-align:center;padding:2rem 0">
+          <div style="width:56px;height:56px;border-radius:50%;background:#ECFDF5;border:2px solid #6EE7B7;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem">
+            <i class="ti ti-circle-check" style="font-size:28px;color:#10B981"></i>
+          </div>
+          <p style="font-size:17px;font-weight:500;color:var(--color-text-primary);margin-bottom:6px">Application submitted</p>
+          <p style="font-size:13px;color:var(--color-text-secondary);line-height:1.6;max-width:340px;margin:0 auto 1.5rem">Your credentials are being reviewed by the LawTicha compliance team. You'll receive an email within 48–72 hours.</p>
+          <div style="display:flex;flex-direction:column;gap:8px;max-width:240px;margin:0 auto">
+            <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--color-text-secondary)"><i class="ti ti-check" style="color:#10B981"></i>Application received</div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--color-text-tertiary)"><i class="ti ti-circle-dashed" style="color:var(--color-text-tertiary)"></i>Credential check (48–72 hrs)</div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--color-text-tertiary)"><i class="ti ti-circle-dashed" style="color:var(--color-text-tertiary)"></i>Platform orientation</div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--color-text-tertiary)"><i class="ti ti-circle-dashed" style="color:var(--color-text-tertiary)"></i>Assessment</div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--color-text-tertiary)"><i class="ti ti-circle-dashed" style="color:var(--color-text-tertiary)"></i>Verified badge issued</div>
+          </div>
+        </div>`;
+      document.getElementById('prog').style.width='100%';
+      renderBar();
+      return;
+    }
+    if(!validate())return;
+    state.step=Math.min(5,state.step+1);
+    render();
+  });
+  if(back) back.addEventListener('click',()=>{
+    saveStep();
+    state.step=Math.max(0,state.step-1);
+    render();
+  });
+}
+
+render();
+</script>
