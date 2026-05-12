@@ -241,6 +241,73 @@ export const getEarningsOverview = asyncHandler(
     }
 );
 
+export const createTransactionPin = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) return next(new AppError('Not authenticated', 401));
+
+    const driver = await Driver.findOne({ userId: req.user._id });
+    if (!driver) return next(new AppError('Driver profile not found', 404));
+
+    const wallet = await DriverWallet.findOne({ driverId: driver._id });
+    if(!wallet) return next(new AppError('Wallet profile not found', 404));
+
+    const { pin } = req.body
+    console.log({pin})
+    const result = await wallet.setTransactionPin(pin);
+
+
+    (res as AppResponse).success('Transaction Pin Set Successfully');
+})
+
+export const validateTransactioPinHandler = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) return next(new AppError('Not authenticated', 401));
+
+    const driver = await Driver.findOne({ userId: req.user._id });
+    if (!driver) return next(new AppError('Driver profile not found', 404));
+
+    const wallet = await DriverWallet.findOne({ driverId: driver._id });
+    if(!wallet) return next(new AppError('Wallet profile not found', 404));
+
+    const { pin } = req.body
+    console.log({pin})
+    const result = await wallet.validateTransactionPin(pin);
+
+    console.log({result})
+
+    if(!result) return next(new AppError('Pin not match', 404));
+
+    (res as AppResponse).success('Transaction Pin Verified Successfully');
+})
+export const changeTransactioPinHandler = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) return next(new AppError('Not authenticated', 401));
+
+    const driver = await Driver.findOne({ userId: req.user._id });
+    if (!driver) return next(new AppError('Driver profile not found', 404));
+
+    const wallet = await DriverWallet.findOne({ driverId: driver._id });
+    if(!wallet) return next(new AppError('Wallet profile not found', 404));
+
+    const { oldPin, newPin } = req.body
+    const result = await wallet.changeTransactionPin(oldPin, newPin);
+
+
+    (res as AppResponse).success('Transaction Pin Changed Successfully');
+})
+export const getBanks = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) return next(new AppError('Not authenticated', 401));
+
+    const driver = await Driver.findOne({ userId: req.user._id });
+    if (!driver) return next(new AppError('Driver profile not found', 404));
+
+    const wallet = await DriverWallet.findOne({ driverId: driver._id });
+    if(!wallet) return next(new AppError('Wallet profile not found', 404));
+
+
+      (res as AppResponse).data(wallet.bankAccounts, 'Wallet retrieved successfully');
+})
+
+
+
+
 export const getWallet = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 

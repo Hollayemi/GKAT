@@ -27,8 +27,12 @@ import {
 import {
     getEarningsOverview,
     getWallet,
+    createTransactionPin,
+    validateTransactioPinHandler,
+    changeTransactioPinHandler,
     getTransactions,
     withdrawEarnings,
+    getBanks,
     addBankAccount,
     deleteBankAccount,
     setDefaultBankAccount,
@@ -93,12 +97,16 @@ router.post('/orders/:deliveryId/rate-customer', rateCustomer);
 // Earnings & Wallet
 router.get('/earnings/overview', getEarningsOverview);
 router.get('/earnings/wallet', getWallet);
+router.post('/earnings/set-pin', createTransactionPin);
+router.post('/earnings/validate-pin', validateTransactioPinHandler);
+router.post('/earnings/change-pin', changeTransactioPinHandler);
 router.get('/earnings/transactions', getTransactions);
 router.get('/earnings/summary', getEarningsSummary);
 router.post('/earnings/withdraw', withdrawEarnings);
 router.get('/earnings/auto-payout', getAutoPayoutSettings);
 router.put('/earnings/auto-payout', updateAutoPayoutSettings);
 router.post('/earnings/bank-accounts', addBankAccount);
+router.get('/earnings/bank-accounts', getBanks);
 router.delete('/earnings/bank-accounts/:accountId', deleteBankAccount);
 router.patch('/earnings/bank-accounts/:accountId/default', setDefaultBankAccount);
 

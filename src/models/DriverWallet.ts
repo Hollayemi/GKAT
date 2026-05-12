@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema, Types } from 'mongoose';
+import bcrypt from 'bcryptjs';
 
 export type TransactionType = 'credit' | 'debit';
 export type TransactionStatus = 'pending' | 'completed' | 'failed';
@@ -52,6 +53,9 @@ export interface IDriverWallet extends Document {
     totalWithdrawn: number;
     totalDeliveries: number;
 
+    isTransactionPin: boolean;
+    transactionPin: string;
+
     transactions: IWalletTransaction[];
     bankAccounts: IBankAccount[];
     autoPayoutSettings: IAutoPayoutSettings;
@@ -59,6 +63,9 @@ export interface IDriverWallet extends Document {
     createdAt: Date;
     updatedAt: Date;
 
+    validateTransactionPin (pin:any):Promise<IDriverWallet>;
+    changeTransactionPin (oldPin:any, newPin:any):Promise<IDriverWallet>;
+    setTransactionPin (pin:any):Promise<IDriverWallet>;
     creditEarning(amount: number, description: string, referenceId?: Types.ObjectId): Promise<IDriverWallet>;
     debitWithdrawal(amount: number, description: string, referenceId?: Types.ObjectId): Promise<IDriverWallet>;
 }
@@ -123,6 +130,11 @@ const DriverWalletSchema = new Schema<IDriverWallet>({
         required: true,
         index: true
     },
+    isTransactionPin: {
+        type: Boolean,
+        default: false
+    },
+    transactionPin: { type: String },
     balance: { type: Number, default: 0, min: 0 },
     totalEarned: { type: Number, default: 0, min: 0 },
     totalWithdrawn: { type: Number, default: 0, min: 0 },
@@ -136,8 +148,58 @@ const DriverWalletSchema = new Schema<IDriverWallet>({
     toObject: { virtuals: true }
 });
 
+const hashPin = async (pin: string): Promise<string> => {
+    const saltRounds = 10;
+    return bcrypt.hash(pin, saltRounds);
+};
+
 DriverWalletSchema.index({ driverId: 1 });
 DriverWalletSchema.index({ 'transactions.createdAt': -1 });
+
+DriverWalletSchema.methods.setTransactionPin = async function(pin: string): Promise<void> {
+    if (!pin || !/^\d{4,6}$/.test(pin)) {
+        throw new Error('Transaction PIN must be 4-6 digits');
+    }
+    
+    const hashedPin = await hashPin(pin);
+    this.transactionPin = hashedPin;
+    this.isTransactionPin = true;
+    await this.save();
+};
+
+
+DriverWalletSchema.methods.validateTransactionPin = async function(pin: string): Promise<boolean> {
+    if (!this.isTransactionPin || !this.transactionPin) {
+        return false;
+    }
+    
+    if (!pin || !/^\d{4,6}$/.test(pin)) {
+        return false;
+    }
+
+    return bcrypt.compare(pin, this.transactionPin);
+};
+
+DriverWalletSchema.methods.changeTransactionPin = async function(
+    oldPin: string,
+    newPin: string
+): Promise<void> {
+    if (!newPin || !/^\d{4,6}$/.test(newPin)) {
+        throw new Error('New transaction PIN must be 4-6 digits');
+    }
+    
+    // Verify old PIN
+    const isValid = await this.validateTransactionPin(oldPin);
+    if (!isValid) {
+        throw new Error('Invalid current transaction PIN');
+    }
+    
+    // Set new PIN
+    const hashedNewPin = await hashPin(newPin);
+    this.transactionPin = hashedNewPin;
+    this.isTransactionPin = true;
+    await this.save();
+};
 
 DriverWalletSchema.methods.creditEarning = async function (
     amount: number,

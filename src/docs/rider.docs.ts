@@ -735,6 +735,111 @@
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  *
+ * /rider/earnings/set-pin:
+ *   post:
+ *     summary: Set Transaction Pin
+ *     description: Let user set transaction pin
+ *     tags: [Rider - Earnings]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [pin]
+ *             properties:
+ *               pin:
+ *                 type: string
+ *                 description: transaction pin
+ *     responses:
+ *       200:
+ *         description: Pin Set
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/SuccessEnvelope'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/WalletDetail'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *
+ * 
+ * /rider/earnings/change-pin:
+ *   post:
+ *     summary: Change Transaction Pin
+ *     description: Let user change transaction pin
+ *     tags: [Rider - Earnings]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [oldPin, newPin]
+ *             properties:
+ *               oldPin:
+ *                 type: string
+ *                 description: transaction pin
+ *               newPin:
+ *                 type: string
+ *                 description: transaction pin
+ *     responses:
+ *       200:
+ *         description: Pin Changed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/SuccessEnvelope'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/WalletDetail'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *
+ * 
+ * /rider/earnings/validate-pin:
+ *   post:
+ *     summary: Validate Pin
+ *     description: Let user validate pin before transaction
+ *     tags: [Rider - Earnings]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [pin]
+ *             properties:
+ *               pin:
+ *                 type: string
+ *                 description: transaction pin
+ *     responses:
+ *       200:
+ *         description: Wallet retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/SuccessEnvelope'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/WalletDetail'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *
+ * 
  * /rider/earnings/transactions:
  *   get:
  *     summary: Get transaction history
