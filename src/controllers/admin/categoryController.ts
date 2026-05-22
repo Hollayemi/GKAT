@@ -185,10 +185,7 @@ export const updateCategory = asyncHandler(async (req: Request, res: Response, n
 });
 
 export const deleteCategory = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-    if (!req.user?.isAdmin) {
-        return next(new AppError('Not authorized to perform this action', 403));
-    }
-
+  
     const { id } = req.params;
 
     const category = await Category.findById(id);
@@ -207,7 +204,7 @@ export const deleteCategory = asyncHandler(async (req: Request, res: Response, n
 
     const relatedProds = await Product.find({ category: id }).lean()
 
-    relatedProds.map(async (e) => await deleteProductFunction(e.productId))
+    relatedProds.map(async (e) => await deleteProductFunction(e.id))
 
     await category.deleteOne();
 
