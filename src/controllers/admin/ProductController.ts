@@ -396,9 +396,9 @@ export const updateProduct = asyncHandler(async (req: Request, res: Response, ne
 });
 
 
-export const deleteProduct = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-    const product = await Product.findById(req.params.id);
-    if (!product) return next(new AppError('Product not found', 404));
+export const deleteProductFunction = async (id:string):Promise<any> => {
+ const product = await Product.findById(id);
+    if (!product) throw(new AppError('Product not found', 404));
 
     if (product.images && product.images.length > 0) {
         try {
@@ -409,6 +409,13 @@ export const deleteProduct = asyncHandler(async (req: Request, res: Response, ne
     }
 
     await product.deleteOne();
+
+    return true
+}
+
+export const deleteProduct = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    const product = await deleteProductFunction(req.params.id);
+
     (res as AppResponse).success('Product deleted successfully');
 });
 

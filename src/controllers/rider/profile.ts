@@ -12,6 +12,7 @@ export const getHomeStats = asyncHandler(async (req: Request, res: Response, nex
 
     const driver = await Driver.findOne({ userId: req.user._id })
         .populate('userId', 'name avatar')
+        .populate('region', 'name')
         .select('-password -passwordSetupToken -passwordSetupExpiry');
 
     if (!driver) return next(new AppError('Driver profile not found', 404));

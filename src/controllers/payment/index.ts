@@ -8,7 +8,6 @@ import { buildCartSummary } from '../../helpers/buildCartSummary';
 
 
 class PurchaseController {
-   
     static async paystackCallBackVerify(req: Request, res: Response): Promise<void> {
         const { reference, provider = 'paystack', platform = 'browser' } = req.query;
 
@@ -31,12 +30,10 @@ class PurchaseController {
             logger.info('Payment verification result:', verificationResult);
 
             if (verificationResult.success) {
-                // Get order slugs from the verification result
                 const orderSlugs = verificationResult.data?.orderSlugs || [];
                 const slugsParam = orderSlugs.length > 0 ? `&slugs=${orderSlugs.join("-")}` : '';
-
                 return res.redirect(
-                    `${redirectTo}/checkout/completed?payment=success&message=Payment verified successfully${slugsParam}`
+                    `${redirectTo}/checkout/completed?payment=success&message=Payment verified successfully${slugsParam}&deliveryPin=${verificationResult?.data?.deliveryPin}`
                 );
             } else {
                 logger.error('Payment verification failed:', verificationResult.error);
@@ -52,15 +49,13 @@ class PurchaseController {
         }
     }
 
-   
+
     static async handleWebhook(req: Request, res: Response): Promise<Response> {
         const { provider } = req.params;
         const signature = req.headers['x-paystack-signature'] as string;
 
-
         try {
             const paymentGateway = new PaymentGateway();
-
             // Verify webhook signature
             let isValid = false;
             switch (provider.toLowerCase()) {
@@ -79,16 +74,13 @@ class PurchaseController {
                 logger.warn(`Invalid webhook signature for ${provider}`);
                 return res.status(401).json({ error: 'Invalid signature' });
             }
-
             // Process the webhook event
             const event = req.body;
             if (event.event === 'charge.success') {
                 const reference = event.data.reference;
                 await paymentGateway.verifyPayment(provider, reference);
             }
-
             return res.status(200).json({ status: 'success' });
-
         } catch (error: any) {
             logger.error('Webhook processing error:', error);
             return res.status(500).json({ error: 'Webhook processing failed' });
@@ -131,7 +123,7 @@ class PurchaseController {
         }
     }
 
-   
+
     static async verifyPayment(req: Request, res: Response): Promise<Response> {
         try {
             const { reference, provider = 'paystack' } = req.body;

@@ -59,21 +59,17 @@ export interface IOrder extends Document {
     orderSlug: string;
     userId: Types.ObjectId;
     items: IOrderItem[];
-    
+
     shippingAddress: string;
     deliveryMethod: 'pickup' | 'delivery';
+    deliveryPin: string;
 
-    /**
-     * The delivery region resolved automatically at order creation time
-     * by comparing the shipping address coordinates to all active region
-     * coordinates (nearest region wins).
-    */
-   region?: Types.ObjectId;
-   
-   paymentInfo: IPaymentInfo;
-   orderStatus: OrderStatus;
-   pricing:any;
-   distanceToCustomerKm: any;
+    region?: Types.ObjectId;
+
+    paymentInfo: IPaymentInfo;
+    orderStatus: OrderStatus;
+    pricing: any;
+    distanceToCustomerKm: any;
     deliveryFee: number;
     driverId?: Types.ObjectId;
     serviceCharge: number;
@@ -187,6 +183,7 @@ const orderSchema = new Schema<IOrder, IOrderModel>({
     items: [orderItemSchema],
 
     shippingAddress: { type: String, required: true, ref: 'Address' },
+    deliveryPin: { type: String },
     deliveryMethod: { type: String, required: true, enum: ['pickup', 'delivery'], default: 'delivery' },
 
     // Region resolved at order creation time (nearest region to delivery address)
@@ -211,7 +208,7 @@ const orderSchema = new Schema<IOrder, IOrderModel>({
 
     appliedCoupons: [appliedCouponSchema],
 
-    pricing: {type:Object, default: {}},
+    pricing: { type: Object, default: {} },
 
     trackingNumber: { type: String, trim: true },
     carrier: { type: String, trim: true },

@@ -3,6 +3,7 @@ import { AppResponse, AppError, asyncHandler } from '../../middleware/error';
 import Category, { ICategory } from '../../models/config/category.model';
 import Product from '../../models/admin/Product';
 import CloudinaryService from '../../services/cloudinary';
+import { deleteProductFunction } from "./ProductController"
 
 export const getAllCategories = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const categories = await Category.findActiveCategories();
@@ -204,7 +205,12 @@ export const deleteCategory = asyncHandler(async (req: Request, res: Response, n
         }
     }
 
+    const relatedProds = await Product.find({ category: id }).lean()
+
+    relatedProds.map(async (e) => await deleteProductFunction(e.productId))
+
     await category.deleteOne();
+
 
     (res as AppResponse).data(
         null,

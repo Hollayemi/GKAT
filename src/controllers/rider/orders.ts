@@ -21,7 +21,7 @@ const calculateFare = (distanceKm: number, isPriority = false) => {
 
 //  Generate 4-digit delivery PIN 
 
-const generateDeliveryPin = (): string =>
+export const generateDeliveryPin = (): string =>
     Math.floor(1000 + Math.random() * 9000).toString();
 
 export const getAvailableOrders = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
@@ -262,7 +262,16 @@ export const confirmDelivery = asyncHandler(async (req: Request, res: Response, 
         driverId: driver._id
     });
 
+
+    if(!delivery) return next(new AppError('Delivery info not found', 404));
+
+    const order = await Order.findOne({ orderNumber: delivery.orderNumber })
+
     if (!delivery) return next(new AppError('Delivery not found', 404));
+
+    if (!order) return next(new AppError('Order not found', 404));
+
+    
 
     if (delivery.status !== 'arrived_at_customer') {
         return next(new AppError('You must arrive at the customer location first', 400));
@@ -278,7 +287,7 @@ export const confirmDelivery = asyncHandler(async (req: Request, res: Response, 
         return next(new AppError('Too many failed attempts. Please contact support.', 429));
     }
 
-    if (pin.toString() !== delivery.deliveryPin) {
+    if (pin.toString() !== order.deliveryPin) {
         delivery.pinAttempts += 1;
         await delivery.save();
         const remaining = 5 - delivery.pinAttempts;
@@ -557,7 +566,6 @@ export const dispatchOrderToDrivers = asyncHandler(async (req: Request, res: Res
 
     const distanceKm = req.body.distanceKm || 3.5; // fallback; real impl uses geo calculation
     const fare = calculateFare(distanceKm, isPriority);
-    const pin = generateDeliveryPin();
 
     const shippingAddr = order.shippingAddress as any;
     const deliveryAddress = typeof shippingAddr === 'string'
@@ -573,7 +581,6 @@ export const dispatchOrderToDrivers = asyncHandler(async (req: Request, res: Res
         deliveryAddress,
         distanceKm,
         fareBreakdown: fare,
-        deliveryPin: pin,
         broadcastedAt: new Date(),
         expiresAt: new Date(Date.now() + 20 * 1000),
         status: 'pending_acceptance',
@@ -583,17 +590,6 @@ export const dispatchOrderToDrivers = asyncHandler(async (req: Request, res: Res
             note: 'Order broadcasted to available drivers'
         }]
     });
-
-    // Send delivery PIN to customer
-    await NotificationController.saveAndSendNotification({
-        userId: order.userId.toString(),
-        title: 'Your Delivery PIN',
-        body: `Your 4-digit delivery code is: ${pin}. Share only with your driver.`,
-        type: 'order',
-        typeId: { orderId: order._id },
-        clickUrl: `/orders/${order._id}`,
-        priority: 'high'
-    }, 'user', { push_notification: true });
 
     (res as AppResponse).data(
         { delivery, fare },

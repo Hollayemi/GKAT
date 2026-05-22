@@ -300,6 +300,7 @@ class PaymentGateway extends PaymentLogging {
                 data: {
                     ...metadata,
                     orderSlugs: metadata.orderSlugs || [],
+                    deliveryPin: metadata.pin,
                     reference: transactionData.reference,
                     amount: transactionData.amount / 100, // Convert from kobo
                     paidAt: transactionData.paid_at,
@@ -422,6 +423,7 @@ class PaymentGateway extends PaymentLogging {
                 data: {
                     ...metadata,
                     orderSlugs: metadata.orderSlugs || [],
+                    deliveryPin: metadata.pin,
                     reference: transactionData.tx_ref,
                     amount: transactionData.amount,
                     paidAt: transactionData.created_at,

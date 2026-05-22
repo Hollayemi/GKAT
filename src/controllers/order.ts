@@ -11,6 +11,7 @@ import PaymentGateway from '../services/payment';
 import { findNearestRegion } from '../utils/geo';
 import mongoose from 'mongoose';
 import { buildCartSummary } from '../helpers/buildCartSummary';
+import { generateDeliveryPin } from './rider/orders';
 
 interface resolvedTypes {
     id: mongoose.Types.ObjectId;
@@ -25,7 +26,7 @@ async function resolveOrderRegion(
     const regions = await Region.find({ isActive: true }).lean();
     const nearest = findNearestRegion(lat, lng, regions);
     if (!nearest) return null;
-    return ({id: new mongoose.Types.ObjectId(nearest.regionId), distance: nearest.distanceKm});
+    return ({ id: new mongoose.Types.ObjectId(nearest.regionId), distance: nearest.distanceKm });
 }
 
 async function deductRegionalStock(
@@ -112,7 +113,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
     const orderSlug = await Order.generateOrderSlug();
 
     const paymentGateway = new PaymentGateway();
-
+    const pin = generateDeliveryPin();
     const orderData: any = {
         orderNumber,
         orderSlug,
@@ -120,6 +121,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
         items: cart.items,
         shippingAddress,
         deliveryMethod,
+        deliveryPin: pin,
         region: resolvedRegionId?.id ?? undefined,
         paymentInfo: {
             method: paymentMethod,
@@ -177,19 +179,30 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
         metadata: {
             type: 'purchase',
             orderId: order._id.toString(),
-            orderSlugs: order.orderSlug
+            orderSlugs: order.orderSlug,
+            pin
         }
     };
 
     const paymentResult = await paymentGateway.initializePayment(paymentMethod, paymentData);
+
+    await NotificationController.saveAndSendNotification({
+        userId: req.user.id,
+        title: 'Your Delivery PIN',
+        body: `Your 4-digit delivery code is: ${pin}. Share only with your driver.`,
+        type: 'order',
+        typeId: { orderId: order._id },
+        clickUrl: `/orders/${order._id}`,
+        priority: 'high'
+    }, 'user', { push_notification: true });
 
     await NotificationController.saveAndSendNotification(
         {
             userId: req.user.id,
             title: 'Order Placed Successfully',
             body: `Your order #${orderSlug} has been placed. Total: ₦${order.totalAmount.toLocaleString()}${subscriptionDiscount > 0
-                    ? ` (Go Prime saved you ₦${subscriptionDiscount.toLocaleString()}!)`
-                    : ''
+                ? ` (Go Prime saved you ₦${subscriptionDiscount.toLocaleString()}!)`
+                : ''
                 }`,
             type: 'order',
             typeId: { orderId: order._id },
