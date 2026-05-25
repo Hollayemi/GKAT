@@ -54,25 +54,17 @@ export const getAvailableOrders = asyncHandler(async (req: Request, res: Respons
         })
         .populate('userId', 'name avatar')
         .sort({ broadcastedAt: -1 })
-        .limit(5);
+        .limit(5).lean();
 
-    const myAssigned = await DriverDelivery.findOne({ driverId: driver._id, status: "pending_acceptance" }).populate({
-        path: 'orderId',
-        select: 'orderNumber orderSlug items totalAmount notes',
-        populate: { path: 'shippingAddress', select: 'address localGovernment state' }
-    })
-        .populate('userId', 'name avatar');
 
     (res as AppResponse).data(
         {
-            orders: myAssigned ? [myAssigned] : available,
-            hasAssigned: !!myAssigned  ,
+            orders: available.length > 0 ? available.map((each) => ({ ...each, hasAssigned: each.driverId === driver._id })) : [],
             count: available.length
         },
         'Available orders retrieved'
     );
 });
-
 
 
 export const acceptOrder = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
