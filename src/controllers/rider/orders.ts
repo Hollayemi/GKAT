@@ -56,10 +56,14 @@ export const getAvailableOrders = asyncHandler(async (req: Request, res: Respons
         .sort({ broadcastedAt: -1 })
         .limit(5).lean();
 
+        
+        
+    available.map((each) => console.log(each.driverId, driver._id ));
+        
 
     (res as AppResponse).data(
         {
-            orders: available.length > 0 ? available.map((each) => ({ ...each, hasAssigned: each.driverId === driver._id })) : [],
+            orders: available.length > 0 ? available.map((each) => ({ ...each, hasAssigned: each.driverId?.toString() === driver._id?.toString() })) : [],
             count: available.length
         },
         'Available orders retrieved'
