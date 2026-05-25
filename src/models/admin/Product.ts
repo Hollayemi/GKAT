@@ -43,7 +43,7 @@ export interface IProduct extends Document {
     minimumStockAlert: number;
 
     // Variants
-    variants: IProductVariant[];
+    variants?: IProductVariant[];
 
     // Regional Distribution
     regionalDistribution: IRegionalDistribution[];
@@ -85,7 +85,16 @@ const ProductVariantSchema = new Schema<IProductVariant>({
         required: true,
         enum: ['single', 'pack', 'carton', 'kg', 'litre', 'box']
     },
-
+    unitQuantity: {
+        type: Number,
+        required: true
+    },
+    stockQuantity: {
+        type: Number,
+        required: true,
+        default: 0,
+        min: [0, 'Stock cannot be negative']
+    },
     images: [{
         type: String
     }]
@@ -135,6 +144,7 @@ const ProductSchema = new Schema<IProduct>({
         required: [true, 'Please add a SKU'],
         unique: true,
         index: true,
+        sparse: true,
         uppercase: true,
         trim: true
     },
@@ -192,7 +202,11 @@ const ProductSchema = new Schema<IProduct>({
         default: 20,
         min: 0
     },
-    variants: [ProductVariantSchema],
+    variants: {
+        type: [ProductVariantSchema],
+        required: false,
+        default: []
+    },
     regionalDistribution: [RegionalDistributionSchema],
     inventoryRegions: [{
         type: String,

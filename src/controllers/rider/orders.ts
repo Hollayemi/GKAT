@@ -36,9 +36,11 @@ export const getAvailableOrders = asyncHandler(async (req: Request, res: Respons
         return next(new AppError('You must be online to see available orders', 403));
     }
 
-    if (driver.verificationStatus !== 'verified' || driver.status !== 'active') {
-        return next(new AppError('Your account is not active', 403));
+    if (driver.verificationStatus !== 'verified') {
+        return next(new AppError('Your account is not verified', 403));
     }
+
+    if(driver.status !== 'active') return next(new AppError('You are currently on delivery', 403));
 
     console.log(driver._id);
     // const available = await DriverDelivery.find({ status: "pending_acceptance" })
@@ -56,10 +58,6 @@ export const getAvailableOrders = asyncHandler(async (req: Request, res: Respons
         .sort({ broadcastedAt: -1 })
         .limit(5).lean();
 
-        
-        
-    available.map((each) => console.log(each.driverId, driver._id ));
-        
 
     (res as AppResponse).data(
         {

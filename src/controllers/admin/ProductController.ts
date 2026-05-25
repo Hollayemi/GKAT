@@ -344,11 +344,11 @@ export const createProduct = asyncHandler(async (req: Request, res: Response, ne
 
     const existingProduct = await Product.findOne({ sku: req.body.sku?.toUpperCase() });
     if (existingProduct) return next(new AppError('Product with this SKU already exists', 409));
-
+    console.log(req.body.variants)
     const product = await Product.create({
         ...req.body,
         salesPrice: parseFloat(req.body.salesPrice),
-        variants: JSON.parse(req.body.variants),
+        variants: req.body.variants?.length ? JSON.parse(req.body.variants) : null,
         stockQuantity: parseInt(req.body.stockQuantity),
         tags: JSON.parse(req.body.tags),
         regionalDistribution: JSON.parse(req.body.regionDistribution),
@@ -407,9 +407,7 @@ export const deleteProductFunction = async (id:string):Promise<any> => {
             console.error('Error deleting product images:', error);
         }
     }
-
     await product.deleteOne();
-
     return true
 }
 
@@ -430,8 +428,8 @@ export const updateStock = asyncHandler(async (req: Request, res: Response, next
         product.stockQuantity = stockQuantity;
     }
 
-    if (variantId && variantStock !== undefined) {
-        const variant = product.variants.find(v => v._id?.toString() === variantId);
+    if (variantId && variantStock !== undefined &&  product.variants) {
+        const variant = product.variants?.find(v => v._id?.toString() === variantId);
         if (!variant) return next(new AppError('Variant not found', 404));
         if (variantStock < 0) return next(new AppError('Stock quantity cannot be negative', 400));
         variant.stockQuantity = variantStock;
@@ -446,10 +444,12 @@ export const addVariant = asyncHandler(async (req: Request, res: Response, next:
     const product = await Product.findById(req.params.id);
     if (!product) return next(new AppError('Product not found', 404));
 
-    const existingVariant = product.variants.find(v => v.sku === req.body.sku?.toUpperCase());
+
+
+    const existingVariant = product?.variants?.find(v => v.sku === req.body.sku?.toUpperCase());
     if (existingVariant) return next(new AppError('Variant with this SKU already exists', 409));
 
-    product.variants.push(req.body);
+    product?.variants?.push(req.body);
     await product.save();
     (res as AppResponse).data({ product }, 'Variant added successfully', 201);
 });
@@ -459,10 +459,13 @@ export const updateVariant = asyncHandler(async (req: Request, res: Response, ne
     const product = await Product.findById(req.params.id);
     if (!product) return next(new AppError('Product not found', 404));
 
-    const variantIndex = product.variants.findIndex(v => v._id?.toString() === req.params.variantId);
-    if (variantIndex === -1) return next(new AppError('Variant not found', 404));
+    const variantIndex = product.variants?.findIndex(v => v._id?.toString() === req.params.variantId);
+    if (typeof variantIndex === 'undefined' || variantIndex === -1) return next(new AppError('Variant not found', 404));
 
-    Object.assign(product.variants[variantIndex], req.body);
+    const variant = product.variants?.[variantIndex];
+    if (!variant) return next(new AppError('Variant not found', 404));
+
+    Object.assign(variant, req.body);
     await product.save();
     (res as AppResponse).data({ product }, 'Variant updated successfully');
 });
@@ -472,10 +475,10 @@ export const deleteVariant = asyncHandler(async (req: Request, res: Response, ne
     const product = await Product.findById(req.params.id);
     if (!product) return next(new AppError('Product not found', 404));
 
-    const variantIndex = product.variants.findIndex(v => v._id?.toString() === req.params.variantId);
-    if (variantIndex === -1) return next(new AppError('Variant not found', 404));
+    const variantIndex = product.variants?.findIndex(v => v._id?.toString() === req.params.variantId);
+    if (typeof variantIndex === 'undefined' || variantIndex === -1) return next(new AppError('Variant not found', 404));
 
-    product.variants.splice(variantIndex, 1);
+    product.variants?.splice(variantIndex, 1);
     await product.save();
     (res as AppResponse).success('Variant deleted successfully');
 });
@@ -640,8 +643,8 @@ export const getProductPreview = asyncHandler(async (req: Request, res: Response
             region.mainProduct === 0 ? 'Out of Stock' :
                 region.mainProduct <= 10 ? 'Low Stock' :
                     region.mainProduct <= 50 ? 'Stable' : 'Balanced',
-        variants: region.variants.map(v => {
-            const variant = product.variants.find(pv => pv._id?.toString() === v.variantId);
+        variants: region.variants?.map(v => {
+            const variant = product.variants?.find(pv => pv._id?.toString() === v.variantId);
             return {
                 variantId: v.variantId,
                 variantName: variant ? `${variant.unitQuantity} ${variant.unitType}` : 'Unknown',

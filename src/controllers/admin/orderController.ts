@@ -284,10 +284,17 @@ export const updateOrderStatus = asyncHandler(
         if (staffRegionId) filterQuery.region = staffRegionId;
 
         const order = await Order.findOne(filterQuery);
+
         if (!order) return next(new AppError('Order not found or not in your region', 404));
+        if (!staffRegionId) return next(new AppError('Invalid staff region', 404));
+
+        // if (newStatus === "confirmed") {
+            order.region = staffRegionId
+            order.save()
+        // }
 
         await order.updateStatus(newStatus, note ?? '', req.user.id);
-        if(newStatus === "ready") await dispatchOrderToDrivers(order.id, undefined, 3.5);
+        if (newStatus === "ready") await dispatchOrderToDrivers(order.id, undefined, 3.5);
 
         (res as AppResponse).data({ order }, 'Order status updated successfully');
     },
