@@ -8,7 +8,8 @@ import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
 import mongoose from 'mongoose';
 import { resolveStaffRegionId } from '../../helpers/regionScope';
 import NotificationController from '../others/notification';
- 
+import { dispatchOrderToDrivers } from '../rider/orders';
+
 
 
 const calculateFare = (distanceKm: number, isPriority = false) => {
@@ -77,60 +78,25 @@ export const assignDriverToOrder = asyncHandler(async (req: Request, res: Respon
             deliveryAddress = [addressDoc.address, addressDoc.localGovernment, addressDoc.state]
                 .filter(Boolean).join(', ');
         }
-    } catch (_) {}
+    } catch (_) { }
 
-    const now = new Date();
-    const fare = calculateFare(Number(distanceKm), Boolean(isPriority));
-    const pin = generateDeliveryPin();
+    const delivery = await dispatchOrderToDrivers(order.id, driver.id, distanceKm,);
 
-    const delivery = await DriverDelivery.create({
-        orderId: order._id,
-        driverId: driver._id,
-        userId: order.userId,
-        orderNumber: order.orderNumber,
-        pickupAddress: pickupAddress || `${driver.region} Warehouse`,
-        deliveryAddress,
-        distanceKm: Number(distanceKm),
-        fareBreakdown: fare,
-        deliveryPin: pin,
-        broadcastedAt: now,
-        expiresAt: new Date(now.getTime() + 60 * 60 * 1000),
-        status: 'accepted',
-        statusHistory: [
-            { status: 'pending_acceptance', timestamp: now, note: 'Dispatched by admin' },
-            { status: 'accepted', timestamp: now, note: `Assigned to ${(driver.userId as any)?.name || 'driver'} by admin` },
-        ],
-    });
-
-    await order.updateStatus('shipped', `Driver assigned by admin: ${(driver.userId as any)?.name || driver._id}`);
+    await order.updateStatus('ready', `Driver assigned by admin: ${(driver.userId as any)?.name || driver._id}`);
 
     driver.status = 'on-delivery';
     await driver.save();
 
-        const walletExists = await DriverWallet.findOne({ driverId: driver._id });
-            if (!walletExists) {
-                await DriverWallet.create({
-                    driverId: driver._id,
-                    userId: driver.userId,
-                    balance: 0,
-                    totalEarned: 0,
-                    totalWithdrawn: 0,
-                    totalDeliveries: 0,
-                });
-            }
-
-    try {
-        await NotificationController.saveAndSendNotification({
-            userId: order.userId.toString(),
-            title: 'Driver Assigned to Your Order!',
-            body: `A driver has been assigned to your order #${order.orderNumber}. Your delivery PIN is: ${pin}`,
-            type: 'order',
-            typeId: { orderId: order._id },
-            clickUrl: `/orders/${order._id}`,
-            priority: 'high',
-        }, 'user', { push_notification: true });
-    } catch (notifErr) {
-        console.error('Failed to send assignment notification:', notifErr);
+    const walletExists = await DriverWallet.findOne({ driverId: driver._id });
+    if (!walletExists) {
+        await DriverWallet.create({
+            driverId: driver._id,
+            userId: driver.userId,
+            balance: 0,
+            totalEarned: 0,
+            totalWithdrawn: 0,
+            totalDeliveries: 0,
+        });
     }
 
     (res as AppResponse).data(
@@ -139,7 +105,6 @@ export const assignDriverToOrder = asyncHandler(async (req: Request, res: Respon
                 _id: delivery._id,
                 orderNumber: delivery.orderNumber,
                 status: delivery.status,
-                deliveryPin: delivery.deliveryPin,
                 fareBreakdown: delivery.fareBreakdown,
                 distanceKm: delivery.distanceKm,
                 pickupAddress: delivery.pickupAddress,
@@ -162,43 +127,43 @@ export const assignDriverToOrder = asyncHandler(async (req: Request, res: Respon
 
 export const getAvailableDrivers = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { region, search } = req.query;
- 
+
     console.log('Fetching available drivers with filters:', { region, search });
 
     const staffRegionId = await resolveStaffRegionId(req.user);
 
-    console.log('Resolved staff region ID:', staffRegionId);   
- 
+    console.log('Resolved staff region ID:', staffRegionId);
+
     const query: any = {
         status: 'active',
         verificationStatus: 'verified',
     };
- 
+
     if (staffRegionId) {
         query.region = staffRegionId.toString();
     } else if (region) {
         query.region = region;
     }
- 
+
     if (search) {
         query.$or = [
             { phone: { $regex: search, $options: 'i' } },
             { vehiclePlateNumber: { $regex: search, $options: 'i' } },
         ];
     }
- 
+
     const drivers = await Driver.find(query)
         .populate('userId', 'name email phoneNumber avatar')
         .populate('region', 'name')
         .select('-password -passwordSetupToken -passwordSetupExpiry')
         .lean();
- 
+
     const busyDriverIds = await DriverDelivery.find({
         status: { $in: ['accepted', 'arrived_at_store', 'picked_up', 'in_transit', 'arrived_at_customer'] }
     }).distinct('driverId');
- 
+
     const busySet = new Set(busyDriverIds.map(id => id.toString()));
- 
+
     const available = drivers
         .filter(d => !busySet.has(d._id.toString()))
         .map(d => ({
@@ -217,10 +182,9 @@ export const getAvailableDrivers = asyncHandler(async (req: Request, res: Respon
             isOnline: d.isOnline,
             status: d.status,
         }));
- 
+
     (res as AppResponse).data(
         { drivers: available, total: available.length },
         'Available drivers retrieved successfully'
     );
 });
- 

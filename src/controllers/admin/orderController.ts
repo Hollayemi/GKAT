@@ -4,6 +4,7 @@ import User from '../../models/User';
 import Region from '../../models/config/region.model';
 import StaffModel, { IStaff } from '../../models/admin/Staff.model';
 import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
+import { dispatchOrderToDrivers } from "../rider/orders";
 import mongoose from 'mongoose';
 
 
@@ -12,6 +13,7 @@ function buildOrderStatusFilter(status: string): OrderStatus | null {
         pending: 'pending',
         confirmed: 'confirmed',
         processing: 'processing',
+        ready: 'ready',
         shipped: 'shipped',
         delivered: 'delivered',
         cancelled: 'cancelled',
@@ -285,6 +287,7 @@ export const updateOrderStatus = asyncHandler(
         if (!order) return next(new AppError('Order not found or not in your region', 404));
 
         await order.updateStatus(newStatus, note ?? '', req.user.id);
+        if(newStatus === "ready") await dispatchOrderToDrivers(order.id, undefined, 3.5);
 
         (res as AppResponse).data({ order }, 'Order status updated successfully');
     },

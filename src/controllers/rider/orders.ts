@@ -27,7 +27,7 @@ export const generateDeliveryPin = (): string =>
 export const getAvailableOrders = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
-    const driver = await Driver.findOne({ userId: req.user._id });
+    const driver = await Driver.findOne({ userId: req.user._id, expiresAt: { $gt: new Date() } });
     if (!driver) return next(new AppError('Driver profile not found', 404));
 
     if (!driver.isOnline) {
@@ -38,28 +38,41 @@ export const getAvailableOrders = asyncHandler(async (req: Request, res: Respons
         return next(new AppError('Your account is not active', 403));
     }
 
-    const available = await Order.find({ orderStatus: "processing" })
-    .populate('shippingAddress')
-    .populate('userId', 'name avatar')
-    .sort({ createdAt: -1 }).limit(5);
-    // const available = await DriverDelivery.find({
-    //     status: '',
-    //     expiresAt: { $gt: new Date() }
-    // })
-    //     .populate({
-    //         path: 'orderId',
-    //         select: 'orderNumber orderSlug items totalAmount notes',
-    //         populate: { path: 'shippingAddress', select: 'address localGovernment state' }
-    //     })
-    //     .populate('userId', 'name avatar')
-    //     .sort({ broadcastedAt: -1 })
-    //     .limit(5);
+    console.log(driver._id);
+    // const available = await DriverDelivery.find({ status: "pending_acceptance" })
+    // .populate('orderId')
+    // .sort({ createdAt: -1 }).limit(5);
+
+
+    const available = await DriverDelivery.find({ status: "pending_acceptance", expiresAt: { $gt: new Date() } })
+        .populate({
+            path: 'orderId',
+            select: 'orderNumber orderSlug items totalAmount notes',
+            populate: { path: 'shippingAddress', select: 'address localGovernment state' }
+        })
+        .populate('userId', 'name avatar')
+        .sort({ broadcastedAt: -1 })
+        .limit(5);
+
+
+    const myAssigned = await DriverDelivery.findOne({ driverId: driver._id, status: "pending_acceptance" }).populate({
+        path: 'orderId',
+        select: 'orderNumber orderSlug items totalAmount notes',
+        populate: { path: 'shippingAddress', select: 'address localGovernment state' }
+    })
+        .populate('userId', 'name avatar');
 
     (res as AppResponse).data(
-        { orders: available, count: available.length },
+        {
+            orders: myAssigned ? [myAssigned] : available,
+            hasAssigned: !!myAssigned,
+            count: available.length
+        },
         'Available orders retrieved'
     );
 });
+
+
 
 export const acceptOrder = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
@@ -150,13 +163,14 @@ export const rejectOrder = asyncHandler(async (req: Request, res: Response, next
 
     const { reason } = req.body;
 
-    delivery.status = 'rejected';
+    delivery.status = 'pending_acceptance'; // Keep it pending for other drivers
     delivery.rejectionReason = reason;
     delivery.statusHistory.push({
         status: 'rejected',
         timestamp: new Date(),
         note: reason || 'Driver rejected the order'
     });
+    delivery.driverId = undefined // Clear driver assignment on rejection
     await delivery.save();
 
     (res as AppResponse).success('Order rejected');
@@ -263,7 +277,7 @@ export const confirmDelivery = asyncHandler(async (req: Request, res: Response, 
     });
 
 
-    if(!delivery) return next(new AppError('Delivery info not found', 404));
+    if (!delivery) return next(new AppError('Delivery info not found', 404));
 
     const order = await Order.findOne({ orderNumber: delivery.orderNumber })
 
@@ -271,7 +285,7 @@ export const confirmDelivery = asyncHandler(async (req: Request, res: Response, 
 
     if (!order) return next(new AppError('Order not found', 404));
 
-    
+
 
     if (delivery.status !== 'arrived_at_customer') {
         return next(new AppError('You must arrive at the customer location first', 400));
@@ -540,31 +554,28 @@ export const rateCustomer = asyncHandler(async (req: Request, res: Response, nex
     );
 });
 
-export const dispatchOrderToDrivers = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-    const { orderId, region, isPriority = false } = req.body;
+export const dispatchOrderToDrivers = async (orderId: string, driverId?: string, distanceKm: number = 3.5, isPriority: boolean = false) => {
 
-    if (!orderId || !region) {
-        return next(new AppError('orderId and region are required', 400));
+    if (!orderId) {
+        throw (new AppError('orderId and region are required', 400));
     }
 
     const order = await Order.findById(orderId).populate('shippingAddress');
-    if (!order) return next(new AppError('Order not found', 404));
+    if (!order) throw (new AppError('Order not found', 404));
 
-    if (!['confirmed', 'processing'].includes(order.orderStatus)) {
-        return next(new AppError('Order is not ready for dispatch', 400));
+    if (!['confirmed', 'ready', 'processing'].includes(order.orderStatus)) {
+        throw (new AppError('Order is not ready for dispatch', 400));
     }
 
-    // Check if already dispatched
     const existing = await DriverDelivery.findOne({
         orderId,
         status: { $nin: ['cancelled', 'rejected'] }
     });
 
     if (existing) {
-        return next(new AppError('Order has already been dispatched', 409));
+        throw (new AppError('Order has already been dispatched', 409));
     }
 
-    const distanceKm = req.body.distanceKm || 3.5; // fallback; real impl uses geo calculation
     const fare = calculateFare(distanceKm, isPriority);
 
     const shippingAddr = order.shippingAddress as any;
@@ -574,15 +585,15 @@ export const dispatchOrderToDrivers = asyncHandler(async (req: Request, res: Res
 
     const delivery = await DriverDelivery.create({
         orderId: order._id,
-        driverId: new (require('mongoose').Types.ObjectId)(), // placeholder until accepted
+        driverId: driverId || null,  // Assigned when a driver accepts
         userId: order.userId,
         orderNumber: order.orderNumber,
-        pickupAddress: `${region} Dark Store Warehouse`,
+        pickupAddress: `${order.region} Dark Store Warehouse`,
         deliveryAddress,
         distanceKm,
         fareBreakdown: fare,
         broadcastedAt: new Date(),
-        expiresAt: new Date(Date.now() + 20 * 1000),
+        expiresAt: new Date(Date.now() + 40 * 1000),
         status: 'pending_acceptance',
         statusHistory: [{
             status: 'pending_acceptance',
@@ -591,9 +602,7 @@ export const dispatchOrderToDrivers = asyncHandler(async (req: Request, res: Res
         }]
     });
 
-    (res as AppResponse).data(
-        { delivery, fare },
-        'Order dispatched to available drivers',
-        201
-    );
-});
+    if (!delivery) throw (new AppError("Failed to create delivery", 500))
+
+    return delivery;
+};

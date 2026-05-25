@@ -392,7 +392,7 @@ export class DashboardOverviewService {
         console.log(raw)
 
         return raw.map(r => ({
-            productId: r._id?.toString() ?? '',
+            productId: r.productId?.toString() ?? '',
             productName: r.productDoc?.productName ?? r.productName ?? 'Unknown',
             sku: r.productDoc?.sku ?? '-',
             category: r.categoryDoc?.[0]?.name ?? r.productDoc?.category ?? '-',
@@ -450,7 +450,7 @@ export class DashboardOverviewService {
         const raw = await Order.aggregate([
             {
                 $match: {
-                    orderStatus: { $in: ['confirmed', 'processing', 'shipped', 'delivered'] },
+                    // orderStatus: { $in: ['confirmed', 'processing', 'ready', 'shipped', 'delivered'] },
                     region: { $exists: true, $ne: null },
                 },
             },

@@ -21,7 +21,6 @@ import {
     getDeliveryHistory,
     getDeliveryDetails,
     rateCustomer,
-    dispatchOrderToDrivers
 } from '../controllers/rider/orders';
 
 import {
@@ -109,8 +108,4 @@ router.post('/earnings/bank-accounts', addBankAccount);
 router.get('/earnings/bank-accounts', getBanks);
 router.delete('/earnings/bank-accounts/:accountId', deleteBankAccount);
 router.patch('/earnings/bank-accounts/:accountId/default', setDefaultBankAccount);
-
-//  Admin-only: dispatch order 
-router.post('/dispatch', protect, checkPermission('manage_orders'), dispatchOrderToDrivers);
-
 export default router;

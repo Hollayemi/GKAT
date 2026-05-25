@@ -9,6 +9,7 @@ import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
 import CloudinaryService from '../../services/cloudinary';
 import { sendEmail, driverEmailTemplates } from '../../utils/driverEmail';
 import { resolveStaffRegionId } from '../../helpers/regionScope';
+import { dispatchOrderToDrivers } from '../rider/orders';
 
 
 const logDriverActivity = async (
@@ -568,25 +569,7 @@ export const assignDriverToOrder = asyncHandler(
         const pin = "jkjdhcjh" //generateDeliveryPin();
         const now = new Date();
 
-        const delivery = await DriverDelivery.create({
-            orderId: order._id,
-            driverId: driver._id,
-            userId: order.userId,
-            orderNumber: order.orderNumber,
-            pickupAddress: `${driver.region || 'Warehouse'} — Dark Store`,
-            deliveryAddress,
-            distanceKm: Number(distanceKm),
-            fareBreakdown: fare,
-            deliveryPin: pin,
-            broadcastedAt: now,
-            acceptedAt: now,
-            expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
-            status: 'accepted',
-            statusHistory: [
-                { status: 'pending_acceptance', timestamp: now, note: 'Created by admin assignment' },
-                { status: 'accepted', timestamp: now, note: note || 'Driver assigned by admin' },
-            ],
-        });
+        const delivery = await dispatchOrderToDrivers(order.id, driver.id, distanceKm, );
 
         await Driver.findByIdAndUpdate(driver._id, { status: 'on-delivery', lastActive: now });
 
@@ -617,7 +600,6 @@ export const assignDriverToOrder = asyncHandler(
                 delivery: {
                     _id: delivery._id,
                     status: delivery.status,
-                    deliveryPin: delivery.deliveryPin,
                     fareBreakdown: delivery.fareBreakdown,
                     distanceKm: delivery.distanceKm,
                 },

@@ -27,7 +27,7 @@ export interface IDeliveryStatusHistory {
 
 export interface IDriverDelivery extends Document {
     orderId: Types.ObjectId;
-    driverId: Types.ObjectId;
+    driverId?: Types.ObjectId;
     userId: Types.ObjectId;           // Customer
     orderNumber: string;
 
@@ -53,7 +53,6 @@ export interface IDriverDelivery extends Document {
     expiresAt: Date;                  // Acceptance countdown deadline
 
     // Delivery PIN
-    deliveryPin: string;              // 4-digit PIN from customer
     pinAttempts: number;
     pinVerified: boolean;
 
@@ -110,7 +109,6 @@ const DriverDeliverySchema = new Schema<IDriverDelivery>({
     driverId: {
         type: Schema.Types.ObjectId,
         ref: 'Driver',
-        required: true,
         index: true
     },
     userId: {
@@ -167,11 +165,6 @@ const DriverDeliverySchema = new Schema<IDriverDelivery>({
     },
 
     // PIN
-    deliveryPin: {
-        type: String,
-        required: true,
-        length: 4
-    },
     pinAttempts: { type: Number, default: 0, min: 0 },
     pinVerified: { type: Boolean, default: false },
 

@@ -28,7 +28,7 @@ export interface IShippingAddress {
 
 export type PaymentMethod = 'flutterwave' | 'paystack' | 'opay' | 'cash_on_delivery';
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded' | 'cancelled';
-export type OrderStatus = 'pending' | 'paid' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'returned' | 'refunded';
+export type OrderStatus = 'pending' | 'paid' | 'confirmed' | 'processing' | 'ready' | 'shipped' | 'delivered' | 'cancelled' | 'returned' | 'refunded';
 
 export interface IPaymentInfo {
     method: PaymentMethod;
@@ -161,7 +161,7 @@ const statusHistorySchema = new Schema<IStatusHistory>({
     status: {
         type: String,
         required: true,
-        enum: ['pending', 'paid', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'returned', 'refunded'] as OrderStatus[]
+        enum: ['pending', 'paid', 'confirmed', 'processing', "ready", 'shipped', 'delivered', 'cancelled', 'returned', 'refunded'] as OrderStatus[]
     },
     timestamp: { type: Date, default: Date.now },
     note: { type: String, trim: true },
@@ -194,7 +194,7 @@ const orderSchema = new Schema<IOrder, IOrderModel>({
     orderStatus: {
         type: String,
         required: true,
-        enum: ['pending', 'paid', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'returned', 'refunded'] as OrderStatus[],
+        enum: ['pending', 'paid', 'confirmed', 'processing', 'ready', 'shipped', 'delivered', 'cancelled', 'returned', 'refunded'] as OrderStatus[],
         default: 'pending',
         index: true
     },
