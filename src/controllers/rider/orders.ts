@@ -27,7 +27,9 @@ export const generateDeliveryPin = (): string =>
 export const getAvailableOrders = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
 
-    const driver = await Driver.findOne({ userId: req.user._id, expiresAt: { $gt: new Date() } });
+    console.log('Fetching available orders for driver:', req.user._id);
+
+    const driver = await Driver.findOne({ userId: req.user._id, });
     if (!driver) return next(new AppError('Driver profile not found', 404));
 
     if (!driver.isOnline) {
@@ -44,7 +46,7 @@ export const getAvailableOrders = asyncHandler(async (req: Request, res: Respons
     // .sort({ createdAt: -1 }).limit(5);
 
 
-    const available = await DriverDelivery.find({ status: "pending_acceptance", expiresAt: { $gt: new Date() } })
+    const available = await DriverDelivery.find({ status: "pending_acceptance" })
         .populate({
             path: 'orderId',
             select: 'orderNumber orderSlug items totalAmount notes',
@@ -53,7 +55,6 @@ export const getAvailableOrders = asyncHandler(async (req: Request, res: Respons
         .populate('userId', 'name avatar')
         .sort({ broadcastedAt: -1 })
         .limit(5);
-
 
     const myAssigned = await DriverDelivery.findOne({ driverId: driver._id, status: "pending_acceptance" }).populate({
         path: 'orderId',
@@ -65,7 +66,7 @@ export const getAvailableOrders = asyncHandler(async (req: Request, res: Respons
     (res as AppResponse).data(
         {
             orders: myAssigned ? [myAssigned] : available,
-            hasAssigned: !!myAssigned,
+            hasAssigned: !!myAssigned  ,
             count: available.length
         },
         'Available orders retrieved'
