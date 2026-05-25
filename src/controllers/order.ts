@@ -39,7 +39,7 @@ async function deductRegionalStock(
     if (!product) return;
 
     if (variantId) {
-        const variant = product.variants.find(
+        const variant = product.variants?.find(
             v => v._id?.toString() === variantId.toString()
         );
         if (variant) variant.stockQuantity = Math.max(0, variant.stockQuantity - quantity);

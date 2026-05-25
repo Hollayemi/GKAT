@@ -95,11 +95,11 @@ export const acceptOrder = asyncHandler(async (req: Request, res: Response, next
         return next(new AppError('This order is no longer available', 400));
     }
 
-    if (new Date() > delivery.expiresAt) {
-        delivery.status = 'rejected';
-        await delivery.save();
-        return next(new AppError('Acceptance window has expired', 400));
-    }
+    // if (new Date() > delivery.expiresAt) {
+    //     delivery.status = 'rejected';
+    //     await delivery.save();
+    //     return next(new AppError('Acceptance window has expired', 400));
+    // }
 
     const now = new Date();
     delivery.status = 'accepted';
