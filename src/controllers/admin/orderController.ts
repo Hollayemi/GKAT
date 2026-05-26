@@ -66,9 +66,10 @@ async function formatOrder(order: any) {
 async function resolveStaffRegionId(
     staff: any
 ): Promise<mongoose.Types.ObjectId | null> {
+    console.log(staff)
     const roleName: string = staff.role?.name ?? '';
 
-    if (roleName === 'super_admin') return null;
+    // if (roleName === 'super_admin') return null;
 
     const regionValue: string | undefined = staff.region;
     if (!regionValue) return null;
@@ -106,14 +107,14 @@ export const getAllOrders = asyncHandler(
 
         const staffRegionId = await resolveStaffRegionId(req.user);
 
-        if (staffRegionId) {
-            query.region = staffRegionId;
-        } else if (regionFilter) {
-            if (!mongoose.Types.ObjectId.isValid(regionFilter as string)) {
-                return next(new AppError('Invalid regionId filter', 400));
-            }
-            query.region = new mongoose.Types.ObjectId(regionFilter as string);
-        }
+        // if (staffRegionId) {
+        //     query.region = staffRegionId;
+        // } else if (regionFilter) {
+        //     if (!mongoose.Types.ObjectId.isValid(regionFilter as string)) {
+        //         return next(new AppError('Invalid regionId filter', 400));
+        //     }
+        //     query.region = new mongoose.Types.ObjectId(regionFilter as string);
+        // }
 
         if (minAmount || maxAmount) {
             query.totalAmount = {};
@@ -248,6 +249,8 @@ export const cancelOrder = asyncHandler(
         if (!isMatch) return next(new AppError('Incorrect password', 401));
 
         const staffRegionId = await resolveStaffRegionId(req.user);
+
+        console.log('Staff Region ID:', staffRegionId);
         const filterQuery: any = { orderNumber };
         if (staffRegionId) filterQuery.region = staffRegionId;
 
@@ -280,6 +283,7 @@ export const updateOrderStatus = asyncHandler(
         if (!newStatus) return next(new AppError('Invalid status value', 400));
 
         const staffRegionId = await resolveStaffRegionId(req.user);
+           console.log('Staff Region ID:', staffRegionId);
         const filterQuery: any = { orderNumber };
         if (staffRegionId) filterQuery.region = staffRegionId;
 
@@ -288,13 +292,13 @@ export const updateOrderStatus = asyncHandler(
         if (!order) return next(new AppError('Order not found or not in your region', 404));
         if (!staffRegionId) return next(new AppError('Invalid staff region', 404));
 
-        // if (newStatus === "confirmed") {
-            order.region = staffRegionId
-            order.save()
-        // }
-
+        
         await order.updateStatus(newStatus, note ?? '', req.user.id);
         if (newStatus === "ready") await dispatchOrderToDrivers(order.id, undefined, 3.5);
+        if (newStatus === "confirmed") {
+            order.region = staffRegionId
+            order.save()
+        }
 
         (res as AppResponse).data({ order }, 'Order status updated successfully');
     },
