@@ -167,7 +167,6 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
 
     const paymentReference = paymentGateway.generatePaymentReference(order.orderNumber);
 
-
     const paymentData = {
         email: req.user.email || 'admin@gmail.com',
         amount: order.totalAmount,
@@ -234,6 +233,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response, next
 // @desc    Re-pay an existing order
 // @route   POST /api/v1/order/repay
 // @access  Private
+
 export const repayOrder = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { orderId, paymentMethod = 'flutterwave' } = req.body;
     if (!req.user) return next(new AppError('Not authenticated', 401));

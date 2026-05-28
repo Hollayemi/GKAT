@@ -1,32 +1,51 @@
 import { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
-import dashboardOverviewService from '../../services/dashboardOverviewService';
+import dashboardOverviewService, { Period } from '../../services/dashboardOverviewService';
 import { resolveStaffRegionId } from '../../helpers/regionScope';
+
+/**
+ * Helper to validate and parse period parameter
+ */
+function parsePeriod(period: string | undefined): Period {
+    const validPeriods: Period[] = ["TODAY", "7D", "MTD", "QTD", "YTD", "CUSTOM"];
+    if (!period || !validPeriods.includes(period as Period)) {
+        return "MTD"; // Default
+    }
+    return period as Period;
+}
+
+/**
+ * Helper to parse date parameters
+ */
+function parseDate(dateStr: string | undefined): Date | undefined {
+    if (!dateStr) return undefined;
+    const date = new Date(dateStr);
+    return isNaN(date.getTime()) ? undefined : date;
+}
 
 /**
  * GET /api/v1/admin/dashboard/overview
  *
  * Query params:
- *   regionId  – (optional) force a specific region ObjectId
- *               Super-admins can pass any regionId; regional staff are
- *               automatically scoped to their own region.
+ *   regionId     – (optional) force a specific region ObjectId
+ *   period       – TODAY, 7D, MTD, QTD, YTD, CUSTOM (default: MTD)
+ *   startDate    – (required for CUSTOM period) start date (ISO string)
+ *   endDate      – (required for CUSTOM period) end date (ISO string)
  *
  * Response shape:
  * {
  *   stats: { totalSales, completedOrders, activeCustomers, activeDrivers },
- *   revenueChart: [...],       // last 12 months
- *   recentOrders:  [...],      // last 10 orders
- *   topProducts:   [...],      // top 10 by units sold (last 30 days)
- *   topCustomers:  [...],      // top 10 by total spend
- *   regionalPerformance: [...] // all regions
+ *   revenueChart: [...],
+ *   recentOrders: [...],
+ *   topProducts: [...],
+ *   topCustomers: [...],
+ *   regionalPerformance: [...]
  * }
  */
 export const getDashboardOverview = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
         // Resolve the region scope for this staff member
-        // - super_admin    → null  (no restriction, sees all)
-        // - regional staff → their assigned region ObjectId
         const staffRegionId = await resolveStaffRegionId(req.user);
 
         // Super-admins may optionally filter by a specific regionId from the query string
@@ -44,12 +63,40 @@ export const getDashboardOverview = asyncHandler(
             regionFilter = new mongoose.Types.ObjectId(rid);
         }
 
-        const overview = await dashboardOverviewService.getOverview(regionFilter);
+        // Parse period and date parameters
+        const period = parsePeriod(req.query.period as string);
+        let startDate: Date | undefined;
+        let endDate: Date | undefined;
+
+        if (period === "CUSTOM") {
+            startDate = parseDate(req.query.startDate as string);
+            endDate = parseDate(req.query.endDate as string);
+
+            if (!startDate || !endDate) {
+                return next(new AppError('startDate and endDate are required for CUSTOM period', 400));
+            }
+
+            if (startDate > endDate) {
+                return next(new AppError('startDate must be before endDate', 400));
+            }
+        }
+
+        const overview = await dashboardOverviewService.getOverview(
+            regionFilter,
+            period,
+            startDate,
+            endDate
+        );
 
         (res as AppResponse).data(
             {
                 ...overview,
                 scopedToRegion: regionFilter ? regionFilter.toString() : null,
+                periodConfig: {
+                    period,
+                    startDate: startDate?.toISOString() || null,
+                    endDate: endDate?.toISOString() || null,
+                },
             },
             'Dashboard overview retrieved successfully',
         );
@@ -62,15 +109,58 @@ export const getDashboardOverview = asyncHandler(
 
 /**
  * GET /api/v1/admin/dashboard/stats
+ *
+ * Query params:
+ *   regionId – optional (super-admin only)
+ *   period   – TODAY, 7D, MTD, QTD, YTD, CUSTOM (default: MTD)
+ *   startDate – required for CUSTOM period
+ *   endDate   – required for CUSTOM period
  */
 export const getDashboardStats = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
         const staffRegionId = await resolveStaffRegionId(req.user);
-        const regionFilter = staffRegionId ?? undefined;
+        let regionFilter: mongoose.Types.ObjectId | undefined = staffRegionId ?? undefined;
 
-        const overview = await dashboardOverviewService.getOverview(regionFilter);
+        if (!staffRegionId && req.query.regionId) {
+            const rid = req.query.regionId as string;
+            if (!mongoose.Types.ObjectId.isValid(rid)) {
+                return next(new AppError('Invalid regionId query parameter', 400));
+            }
+            regionFilter = new mongoose.Types.ObjectId(rid);
+        }
 
-        (res as AppResponse).data(overview.stats, 'Dashboard stats retrieved successfully');
+        const period = parsePeriod(req.query.period as string);
+        let startDate: Date | undefined;
+        let endDate: Date | undefined;
+
+        if (period === "CUSTOM") {
+            startDate = parseDate(req.query.startDate as string);
+            endDate = parseDate(req.query.endDate as string);
+
+            if (!startDate || !endDate) {
+                return next(new AppError('startDate and endDate are required for CUSTOM period', 400));
+            }
+
+            if (startDate > endDate) {
+                return next(new AppError('startDate must be before endDate', 400));
+            }
+        }
+
+        const overview = await dashboardOverviewService.getOverview(
+            regionFilter,
+            period,
+            startDate,
+            endDate
+        );
+
+        (res as AppResponse).data(
+            {
+                ...overview.stats,
+                periodConfig: { period, startDate, endDate },
+                scopedToRegion: regionFilter?.toString() ?? null,
+            },
+            'Dashboard stats retrieved successfully',
+        );
     },
 );
 
@@ -78,7 +168,10 @@ export const getDashboardStats = asyncHandler(
  * GET /api/v1/admin/dashboard/revenue-chart
  *
  * Query params:
- *   regionId – optional (super-admin only)
+ *   regionId   – optional (super-admin only)
+ *   period     – TODAY, 7D, MTD, QTD, YTD, CUSTOM (default: MTD)
+ *   startDate  – required for CUSTOM period (ISO string)
+ *   endDate    – required for CUSTOM period (ISO string)
  */
 export const getRevenueChart = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
@@ -95,10 +188,36 @@ export const getRevenueChart = asyncHandler(
             regionFilter = new mongoose.Types.ObjectId(rid);
         }
 
-        const chart = await dashboardOverviewService.getRevenueChart(regionFilter);
+        const period = parsePeriod(req.query.period as string);
+        let startDate: Date | undefined;
+        let endDate: Date | undefined;
+
+        if (period === "CUSTOM") {
+            startDate = parseDate(req.query.startDate as string);
+            endDate = parseDate(req.query.endDate as string);
+
+            if (!startDate || !endDate) {
+                return next(new AppError('startDate and endDate are required for CUSTOM period', 400));
+            }
+
+            if (startDate > endDate) {
+                return next(new AppError('startDate must be before endDate', 400));
+            }
+        }
+
+        const chart = await dashboardOverviewService.getRevenueChart({
+            regionFilter,
+            period,
+            customStartDate: startDate,
+            customEndDate: endDate,
+        });
 
         (res as AppResponse).data(
-            { chart, scopedToRegion: regionFilter?.toString() ?? null },
+            {
+                chart,
+                scopedToRegion: regionFilter?.toString() ?? null,
+                config: { period, startDate, endDate },
+            },
             'Revenue chart data retrieved successfully',
         );
     },
@@ -146,8 +265,11 @@ export const getRecentOrders = asyncHandler(
  * GET /api/v1/admin/dashboard/top-products
  *
  * Query params:
- *   limit    – number of products to return (default 10, max 50)
- *   regionId – optional (super-admin only)
+ *   limit      – number of products to return (default 10, max 50)
+ *   regionId   – optional (super-admin only)
+ *   period     – TODAY, 7D, MTD, QTD, YTD, CUSTOM (default: MTD)
+ *   startDate  – required for CUSTOM period (ISO string)
+ *   endDate    – required for CUSTOM period (ISO string)
  */
 export const getTopProducts = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
@@ -166,14 +288,38 @@ export const getTopProducts = asyncHandler(
 
         const rawLimit = parseInt(req.query.limit as string) || 10;
         const limit = Math.min(Math.max(rawLimit, 1), 50);
+        
+        const period = parsePeriod(req.query.period as string);
+        let startDate: Date | undefined;
+        let endDate: Date | undefined;
 
-        const products = await dashboardOverviewService.getTopProducts(limit, regionFilter);
+        if (period === "CUSTOM") {
+            startDate = parseDate(req.query.startDate as string);
+            endDate = parseDate(req.query.endDate as string);
+
+            if (!startDate || !endDate) {
+                return next(new AppError('startDate and endDate are required for CUSTOM period', 400));
+            }
+
+            if (startDate > endDate) {
+                return next(new AppError('startDate must be before endDate', 400));
+            }
+        }
+
+        const products = await dashboardOverviewService.getTopProducts({
+            limit,
+            regionFilter,
+            period,
+            customStartDate: startDate,
+            customEndDate: endDate,
+        });
 
         (res as AppResponse).data(
             {
                 products,
                 count: products.length,
                 scopedToRegion: regionFilter?.toString() ?? null,
+                config: { period, startDate, endDate, limit },
             },
             'Top products retrieved successfully',
         );
@@ -184,8 +330,11 @@ export const getTopProducts = asyncHandler(
  * GET /api/v1/admin/dashboard/top-customers
  *
  * Query params:
- *   limit    – number of customers to return (default 10, max 50)
- *   regionId – optional (super-admin only)
+ *   limit      – number of customers to return (default 10, max 50)
+ *   regionId   – optional (super-admin only)
+ *   period     – TODAY, 7D, MTD, QTD, YTD, CUSTOM (default: MTD)
+ *   startDate  – required for CUSTOM period (ISO string)
+ *   endDate    – required for CUSTOM period (ISO string)
  */
 export const getTopCustomers = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
@@ -204,14 +353,38 @@ export const getTopCustomers = asyncHandler(
 
         const rawLimit = parseInt(req.query.limit as string) || 10;
         const limit = Math.min(Math.max(rawLimit, 1), 50);
+        
+        const period = parsePeriod(req.query.period as string);
+        let startDate: Date | undefined;
+        let endDate: Date | undefined;
 
-        const customers = await dashboardOverviewService.getTopCustomers(limit, regionFilter);
+        if (period === "CUSTOM") {
+            startDate = parseDate(req.query.startDate as string);
+            endDate = parseDate(req.query.endDate as string);
+
+            if (!startDate || !endDate) {
+                return next(new AppError('startDate and endDate are required for CUSTOM period', 400));
+            }
+
+            if (startDate > endDate) {
+                return next(new AppError('startDate must be before endDate', 400));
+            }
+        }
+
+        const customers = await dashboardOverviewService.getTopCustomers({
+            limit,
+            regionFilter,
+            period,
+            customStartDate: startDate,
+            customEndDate: endDate,
+        });
 
         (res as AppResponse).data(
             {
                 customers,
                 count: customers.length,
                 scopedToRegion: regionFilter?.toString() ?? null,
+                config: { period, startDate, endDate, limit },
             },
             'Top customers retrieved successfully',
         );
@@ -220,13 +393,43 @@ export const getTopCustomers = asyncHandler(
 
 /**
  * GET /api/v1/admin/dashboard/regional-performance
+ *
+ * Query params:
+ *   period     – TODAY, 7D, MTD, QTD, YTD, CUSTOM (default: MTD)
+ *   startDate  – required for CUSTOM period (ISO string)
+ *   endDate    – required for CUSTOM period (ISO string)
  */
 export const getRegionalPerformance = asyncHandler(
-    async (_req: Request, res: Response, _next: NextFunction) => {
-        const regions = await dashboardOverviewService.getRegionalPerformance();
+    async (req: Request, res: Response, next: NextFunction) => {
+        const period = parsePeriod(req.query.period as string);
+        let startDate: Date | undefined;
+        let endDate: Date | undefined;
+
+        if (period === "CUSTOM") {
+            startDate = parseDate(req.query.startDate as string);
+            endDate = parseDate(req.query.endDate as string);
+
+            if (!startDate || !endDate) {
+                return next(new AppError('startDate and endDate are required for CUSTOM period', 400));
+            }
+
+            if (startDate > endDate) {
+                return next(new AppError('startDate must be before endDate', 400));
+            }
+        }
+
+        const regions = await dashboardOverviewService.getRegionalPerformance({
+            period,
+            customStartDate: startDate,
+            customEndDate: endDate,
+        });
 
         (res as AppResponse).data(
-            { regions, count: regions.length },
+            { 
+                regions, 
+                count: regions.length,
+                config: { period, startDate, endDate }
+            },
             'Regional performance retrieved successfully',
         );
     },

@@ -285,7 +285,7 @@ export const updateOrderStatus = asyncHandler(
         const staffRegionId = await resolveStaffRegionId(req.user);
            console.log('Staff Region ID:', staffRegionId);
         const filterQuery: any = { orderNumber };
-        if (staffRegionId) filterQuery.region = staffRegionId;
+        // if (staffRegionId) filterQuery.region = staffRegionId;
 
         const order = await Order.findOne(filterQuery);
 
