@@ -83,6 +83,7 @@ app.get('/api-docs.json', (req, res) => {
 import authRoutes from './routes/auth';
 import productRoutes from './routes/products';
 import cartRoutes from './routes/cart';
+import notificationRoutes from './routes/notification';
 import orderRoutes from './routes/order';
 import adminOrderRoutes from './routes/admin/order';
 import addressRoutes from './routes/address';
@@ -105,6 +106,7 @@ import dashboardOverview from './routes/dashboardOverview';
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/product', productRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/cart', cartRoutes);
 app.use('/api/v1/order', orderRoutes);
 app.use('/api/v1/admin/orders', adminOrderRoutes);
