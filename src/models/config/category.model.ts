@@ -58,7 +58,7 @@ const CategorySchema: Schema<ICategory> = new Schema(
         toJSON: {
             virtuals: true,
             transform: function (doc, ret: any) {
-                ret.id = ret._id.toString();
+                ret.id = ret._id?.toString();
                 delete ret._id;
                 delete ret.__v;
                 return ret;
