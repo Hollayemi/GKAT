@@ -505,7 +505,10 @@ cartSchema.methods.validateStock = async function (): Promise<{ valid: boolean; 
 };
 
 cartSchema.statics.findOrCreateCart = async function (userId: Types.ObjectId): Promise<ICart> {
-    let cart = await this.findOne({ userId, isActive: true });
+    let cart = await this.findOne({ userId, isActive: true })
+    .populate('items.category', 'name icon isActive')
+    .exec();
+
     if (!cart) {
         cart = new this({ userId });
         await cart.save();
