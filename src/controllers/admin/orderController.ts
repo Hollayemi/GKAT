@@ -6,6 +6,7 @@ import StaffModel, { IStaff } from '../../models/admin/Staff.model';
 import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
 import { dispatchOrderToDrivers } from "../rider/orders";
 import mongoose from 'mongoose';
+import NotificationController from '../others/notification';
 
 
 function buildOrderStatusFilter(status: string): OrderStatus | null {
@@ -266,6 +267,16 @@ export const cancelOrder = asyncHandler(
 
         await order.cancelOrder(`${reason} — ${note}`, req.user.id);
 
+        await NotificationController.saveAndSendNotification({
+            userId: order.userId.toString(),
+            title: 'Order Cancelled',
+            body: `Your order #${order.orderNumber} has been cancelled. If you were charged, a refund will be processed within 3–5 business days.`,
+            type: 'order',
+            typeId: { orderId: order._id },
+            clickUrl: `/orders/${order._id}`,
+            priority: 'high'
+        }, 'user', { push_notification: true });
+
         (res as AppResponse).data({ order }, 'Order cancelled successfully');
     },
 );
@@ -283,7 +294,7 @@ export const updateOrderStatus = asyncHandler(
         if (!newStatus) return next(new AppError('Invalid status value', 400));
 
         const staffRegionId = await resolveStaffRegionId(req.user);
-           console.log('Staff Region ID:', staffRegionId);
+        console.log('Staff Region ID:', staffRegionId);
         const filterQuery: any = { orderNumber };
         // if (staffRegionId) filterQuery.region = staffRegionId;
 
@@ -292,12 +303,35 @@ export const updateOrderStatus = asyncHandler(
         if (!order) return next(new AppError('Order not found or not in your region', 404));
         if (!staffRegionId) return next(new AppError('Invalid staff region', 404));
 
-        
+
         await order.updateStatus(newStatus, note ?? '', req.user.id);
-        if (newStatus === "ready") await dispatchOrderToDrivers(order.id, undefined, 3.5);
+        if (newStatus === "ready") {
+            await dispatchOrderToDrivers(order.id, undefined, 3.5);
+        }
         if (newStatus === "confirmed") {
             order.region = staffRegionId
             order.save()
+            await NotificationController.saveAndSendNotification({
+                userId: order.userId.toString(),
+                title: 'Order Confirmed ✅',
+                body: `Great news! Your order #${order.orderNumber} has been confirmed and is being prepared.`,
+                type: 'order',
+                typeId: { orderId: order._id },
+                clickUrl: `/orders/${order._id}`,
+                priority: 'high'
+            }, 'user', { push_notification: true });
+        }
+
+        if (newStatus === 'processing') {
+            await NotificationController.saveAndSendNotification({
+                userId: order.userId.toString(),
+                title: 'Order Being Prepared 🛍️',
+                body: `Your order #${order.orderNumber} is now being packed and prepared for delivery.`,
+                type: 'order',
+                typeId: { orderId: order._id },
+                clickUrl: `/orders/${order._id}`,
+                priority: 'medium'
+            }, 'user', { push_notification: true });
         }
 
         (res as AppResponse).data({ order }, 'Order status updated successfully');

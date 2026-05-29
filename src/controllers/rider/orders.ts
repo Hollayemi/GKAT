@@ -40,7 +40,7 @@ export const getAvailableOrders = asyncHandler(async (req: Request, res: Respons
         return next(new AppError('Your account is not verified', 403));
     }
 
-    if(driver.status !== 'active') return next(new AppError('You are currently on delivery', 403));
+    if (driver.status !== 'active') return next(new AppError('You are currently on delivery', 403));
 
     console.log(driver._id);
     // const available = await DriverDelivery.find({ status: "pending_acceptance" })
@@ -139,6 +139,16 @@ export const acceptOrder = asyncHandler(async (req: Request, res: Response, next
     const populated = await DriverDelivery.findById(delivery._id)
         .populate('orderId', 'orderNumber orderSlug items totalAmount notes')
         .populate('userId', 'name avatar phoneNumber');
+
+    await NotificationController.saveAndSendNotification({
+        userId: delivery.userId.toString(),
+        title: 'Order On Its Way 📦',
+        body: `Your order #${delivery.orderNumber} is out for delivery. Your driver is en route to your location.`,
+        type: 'order',
+        typeId: { orderId: delivery.orderId },
+        clickUrl: `/orders/${delivery.orderId}`,
+        priority: 'high'
+    }, 'user', { push_notification: true });
 
     (res as AppResponse).data({ delivery: populated }, 'Order accepted successfully');
 });
@@ -463,7 +473,7 @@ export const getDeliveryHistory = asyncHandler(async (req: Request, res: Respons
     if (status && status !== 'all') {
         query.status = status;
     } else {
-        query.status = { $in: ['delivered', 'cancelled', 'rejected', "accepted", "on-delivery"] };
+        // query.status = { $in: ['delivered', 'cancelled', 'rejected', "accepted", "on-delivery"] };
     }
 
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
@@ -598,6 +608,16 @@ export const dispatchOrderToDrivers = async (orderId: string, driverId?: string,
     });
 
     if (!delivery) throw (new AppError("Failed to create delivery", 500))
+
+    await NotificationController.saveAndSendNotification({
+        userId: order.userId.toString(),
+        title: 'Driver On The Way 🚴',
+        body: `Your order #${order.orderNumber} has been picked up and a driver is heading to you. Track your delivery in the app.`,
+        type: 'order',
+        typeId: { orderId: order._id },
+        clickUrl: `/orders/${order._id}`,
+        priority: 'high'
+    }, 'user', { push_notification: true });
 
     return delivery;
 };

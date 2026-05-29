@@ -3,6 +3,7 @@ import PurchaseLog from '../models/billing/productPurchaseLog';
 import Order from '../models/Orders';
 import Cart from '../models/Cart';
 import logger from '../utils/logger';
+import NotificationController from '../controllers/others/notification';
 
 interface LogPurchaseParams {
     paymentChannel: string;
@@ -204,9 +205,18 @@ class PaymentLogging {
 
             metadata.orderSlugs = orderSlugs;
 
+            await NotificationController.saveAndSendNotification({
+                userId,
+                title: 'Payment Successful 💳',
+                body: `Your payment of ₦${(fromLog.amount).toLocaleString()} was successful.`,
+                type: 'payment',
+                typeId: { orderId },
+                clickUrl: `/orders/${orderId}`,
+                priority: 'high'
+            }, 'user', { push_notification: true });
+
             logger.info('Payment verification completed successfully');
             return true;
-
         } catch (error) {
             logger.error('Payment verification error:', error);
             return false;
