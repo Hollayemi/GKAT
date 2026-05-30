@@ -96,7 +96,7 @@ const UserSchema = new Schema<IUser>({
         required: false,          // guests have no phone
         match: [/^[0-9+\-\s()]+$/, 'Please provide a valid phone number'],
         sparse: true,             // allows multiple null values in unique index
-        unique: true,
+        // unique: true,
         trim: true,
         index: true
     },
