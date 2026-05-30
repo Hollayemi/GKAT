@@ -26,12 +26,15 @@ export interface IUser extends Document {
     name: string;
     email?: string;
     password?: string;
-    phoneNumber: string;
+    phoneNumber?: string;
     residentArea: string;
     avatar?: string;
     role: 'user' | 'admin' | 'driver';
 
-    driverId: Types.ObjectId; 
+    guestId?: string;
+    isGuest?: boolean;
+
+    driverId: Types.ObjectId;
 
     isPhoneVerified: boolean;
     isEmailVerified: boolean;
@@ -46,7 +49,7 @@ export interface IUser extends Document {
     otpExpiry?: Date;
 
     refreshToken?: string;
-    fcmTokens: FCMToken[]; 
+    fcmTokens: FCMToken[];
 
     addresses: Types.ObjectId[];
     defaultAddress?: Types.ObjectId;
@@ -90,15 +93,28 @@ const UserSchema = new Schema<IUser>({
     },
     phoneNumber: {
         type: String,
-        required: [true, 'Please add a phone number'],
+        required: false,          // guests have no phone
         match: [/^[0-9+\-\s()]+$/, 'Please provide a valid phone number'],
+        sparse: true,             // allows multiple null values in unique index
         unique: true,
+        trim: true,
+        index: true
+    },
+    isGuest: {
+        type: Boolean,
+        default: false,
+        index: true
+    },
+    guestId: {
+        type: String,
+        unique: true,
+        sparse: true,   // only indexed when present
         trim: true,
         index: true
     },
     residentArea: {
         type: String,
-        required: [true, 'Please add a resident area'],
+        required: false,
         default: 'Lagos'
     },
     avatar: {
@@ -270,7 +286,7 @@ UserSchema.pre('save', async function (next) {
 
 UserSchema.methods.getSignedJwtToken = function (): string {
     return jwt.sign(
-        { id: this._id.toString(), role: this.role },
+        { id: this._id.toString(), role: this.role, isGuest: this.isGuest ?? false },
         process.env.JWT_SECRET as string,
         { expiresIn: '7d' }
     );

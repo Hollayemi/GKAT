@@ -13,6 +13,10 @@ import {
     verifyLoginOTP,
     getSearchHistory
 } from '../controllers/auth';
+// add these imports at the top
+import { guestSession, convertGuest } from '../controllers/guest';
+
+
 import { protect } from '../middleware/auth';
 
 const router = Router();
@@ -25,9 +29,13 @@ router.post('/verify-otp', verifyOTP);
 router.post('/resend-otp', resendOTP);
 router.post('/refresh-token', refreshToken);
 
+
+router.post('/guest-session', guestSession);
+
 // Protected routes
 router.use(protect);
 
+router.post('/guest-convert', convertGuest);
 
 router.post('/logout', logout);
 router.put('/complete-profile', completeProfile);

@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import Staff, {IStaff} from '../models/admin/Staff.model';
-import User, {IUser} from '../models/User';
+import Staff, { IStaff } from '../models/admin/Staff.model';
+import User, { IUser } from '../models/User';
 import Role from '../models/admin/Roles.models';
 import { AppError, asyncHandler } from './error';
 
@@ -20,7 +20,7 @@ export const ifToken = asyncHandler(async (req: Request, res: Response, next: Ne
         token = req.headers.authorization.split(' ')[1];
     }
 
-     else if (req.cookies?.token) {
+    else if (req.cookies?.token) {
         token = req.cookies.token;
     }
 
@@ -35,7 +35,7 @@ export const ifToken = asyncHandler(async (req: Request, res: Response, next: Ne
         const user = await User.findById(decoded.id) as IUser;
         req.user = user;
         return next();
-      
+
     } catch (error) {
         return next(new AppError('--Not authorized to access this route', 401, 'UNAUTHORIZED'));
     }
@@ -48,7 +48,7 @@ export const protect = asyncHandler(async (req: Request, res: Response, next: Ne
         token = req.headers.authorization.split(' ')[1];
     }
 
-     else if (req.cookies?.token) {
+    else if (req.cookies?.token) {
         token = req.cookies.token;
     }
 
@@ -61,17 +61,22 @@ export const protect = asyncHandler(async (req: Request, res: Response, next: Ne
         // Verify token
         const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
 
-        if(decoded.role === 'user' || decoded.role === 'driver'){
-             const user = await User.findById(decoded.id) as IUser;
+        if (decoded.role === 'user' || decoded.role === 'driver') {
+            const user = await User.findById(decoded.id) as IUser;
 
 
             if (!user) {
                 return next(new AppError('User no longer exists', 401));
             }
 
-            if (!user.isPhoneVerified) {
+            // allow guests through without phone verification
+            if (!user.isPhoneVerified && !user.isGuest) {
                 return next(new AppError('Please verify your phone number', 401));
             }
+
+            // if (!user.isPhoneVerified) {
+            //     return next(new AppError('Please verify your phone number', 401));
+            // }
 
             req.user = user;
             return next();

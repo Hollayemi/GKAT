@@ -4,6 +4,52 @@
  *   - name: Authentication
  *     description: User authentication via OTP (phone-based), profile management and session control
  *
+ * /auth/guest-session:
+ *   post:
+ *     summary: Guest can access the app without registering by creating a temporary guest session with a unique guest ID. This allows them to browse and use limited features before converting to a full account.
+ *     description: |
+ *       Creates a temporary guest session with a unique guest ID. The guest user can browse the app and use limited features. To convert to a full account, the guest can provide their phone number and verify via OTP using the `/auth/guest-convert` endpoint.
+ *     tags: [Authentication]
+ *     security: [] 
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [guestId]
+ *             properties:
+ *               guestId:
+ *                 type: string
+ *                 example: "guest_12345678"
+ *     responses:
+ *       200:
+ *         description: Guest session created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/SuccessEnvelope'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         phoneNumber:
+ *                           type: string
+ *                           example: "+2348147702684"
+ *                         message:
+ *                           type: string
+ *                           example: "OTP sent successfully"
+ *                         otp:
+ *                           type: string
+ *                           description: Only present in development environment
+ *                           example: "123456"
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ * 
  * /auth/send-otp:
  *   post:
  *     summary: Send OTP to phone number
