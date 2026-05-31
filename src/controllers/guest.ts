@@ -43,12 +43,12 @@ export const guestSession = asyncHandler(async (
         ));
     }
 
-    // try {
-    //     await User.collection.dropIndex('phoneNumber_1');
-    //     console.log('Index dropped successfully');
-    // } catch (err) {
-    //     console.error('Index might not exist:', err);
-    // }
+    try {
+        await User.collection.dropIndex('phoneNumber_1');
+        console.log('Index dropped successfully');
+    } catch (err) {
+        console.error('Index might not exist:', err);
+    }
 
     // Find existing guest user or create a new one
     let user = await User.findOne({ guestId });
