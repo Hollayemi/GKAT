@@ -98,7 +98,7 @@ const UserSchema = new Schema<IUser>({
         sparse: true,
         // unique: true,
         trim: true,
-        index: true
+        // index: true
     },
     isGuest: {
         type: Boolean,

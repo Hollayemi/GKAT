@@ -43,6 +43,13 @@ export const guestSession = asyncHandler(async (
         ));
     }
 
+    // try {
+    //     await User.collection.dropIndex('phoneNumber_1');
+    //     console.log('Index dropped successfully');
+    // } catch (err) {
+    //     console.error('Index might not exist:', err);
+    // }
+
     // Find existing guest user or create a new one
     let user = await User.findOne({ guestId });
 
@@ -119,7 +126,7 @@ export const convertGuest = asyncHandler(async (
     // Verify OTP (OTP was sent to the phone via the existing /auth/send-otp endpoint)
     // We need to find by phone to get the OTP, then merge with the guest record
     const phoneUser = await User.findOne({ phoneNumber }).select('+otp +otpExpiry');
-    
+
     if (phoneUser && phoneUser._id.toString() !== guestUser._id.toString()) {
         // A separate account already exists with this phone — merge cart then
         // point the guest to that account (outside scope of this PR; return error)
