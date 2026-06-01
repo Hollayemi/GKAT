@@ -426,7 +426,7 @@ cartSchema.methods.applyCoupon = async function (couponCode: string): Promise<IC
     // Check applicable categories
     if (coupon.applicableCategories && coupon.applicableCategories.length > 0) {
         const hasApplicableCategory = this.items.some((item: any) =>
-            coupon.applicableCategories.includes(item.category)
+            coupon.applicableCategories.includes(item.category.id)
         );
 
         if (!hasApplicableCategory) {

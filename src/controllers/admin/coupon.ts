@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import Order from '../../models/Orders';
 import Coupon from '../../models/Coupon';
 import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
 
@@ -405,4 +406,314 @@ export const bulkUpdateCoupons = asyncHandler(async (req: Request, res: Response
         },
         'Coupons updated successfully'
     );
+});
+
+
+export const getPromotionStats = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    const now = new Date();
+    
+    // Calculate date ranges for comparison
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+
+    // Helper function to calculate percentage change
+    const calculatePercentageChange = (current: number, previous: number): number => {
+        if (previous === 0) return current > 0 ? 100 : 0;
+        return parseFloat(((current - previous) / previous * 100).toFixed(1));
+    };
+
+    // Get current month stats
+    const [
+        currentActivePromotions,
+        previousActivePromotions,
+        currentUpcomingPromotions,
+        previousUpcomingPromotions,
+        currentEndedPromotions,
+        previousEndedPromotions,
+        mostRedeemedCoupon,
+        currentTotalOrdersWithDiscounts,
+        previousTotalOrdersWithDiscounts
+    ] = await Promise.all([
+        // Current Active Promotions (running now)
+        Coupon.countDocuments({
+            isActive: true,
+            startDateTime: { $lte: now },
+            endDateTime: { $gt: now }
+        }),
+        
+        // Previous Month Active Promotions
+        Coupon.countDocuments({
+            isActive: true,
+            startDateTime: { $lte: previousMonthEnd },
+            endDateTime: { $gt: previousMonthStart }
+        }),
+        
+        // Current Upcoming Promotions
+        Coupon.countDocuments({
+            isActive: true,
+            startDateTime: { $gt: now }
+        }),
+        
+        // Previous Month Upcoming Promotions (that started after previous month start)
+        Coupon.countDocuments({
+            isActive: true,
+            startDateTime: { $gt: previousMonthStart, $lte: previousMonthEnd }
+        }),
+        
+        // Current Ended Promotions
+        Coupon.countDocuments({
+            endDateTime: { $lte: now }
+        }),
+        
+        // Previous Month Ended Promotions
+        Coupon.countDocuments({
+            endDateTime: { $gt: previousMonthStart, $lte: previousMonthEnd }
+        }),
+        
+        // Most Redeemed Promo (all time)
+        Coupon.findOne({ isActive: true })
+            .sort({ currentUsage: -1 })
+            .select('couponCode promotionName currentUsage'),
+        
+        // Current Month Total Orders with Discounts
+        Order.countDocuments({
+            createdAt: { $gte: currentMonthStart, $lte: now },
+            'appliedCoupons.0': { $exists: true }
+        }),
+        
+        // Previous Month Total Orders with Discounts
+        Order.countDocuments({
+            createdAt: { $gte: previousMonthStart, $lt: currentMonthStart },
+            'appliedCoupons.0': { $exists: true }
+        })
+    ]);
+
+    // Get redemption trend for most redeemed promo
+    let mostRedeemedTrend = 0;
+    if (mostRedeemedCoupon) {
+        const [currentMonthRedemptions, previousMonthRedemptions] = await Promise.all([
+            Order.countDocuments({
+                createdAt: { $gte: currentMonthStart, $lte: now },
+                'appliedCoupons.code': mostRedeemedCoupon.couponCode
+            }),
+            Order.countDocuments({
+                createdAt: { $gte: previousMonthStart, $lt: currentMonthStart },
+                'appliedCoupons.code': mostRedeemedCoupon.couponCode
+            })
+        ]);
+        mostRedeemedTrend = calculatePercentageChange(currentMonthRedemptions, previousMonthRedemptions);
+    }
+
+    const stats = {
+        activePromotions: {
+            count: currentActivePromotions,
+            change: calculatePercentageChange(currentActivePromotions, previousActivePromotions)
+        },
+        upcomingPromotions: {
+            count: currentUpcomingPromotions,
+            change: calculatePercentageChange(currentUpcomingPromotions, previousUpcomingPromotions)
+        },
+        endedPromotions: {
+            count: currentEndedPromotions,
+            change: calculatePercentageChange(currentEndedPromotions, previousEndedPromotions)
+        },
+        mostRedeemedPromo: {
+            code: mostRedeemedCoupon?.couponCode || 'N/A',
+            name: mostRedeemedCoupon?.promotionName || 'N/A',
+            redemptionCount: mostRedeemedCoupon?.currentUsage || 0,
+            change: mostRedeemedTrend
+        },
+        totalOrdersWithDiscounts: {
+            count: currentTotalOrdersWithDiscounts,
+            change: calculatePercentageChange(currentTotalOrdersWithDiscounts, previousTotalOrdersWithDiscounts)
+        }
+    };
+
+    (res as AppResponse).data(stats, 'Promotion stats retrieved successfully');
+});
+
+// Alternative: More detailed stats with time-series data
+export const getDetailedPromotionStats = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    const { period = 'month' } = req.query;
+    const now = new Date();
+    
+    let startDate: Date;
+    let previousStartDate: Date;
+    let interval: string;
+
+    switch (period) {
+        case 'week':
+            startDate = new Date(now.setDate(now.getDate() - 7));
+            previousStartDate = new Date(startDate);
+            previousStartDate.setDate(previousStartDate.getDate() - 7);
+            interval = '%Y-%m-%d';
+            break;
+        case 'quarter':
+            startDate = new Date(now.setMonth(now.getMonth() - 3));
+            previousStartDate = new Date(startDate);
+            previousStartDate.setMonth(previousStartDate.getMonth() - 3);
+            interval = '%Y-%m';
+            break;
+        case 'year':
+            startDate = new Date(now.setFullYear(now.getFullYear() - 1));
+            previousStartDate = new Date(startDate);
+            previousStartDate.setFullYear(previousStartDate.getFullYear() - 1);
+            interval = '%Y-%m';
+            break;
+        default: // month
+            startDate = new Date(now.setMonth(now.getMonth() - 1));
+            previousStartDate = new Date(startDate);
+            previousStartDate.setMonth(previousStartDate.getMonth() - 1);
+            interval = '%Y-%m-%d';
+    }
+
+    const calculateChange = (current: number, previous: number): number => {
+        if (previous === 0) return current > 0 ? 100 : 0;
+        return parseFloat(((current - previous) / previous * 100).toFixed(1));
+    };
+
+    // Get stats with time-series data
+    const [
+        activeStats,
+        upcomingStats,
+        endedStats,
+        mostRedeemed,
+        orderStats,
+        redemptionTrend
+    ] = await Promise.all([
+        // Active promotions over time
+        Coupon.aggregate([
+            {
+                $match: {
+                    isActive: true,
+                    startDateTime: { $lte: now },
+                    endDateTime: { $gt: startDate }
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    count: { $sum: 1 },
+                    avgUsage: { $avg: '$currentUsage' },
+                    totalUsage: { $sum: '$currentUsage' }
+                }
+            }
+        ]),
+        
+        // Upcoming promotions
+        Coupon.aggregate([
+            {
+                $match: {
+                    isActive: true,
+                    startDateTime: { $gt: now }
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    count: { $sum: 1 },
+                    avgDiscount: { $avg: '$discountValue' }
+                }
+            }
+        ]),
+        
+        // Ended promotions
+        Coupon.aggregate([
+            {
+                $match: {
+                    endDateTime: { $lte: now }
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    count: { $sum: 1 },
+                    totalRedemptions: { $sum: '$currentUsage' }
+                }
+            }
+        ]),
+        
+        // Most redeemed with details
+        Coupon.findOne()
+            .sort({ currentUsage: -1 })
+            .select('couponCode promotionName promoType discountValue currentUsage usageLimit'),
+        
+        // Orders with discounts over time
+        Order.aggregate([
+            {
+                $match: {
+                    createdAt: { $gte: startDate },
+                    'appliedCoupons.0': { $exists: true }
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        date: { $dateToString: { format: interval, date: '$createdAt' } }
+                    },
+                    count: { $sum: 1 },
+                    totalDiscount: { $sum: '$discount' }
+                }
+            },
+            { $sort: { '_id.date': 1 } }
+        ]),
+        
+        // Redemption trend by promo type
+        Coupon.aggregate([
+            {
+                $match: {
+                    isActive: true
+                }
+            },
+            {
+                $group: {
+                    _id: '$promoType',
+                    count: { $sum: 1 },
+                    totalRedemptions: { $sum: '$currentUsage' },
+                    avgRedemptions: { $avg: '$currentUsage' }
+                }
+            }
+        ])
+    ]);
+
+    const stats = {
+        summary: {
+            activePromotions: {
+                count: activeStats[0]?.count || 0,
+                avgUsage: activeStats[0]?.avgUsage || 0,
+                totalCurrentUsage: activeStats[0]?.totalUsage || 0
+            },
+            upcomingPromotions: {
+                count: upcomingStats[0]?.count || 0,
+                avgDiscountValue: upcomingStats[0]?.avgDiscount || 0
+            },
+            endedPromotions: {
+                count: endedStats[0]?.count || 0,
+                totalHistoricalRedemptions: endedStats[0]?.totalRedemptions || 0
+            }
+        },
+        mostRedeemedPromo: mostRedeemed ? {
+            code: mostRedeemed.couponCode,
+            name: mostRedeemed.promotionName,
+            type: mostRedeemed.promoType,
+            value: mostRedeemed.discountValue,
+            redemptions: mostRedeemed.currentUsage,
+            usageLimit: mostRedeemed.usageLimit,
+            utilizationRate: parseFloat(((mostRedeemed.currentUsage / mostRedeemed.usageLimit) * 100).toFixed(1))
+        } : null,
+        orderStats: {
+            totalOrdersWithDiscounts: orderStats.reduce((sum, item) => sum + item.count, 0),
+            totalDiscountAmount: orderStats.reduce((sum, item) => sum + item.totalDiscount, 0),
+            trend: orderStats
+        },
+        redemptionByType: redemptionTrend,
+        period: {
+            range: period,
+            startDate,
+            endDate: new Date()
+        }
+    };
+
+    (res as AppResponse).data(stats, 'Detailed promotion stats retrieved successfully');
 });

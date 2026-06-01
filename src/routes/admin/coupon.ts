@@ -7,10 +7,12 @@ import {
     deleteCoupon,
     toggleCouponStatus,
     changeCouponStatus,
-    bulkUpdateCoupons
-} from '../controllers/admin/coupon';
-import { protect, authorize } from '../middleware/auth';
-import { validateCouponCreate, validateCouponUpdate } from '../middleware/couponValidation';
+    bulkUpdateCoupons,
+    getPromotionStats,
+    getDetailedPromotionStats
+} from '../../controllers/admin/coupon';
+import { protect, authorize } from '../../middleware/auth';
+import { validateCouponCreate, validateCouponUpdate } from '../../middleware/couponValidation';
 
 const router = Router();
 
@@ -48,5 +50,14 @@ router.patch('/:id/toggle-status', toggleCouponStatus);
 // @route   PATCH /api/v1/admin/coupons/:id/status
 // @desc    Change coupon status (draft/active)
 router.patch('/:id/status', changeCouponStatus);
+
+// @route   GET /api/v1/admin/promotions/stats
+// @desc    Get promotion statistics with month-over-month changes
+router.get('/stats', getPromotionStats);
+
+// @route   GET /api/v1/admin/promotions/stats/detailed
+// @desc    Get detailed promotion statistics with time-series data
+// @query   period - week, month, quarter, year (default: month)
+router.get('/stats/detailed', getDetailedPromotionStats);
 
 export default router;

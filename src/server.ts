@@ -88,7 +88,7 @@ import orderRoutes from './routes/order';
 import adminOrderRoutes from './routes/admin/order';
 import addressRoutes from './routes/address';
 import paymentRoutes from './routes/payment';
-import couponRoutes from './routes/coupon';
+import couponRoutes from './routes/admin/coupon';
 import categoryRoutes from './routes/category';
 import regionRoutes from './routes/region';
 import recommendationRoutes from './routes/recommendation';
