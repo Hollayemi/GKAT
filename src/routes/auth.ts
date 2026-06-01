@@ -11,7 +11,8 @@ import {
     refreshToken,
     login,
     verifyLoginOTP,
-    getSearchHistory
+    getSearchHistory,
+    getMyReferredUsers,
 } from '../controllers/auth';
 // add these imports at the top
 import { guestSession, convertGuest } from '../controllers/guest';
@@ -45,5 +46,6 @@ router.put('/biometrics', updateBiometricSettings);
 // information about the currently logged in user
 router.get('/me', getMe);
 router.get('/search-history', getSearchHistory);
+router.get('/referrals', getMyReferredUsers);
 
 export default router;

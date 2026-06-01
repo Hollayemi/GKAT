@@ -422,3 +422,12 @@ export const getSearchHistory = asyncHandler(async (req: Request, res: Response,
 
     (res as AppResponse).data({ searchHistory: user.searchHistory, popularSearches }, 'Search history retrieved successfully');
 });
+
+export const getMyReferredUsers = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) {
+        return next(new AppError('Not authenticated', 401));
+    }
+
+    const referredUsers = await User.find({ referredBy: req.user.referralCode }).select('name avatar');
+    (res as AppResponse).data({ referredUsers, point: process.env.REFERRAL_BONUS, referralCode: req.user.referralCode }, 'Referred users retrieved successfully');
+});

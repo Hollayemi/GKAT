@@ -463,6 +463,24 @@
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  *
+ * /auth/referrals:
+ *   get:
+ *     summary: Get referred users
+ *     description: Returns a list of users who signed up using the current user's referral code, along with the referral bonus points earned.
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Referred users retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessEnvelope'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ * 
+ * 
  * /auth/logout:
  *   post:
  *     summary: Logout

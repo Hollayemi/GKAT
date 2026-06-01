@@ -326,4 +326,4 @@ exports.getSearchHistory = (0, error_1.asyncHandler)(async (req, res, next) => {
     }
     res.data({ searchHistory: user.searchHistory, popularSearches }, 'Search history retrieved successfully');
 });
-//# sourceMappingURL=auth.js.map
+
