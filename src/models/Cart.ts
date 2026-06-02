@@ -13,7 +13,7 @@ export interface ICartItem {
     image?: string;
     unitType: string;
     unitQuantity: number;
-    maxQuantity: number; 
+    maxQuantity: number;
     totalPrice: number;
 }
 
@@ -146,6 +146,11 @@ const cartItemSchema = new Schema<ICartItem>({
 // Applied Coupon Schema
 const appliedCouponSchema = new Schema<IAppliedCoupon>({
     code: {
+        type: String,
+        required: true,
+        uppercase: true
+    },
+    promotionName: {
         type: String,
         required: true,
         uppercase: true
@@ -452,9 +457,11 @@ cartSchema.methods.applyCoupon = async function (couponCode: string): Promise<IC
     // Ensure discount doesn't exceed subtotal
     discountAmount = Math.min(discountAmount, this.subtotal);
 
+    console.log({ coupon })
+
     this.appliedCoupons.push({
         code: coupon.couponCode,
-        promotionName: coupon.promotionName,
+        promotionName: coupon.promotionName || coupon.couponCode,
         promoType: coupon.promoType,
         discountValue: coupon.discountValue,
         discountAmount: discountAmount,
@@ -506,8 +513,8 @@ cartSchema.methods.validateStock = async function (): Promise<{ valid: boolean; 
 
 cartSchema.statics.findOrCreateCart = async function (userId: Types.ObjectId): Promise<ICart> {
     let cart = await this.findOne({ userId, isActive: true })
-    .populate('items.category', 'name icon isActive')
-    .exec();
+        .populate('items.category', 'name icon isActive')
+        .exec();
 
     if (!cart) {
         cart = new this({ userId });

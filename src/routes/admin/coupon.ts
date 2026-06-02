@@ -9,7 +9,6 @@ import {
     changeCouponStatus,
     bulkUpdateCoupons,
     getPromotionStats,
-    getDetailedPromotionStats
 } from '../../controllers/admin/coupon';
 import { protect, authorize } from '../../middleware/auth';
 import { validateCouponCreate, validateCouponUpdate } from '../../middleware/couponValidation';
@@ -53,11 +52,7 @@ router.patch('/:id/status', changeCouponStatus);
 
 // @route   GET /api/v1/admin/promotions/stats
 // @desc    Get promotion statistics with month-over-month changes
-router.get('/stats', getPromotionStats);
+router.get('/stats/brief', getPromotionStats);
 
-// @route   GET /api/v1/admin/promotions/stats/detailed
-// @desc    Get detailed promotion statistics with time-series data
-// @query   period - week, month, quarter, year (default: month)
-router.get('/stats/detailed', getDetailedPromotionStats);
 
 export default router;

@@ -119,7 +119,7 @@ export async function buildCartSummary(cart: any): Promise<any> {
 
         enrichedCoupons.push({
             code: appliedCoupon.code,
-            promotionName: appliedCoupon.promotionName,
+            promotionName: appliedCoupon?.promotionName || appliedCoupon.code,
             promoType: appliedCoupon.promoType,
             discountValue: appliedCoupon.discountValue,
             discountAmount,
