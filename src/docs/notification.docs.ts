@@ -26,7 +26,7 @@
  *         in: query
  *         schema:
  *           type: string
- *           enum: [order, promotion, system, message, payment, review]
+ *           enum: [order, driver, promotion, system, message, payment, review]
  *         description: Filter by notification type
  *       - name: unreadOnly
  *         in: query

@@ -504,7 +504,7 @@ export const getActiveDelivery = asyncHandler(async (req: Request, res: Response
 
     const delivery = await DriverDelivery.findOne({
         driverId,
-        // status: { $in: ['accepted', 'arrived_at_store', 'picked_up', 'in_transit', 'arrived_at_customer'] }
+        status: { $in: ['accepted', 'arrived_at_store', 'picked_up', 'in_transit', 'arrived_at_customer'] }
     })
         .populate({
             path: 'orderId',
