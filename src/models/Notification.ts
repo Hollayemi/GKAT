@@ -3,6 +3,7 @@ import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 // Enums for type safety
 export enum NotificationType {
     ORDER = 'order',
+    Driver = 'driver',
     PROMOTION = 'promotion',
     SYSTEM = 'system',
     MESSAGE = 'message',

@@ -20,8 +20,6 @@ const calculateFare = (distanceKm: number, isPriority = false) => {
     return { baseFare: BASE_FARE, distanceBonus, priorityFee: PRIORITY_FEE, totalEarned: BASE_FARE + distanceBonus + PRIORITY_FEE };
 };
 
-const generateDeliveryPin = (): string =>
-    Math.floor(1000 + Math.random() * 9000).toString();
 
 export const assignDriverToOrder = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return next(new AppError('Not authenticated', 401));
@@ -38,7 +36,7 @@ export const assignDriverToOrder = asyncHandler(async (req: Request, res: Respon
     const order = await Order.findOne(orderQuery).populate('userId', 'name email');
     if (!order) return next(new AppError('Order not found or not in your region', 404));
 
-    if (order.orderStatus !== "processing") {
+    if (order.orderStatus !== "ready") {
         return next(new AppError(
             `Cannot assign driver to order with status "${order.orderStatus}". Order must be paid or confirmed.`,
             400
@@ -121,70 +119,5 @@ export const assignDriverToOrder = asyncHandler(async (req: Request, res: Respon
         },
         'Driver assigned to order successfully',
         201
-    );
-});
-
-
-export const getAvailableDrivers = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-    const { region, search } = req.query;
-
-    console.log('Fetching available drivers with filters:', { region, search });
-
-    const staffRegionId = await resolveStaffRegionId(req.user);
-
-    console.log('Resolved staff region ID:', staffRegionId);
-
-    const query: any = {
-        status: 'active',
-        verificationStatus: 'verified',
-    };
-
-    if (staffRegionId) {
-        query.region = staffRegionId.toString();
-    } else if (region) {
-        query.region = region;
-    }
-
-    if (search) {
-        query.$or = [
-            { phone: { $regex: search, $options: 'i' } },
-            { vehiclePlateNumber: { $regex: search, $options: 'i' } },
-        ];
-    }
-
-    const drivers = await Driver.find(query)
-        .populate('userId', 'name email phoneNumber avatar')
-        .populate('region', 'name')
-        .select('-password -passwordSetupToken -passwordSetupExpiry')
-        .lean();
-
-    const busyDriverIds = await DriverDelivery.find({
-        status: { $in: ['accepted', 'arrived_at_store', 'picked_up', 'in_transit', 'arrived_at_customer'] }
-    }).distinct('driverId');
-
-    const busySet = new Set(busyDriverIds.map(id => id.toString()));
-
-    const available = drivers
-        .filter(d => !busySet.has(d._id.toString()))
-        .map(d => ({
-            _id: d._id,
-            fullName: (d.userId as any)?.name || 'Unknown',
-            email: (d.userId as any)?.email || '',
-            phone: d.phone,
-            avatar: (d.userId as any)?.avatar || d.profilePhoto || null,
-            vehicleType: d.vehicleType,
-            vehiclePlateNumber: d.vehiclePlateNumber,
-            vehicleModel: d.vehicleModel,
-            region: d.region,
-            rating: d.rating,
-            totalDeliveries: d.totalDeliveries,
-            completedDeliveries: d.completedDeliveries,
-            isOnline: d.isOnline,
-            status: d.status,
-        }));
-
-    (res as AppResponse).data(
-        { drivers: available, total: available.length },
-        'Available drivers retrieved successfully'
     );
 });

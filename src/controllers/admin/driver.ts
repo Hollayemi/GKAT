@@ -4,12 +4,14 @@ import DriverWallet from '../../models/DriverWallet';
 import DriverDelivery from '../../models/DriverDelivery';
 import Order from '../../models/Orders';
 import User from '../../models/User';
+import Address from '../../models/Address';
 import DriverActivity from '../../models/activities/driver';
 import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
 import CloudinaryService from '../../services/cloudinary';
 import { sendEmail, driverEmailTemplates } from '../../utils/driverEmail';
 import { resolveStaffRegionId } from '../../helpers/regionScope';
 import { dispatchOrderToDrivers } from '../rider/orders';
+import NotificationController from '../others/notification';
 
 
 const logDriverActivity = async (
@@ -155,10 +157,12 @@ export const createDriver = asyncHandler(async (req: Request, res: Response, nex
         }
     }
 
-    let existingUser: any = await User.findOne({ phoneNumber:phone }).lean();
+    let existingUser: any = await User.findOne({ phoneNumber: phone }).lean();
     if (!existingUser) {
         existingUser = await User.create({ phoneNumber: phone, residentArea: city || state || 'Unknown', name: fullName, email, role: 'driver' });
     }
+
+    await User.findByIdAndUpdate(existingUser._id, { role: 'driver' });
 
     console.log('vehiclePhotoUrl:', vehiclePhotoUrl, 'profilePhotoUrl:', profilePhotoUrl, 'driversLicenseUrl:', driversLicenseUrl);
     if (!vehiclePhotoUrl || !profilePhotoUrl || !driversLicenseUrl) {
@@ -189,6 +193,15 @@ export const createDriver = asyncHandler(async (req: Request, res: Response, nex
 
     await logDriverActivity(driver._id.toString(), existingUser.name, 'Registration', 'Driver account created', { vehicleType: driver.vehicleType, region: driver.region, employmentType: driver.employmentType }, undefined, req.ip);
 
+    await NotificationController.saveAndSendNotification({
+        userId: driver.userId?.toString(),
+        title: 'Welcome to Go-Kart!',
+        body: `Your driver account has been created and is pending verification. We will notify you once your account has been reviewed. Thank you for joining Go-Kart!`,
+        type: 'driver',
+        priority: 'high'
+    }, 'user', { push_notification: true });
+
+
     (res as AppResponse).data(
         { _id: driver._id, fullName: existingUser.name, email: existingUser.email, phone: driver.phone, vehicleType: driver.vehicleType, vehiclePlateNumber: driver.vehiclePlateNumber, region: driver.region, employmentType: driver.employmentType, status: driver.status, verificationStatus: driver.verificationStatus, hasSetPassword: driver.hasSetPassword, joinedDate: driver.joinedDate, createdAt: driver.createdAt, updatedAt: driver.updatedAt },
         'Driver registered successfully.',
@@ -200,7 +213,7 @@ export const updateDriver = asyncHandler(async (req: Request, res: Response, nex
     const driver = await Driver.findById(req.params.id).populate('userId', 'name email').exec() as any;
     if (!driver) return next(new AppError('Driver not found', 404));
     // if (req.body.email && req.body.email !== driver.userId?.email) return next(new AppError('Email cannot be changed', 400));
-  console.log('Update data:', req.body);
+    console.log('Update data:', req.body);
     if (req.body.vehiclePlateNumber) {
         const plateNumber = req.body.vehiclePlateNumber.toUpperCase().replace(/\s/g, '');
         if (plateNumber !== driver.vehiclePlateNumber) {
@@ -209,8 +222,8 @@ export const updateDriver = asyncHandler(async (req: Request, res: Response, nex
         }
     }
 
-    
-  
+
+
     if (req.files) {
         const files = req.files as { [fieldname: string]: Express.Multer.File[] };
         if (files.vehiclePhoto?.[0]) {
@@ -251,7 +264,7 @@ export const updateDriver = asyncHandler(async (req: Request, res: Response, nex
     }
     if (req.body.vehiclePlateNumber) req.body.vehiclePlateNumber = req.body.vehiclePlateNumber.toUpperCase().replace(/\s/g, '');
 
-    
+
 
     const updatedDriver = await Driver.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true }).select('-password -passwordSetupToken -passwordSetupExpiry');
 
@@ -292,6 +305,15 @@ export const verifyDriver = asyncHandler(async (req: Request, res: Response, nex
 
     await logDriverActivity(driver._id.toString(), driver.userId.name, 'Account Verified', 'Driver account verified by admin', { verifiedBy: req.user?.fullName, verificationNotes: notes }, undefined, req.ip);
 
+    await NotificationController.saveAndSendNotification({
+        userId: driver.userId?.toString(),
+        title: 'Account Verified',
+        body: `Congratulations! Your driver account has been verified and is now active. You can log in to your account to start accepting deliveries. Thank you for joining Go-Kart!`,
+        type: 'driver',
+        priority: 'high'
+    }, 'user', { push_notification: true });
+
+
     (res as AppResponse).data({ _id: driver._id, fullName: driver.userId.name, status: driver.status, verificationStatus: driver.verificationStatus, verifiedAt: driver.verifiedAt, verificationNotes: driver.verificationNotes }, 'Driver verified successfully');
 });
 
@@ -309,6 +331,15 @@ export const rejectDriver = asyncHandler(async (req: Request, res: Response, nex
 
     try { await sendEmail({ to: driver.userId.email, subject: 'Driver account verification update', html: driverEmailTemplates.verificationRejected(driver.userId.name, reason) }); } catch (e) { console.error(e); }
     await logDriverActivity(driver._id.toString(), driver.fullName, 'Account Rejected', 'Driver account verification rejected', { rejectedBy: req.user?.fullName, reason }, undefined, req.ip);
+
+    await NotificationController.saveAndSendNotification({
+        userId: driver.userId?.toString(),
+        title: 'Account Suspension Notice',
+        body: `Your driver account has been suspended. Reason: ${reason}. Please contact support for more information.`,
+        type: 'driver',
+        priority: 'high'
+    }, 'user', { push_notification: true });
+
 
     (res as AppResponse).data({ _id: driver._id, fullName: driver.fullName, verificationStatus: driver.verificationStatus, rejectedAt: driver.rejectedAt, rejectionReason: driver.rejectionReason }, 'Driver application rejected');
 });
@@ -334,6 +365,15 @@ export const suspendDriver = asyncHandler(async (req: Request, res: Response, ne
     if (notifyDriver) { try { await sendEmail({ to: driver.userId.email, subject: 'Your driver account has been suspended', html: driverEmailTemplates.accountSuspended(driver.userId.name, reason, duration, driver.suspendedUntil) }); } catch (e) { console.error(e); } }
     await logDriverActivity(driver._id.toString(), driver.userId.name, 'Account Suspended', `Driver account suspended: ${reason}`, { suspendedBy: req.user?.fullName, reason, duration }, undefined, req.ip);
 
+    await NotificationController.saveAndSendNotification({
+        userId: driver.userId?.toString(),
+        title: 'Account Suspension Notice',
+        body: `Your driver account has been suspended. Reason: ${reason}. Please contact support for more information.`,
+        type: 'driver',
+        priority: 'high'
+    }, 'user', { push_notification: true });
+
+
     (res as AppResponse).data({ _id: driver._id, status: driver.status, suspendedAt: driver.suspendedAt, suspendedUntil: driver.suspendedUntil, reason: driver.suspensionReason }, 'Driver suspended successfully');
 });
 
@@ -350,6 +390,15 @@ export const unsuspendDriver = asyncHandler(async (req: Request, res: Response, 
 
     await logDriverActivity(driver._id.toString(), driver.userId.name, 'Account Unsuspended', 'Driver account unsuspended by admin', { unsuspendedBy: req.user?.fullName }, undefined, req.ip);
 
+    await NotificationController.saveAndSendNotification({
+        userId: driver.userId?.toString(),
+        title: 'Account Unsuspension Notice',
+        body: `Your driver account has been unsuspended and is now active. Thank you for your patience. Please log in to your account to continue accepting deliveries.`,
+        type: 'driver',
+        priority: 'high'
+    }, 'user', { push_notification: true });
+
+
     (res as AppResponse).data({ driver }, 'Driver unsuspended successfully');
 });
 
@@ -364,6 +413,15 @@ export const disableDriver = asyncHandler(async (req: Request, res: Response, ne
     driver.disabledAt = new Date();
     driver.disablementReason = reason;
     await driver.save();
+
+    await NotificationController.saveAndSendNotification({
+        userId: driver.userId?.toString(),
+        title: 'Account Disabled Notice',
+        body: `Your driver account has been disabled. Reason: ${reason}. Please contact support for more information.`,
+        type: 'driver',
+        priority: 'high'
+    }, 'user', { push_notification: true });
+
 
     if (notifyDriver) { try { await sendEmail({ to: driver.userId.email, subject: 'Driver account disabled', html: driverEmailTemplates.accountDisabled(driver.userId.name, reason) }); } catch (e) { console.error(e); } }
     await logDriverActivity(driver._id.toString(), driver.userId.name, 'Account Disabled', `Driver account disabled: ${reason}`, { disabledBy: req.user?.fullName, reason }, undefined, req.ip);
@@ -382,6 +440,14 @@ export const enableDriver = asyncHandler(async (req: Request, res: Response, nex
     await driver.save();
 
     await logDriverActivity(driver._id.toString(), driver.userId.name, 'Account Enabled', 'Driver account enabled by admin', { enabledBy: req.user?.fullName }, undefined, req.ip);
+
+    await NotificationController.saveAndSendNotification({
+        userId: driver.userId?.toString(),
+        title: 'Account Enabled Notice',
+        body: `Your driver account has been enabled and is now active. Thank you for your patience. Please log in to your account to continue accepting deliveries.`,
+        type: 'driver',
+        priority: 'high'
+    }, 'user', { push_notification: true });
 
     (res as AppResponse).data({ driver }, 'Driver enabled successfully');
 });
@@ -412,6 +478,7 @@ export const bulkSuspend = asyncHandler(async (req: Request, res: Response, next
         await logDriverActivity(driver._id.toString(), driver.userId.name, 'Bulk Suspend', `Driver suspended in bulk: ${reason}`, { suspendedBy: req.user?.fullName, reason, bulkOperation: true }, undefined, req.ip);
     }
 
+
     (res as AppResponse).data({ modifiedCount: result.modifiedCount, matchedCount: result.matchedCount }, `${result.modifiedCount} driver(s) suspended successfully`);
 });
 
@@ -429,6 +496,64 @@ export const bulkDelete = asyncHandler(async (req: Request, res: Response, next:
     const result = await Driver.deleteMany({ _id: { $in: ids } });
 
     (res as AppResponse).data({ deletedCount: result.deletedCount }, `${result.deletedCount} driver(s) deleted successfully`);
+});
+
+export const getActiveDelivery = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    const driverId = req.params.id as string;
+    if (!driverId) return next(new AppError('Driver ID not found', 404));
+
+    const delivery = await DriverDelivery.findOne({
+        driverId,
+        // status: { $in: ['accepted', 'arrived_at_store', 'picked_up', 'in_transit', 'arrived_at_customer'] }
+    })
+        .populate({
+            path: 'orderId',
+            select: 'orderNumber orderSlug items totalAmount notes',
+            populate: { path: 'shippingAddress', select: 'address localGovernment state phone' }
+        })
+        .populate('userId', 'name avatar phoneNumber');
+
+    (res as AppResponse).data(delivery, 'Active delivery retrieved');
+});
+
+export const getDeliveryHistory = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) return next(new AppError('Not authenticated', 401));
+
+    const driverId = req.params.id as string;
+    if (!driverId) return next(new AppError('Driver ID not found', 404));
+    const { status, page = 1, limit = 20 } = req.query;
+    const query: any = { driverId };
+
+    if (status && status !== 'all') {
+        query.status = status;
+    } else {
+        // query.status = { $in: ['delivered', 'cancelled', 'rejected', "accepted", "on-delivery"] };
+    }
+
+    const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
+
+    const [deliveries, total] = await Promise.all([
+        DriverDelivery.find(query)
+            .populate('orderId', 'orderNumber orderSlug items')
+            .populate('userId', 'name avatar')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(parseInt(limit as string)),
+        DriverDelivery.countDocuments(query)
+    ]);
+
+    (res as AppResponse).data(
+        {
+            deliveries,
+            pagination: {
+                page: parseInt(page as string),
+                limit: parseInt(limit as string),
+                total,
+                pages: Math.ceil(total / parseInt(limit as string))
+            }
+        },
+        'Delivery history retrieved'
+    );
 });
 
 export const getActivityLogs = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
@@ -507,116 +632,179 @@ export const getDashboardSummary = asyncHandler(async (req: Request, res: Respon
 
 
 
+export const getAvailableDrivers = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    const { region, search } = req.query;
+
+    console.log('Fetching available drivers with filters:', { region, search });
+
+    const staffRegionId = await resolveStaffRegionId(req.user);
+
+    console.log('Resolved staff region ID:', staffRegionId);
+
+    const query: any = {
+        status: 'active',
+        verificationStatus: 'verified',
+    };
+
+    if (staffRegionId) {
+        query.region = staffRegionId.toString();
+    } else if (region) {
+        query.region = region;
+    }
+
+    if (search) {
+        query.$or = [
+            { phone: { $regex: search, $options: 'i' } },
+            { vehiclePlateNumber: { $regex: search, $options: 'i' } },
+        ];
+    }
+
+    const drivers = await Driver.find(query)
+        .populate('userId', 'name email phoneNumber avatar')
+        .populate('region', 'name')
+        .select('-password -passwordSetupToken -passwordSetupExpiry')
+        .lean();
+
+    const busyDriverIds = await DriverDelivery.find({
+        status: { $in: ['accepted', 'arrived_at_store', 'picked_up', 'in_transit', 'arrived_at_customer'] }
+    }).distinct('driverId');
+
+    const busySet = new Set(busyDriverIds.map(id => id.toString()));
+
+    const available = drivers
+        .filter(d => !busySet.has(d._id.toString()))
+        .map(d => ({
+            _id: d._id,
+            fullName: (d.userId as any)?.name || 'Unknown',
+            email: (d.userId as any)?.email || '',
+            phone: d.phone,
+            avatar: (d.userId as any)?.avatar || d.profilePhoto || null,
+            vehicleType: d.vehicleType,
+            vehiclePlateNumber: d.vehiclePlateNumber,
+            vehicleModel: d.vehicleModel,
+            region: d.region,
+            rating: d.rating,
+            totalDeliveries: d.totalDeliveries,
+            completedDeliveries: d.completedDeliveries,
+            isOnline: d.isOnline,
+            status: d.status,
+        }));
+
+    (res as AppResponse).data(
+        { drivers: available, total: available.length },
+        'Available drivers retrieved successfully'
+    );
+});
 
 
-export const assignDriverToOrder = asyncHandler(
-    async (req: Request, res: Response, next: NextFunction) => {
-        if (!req.user) return next(new AppError('Not authenticated', 401));
+export const assignDriverToOrder = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) return next(new AppError('Not authenticated', 401));
 
-        const { orderNumber } = req.params;
-        const { driverId, distanceKm = 3.5, isPriority = false, note = '' } = req.body;
+    const { orderNumber } = req.params;
+    const { driverId, distanceKm = 3.5, isPriority = false, pickupAddress } = req.body;
 
-        if (!driverId) return next(new AppError('driverId is required', 400));
+    if (!driverId) return next(new AppError('driverId is required', 400));
 
-        const staffRegionId = await resolveStaffRegionId(req.user);
-        const orderFilter: any = { orderNumber };
-        if (staffRegionId) orderFilter.region = staffRegionId;
+    const staffRegionId = await resolveStaffRegionId(req.user);
+    const orderQuery: any = { orderNumber };
+    if (staffRegionId) orderQuery.region = staffRegionId;
 
-        const order = await Order.findOne(orderFilter).populate('shippingAddress');
-        if (!order) return next(new AppError('Order not found or not in your region', 404));
+    const order = await Order.findOne(orderQuery).populate('userId', 'name email');
+    if (!order) return next(new AppError('Order not found or not in your region', 404));
 
-        if (order.orderStatus.toLowerCase() !== "processing") {
-            return next(
-                new AppError(`Order cannot be assigned at status '${order.orderStatus}'`, 400),
-            );
+    if (order.orderStatus !== "ready") {
+        return next(new AppError(
+            `Cannot assign driver to order with status "${order.orderStatus}". Order must be paid or confirmed.`,
+            400
+        ));
+    }
+
+    const driver = await Driver.findById(driverId).populate('userId', 'name email phoneNumber');
+    if (!driver) return next(new AppError('Driver not found', 404));
+
+    if (driver.verificationStatus !== 'verified') {
+        return next(new AppError('Driver must be verified before assignment', 400));
+    }
+    if (driver.status === 'suspended' || driver.status === 'disabled') {
+        return next(new AppError(`Driver account is ${driver.status} and cannot be assigned`, 400));
+    }
+
+    const activeDelivery = await DriverDelivery.findOne({
+        driverId: driver._id,
+        status: { $in: ['accepted', 'arrived_at_store', 'picked_up', 'in_transit', 'arrived_at_customer'] }
+    });
+    if (activeDelivery) {
+        return next(new AppError('Driver is currently on an active delivery', 409));
+    }
+
+    const existingOrderDelivery = await DriverDelivery.findOne({
+        orderId: order._id,
+        status: { $nin: ['cancelled', 'rejected'] }
+    });
+    if (existingOrderDelivery && existingOrderDelivery.driverId) {
+        return next(new AppError('This order already has an active delivery assignment', 409));
+    }
+
+    let deliveryAddress = 'Customer Location';
+    try {
+        const addressDoc = await Address.findById(order.shippingAddress).lean() as any;
+        if (addressDoc) {
+            deliveryAddress = [addressDoc.address, addressDoc.localGovernment, addressDoc.state]
+                .filter(Boolean).join(', ');
         }
+    } catch (_) { }
 
-        const existingDelivery = await DriverDelivery.findOne({
-            orderId: order._id,
-            status: { $nin: ['cancelled', 'rejected'] },
-        });
-        if (existingDelivery) {
-            return next(new AppError('Order already has an active delivery assignment', 409));
-        }
+    const delivery = await dispatchOrderToDrivers(order.id, driver.id, distanceKm,);
 
-        const driver = await Driver.findById(driverId).populate('userId', 'name email');
-        if (!driver) return next(new AppError('Driver not found', 404));
+    await order.updateStatus('ready', `Driver assigned by admin: ${(driver.userId as any)?.name || driver._id}`);
 
-        if (driver.verificationStatus !== 'verified') {
-            return next(new AppError('Driver is not verified', 400));
-        }
-        if (driver.status !== 'active') {
-            return next(new AppError(`Driver status is '${driver.status}' — must be active`, 400));
-        }
+    // driver.status = 'on-delivery';
+    // await driver.save();
 
-        const driverBusy = await DriverDelivery.findOne({
+    await NotificationController.saveAndSendNotification({
+        userId: driver.userId?.toString(),
+        title: 'Driver Assigned to Order',
+        body: `You have been assigned to deliver order ${order.orderNumber}. Please check your app for details.`,
+        type: 'driver',
+        typeId: { orderId: delivery.orderId },
+        clickUrl: `/orders/${delivery.orderId}`,
+        priority: 'high'
+    }, 'user', { push_notification: true });
+
+    const walletExists = await DriverWallet.findOne({ driverId: driver._id });
+    if (!walletExists) {
+        await DriverWallet.create({
             driverId: driver._id,
-            status: {
-                $in: ['accepted', 'arrived_at_store', 'picked_up', 'in_transit', 'arrived_at_customer'],
-            },
+            userId: driver.userId,
+            balance: 0,
+            totalEarned: 0,
+            totalWithdrawn: 0,
+            totalDeliveries: 0,
         });
-        if (driverBusy) return next(new AppError('Driver already has an active delivery', 400));
+    }
 
-        const shippingAddr = order.shippingAddress as any;
-        const deliveryAddress =
-            typeof shippingAddr === 'string'
-                ? shippingAddr
-                : [shippingAddr?.address, shippingAddr?.localGovernment, shippingAddr?.state]
-                    .filter(Boolean)
-                    .join(', ');
-
-        const fare = 300 //calculateFare(Number(distanceKm), Boolean(isPriority));
-        const pin = "jkjdhcjh" //generateDeliveryPin();
-        const now = new Date();
-
-        const delivery = await dispatchOrderToDrivers(order.id, driver.id, distanceKm, );
-
-        await Driver.findByIdAndUpdate(driver._id, { status: 'on-delivery', lastActive: now });
-
-        await order.updateStatus(
-            'shipped',
-            note || `Driver ${(driver.userId as any)?.name || driverId} assigned by admin`,
-            req.user.id,
-        );
-
-
-        order.driverId = driverId;
-        await order.save();
-
-        const walletExists = await DriverWallet.findOne({ driverId: driver._id });
-        if (!walletExists) {
-            await DriverWallet.create({
-                driverId: driver._id,
-                userId: driver.userId,
-                balance: 0,
-                totalEarned: 0,
-                totalWithdrawn: 0,
-                totalDeliveries: 0,
-            });
-        }
-
-        (res as AppResponse).data(
-            {
-                delivery: {
-                    _id: delivery._id,
-                    status: delivery.status,
-                    fareBreakdown: delivery.fareBreakdown,
-                    distanceKm: delivery.distanceKm,
-                },
-                driver: {
-                    _id: driver._id,
-                    name: (driver.userId as any)?.name,
-                    phone: driver.phone,
-                    vehicleType: driver.vehicleType,
-                    vehiclePlateNumber: driver.vehiclePlateNumber,
-                },
-                order: {
-                    orderNumber: order.orderNumber,
-                    orderStatus: 'processing',
-                },
+    (res as AppResponse).data(
+        {
+            delivery: {
+                _id: delivery._id,
+                orderNumber: delivery.orderNumber,
+                status: delivery.status,
+                fareBreakdown: delivery.fareBreakdown,
+                distanceKm: delivery.distanceKm,
+                pickupAddress: delivery.pickupAddress,
+                deliveryAddress: delivery.deliveryAddress,
             },
-            'Driver assigned to order successfully',
-            201,
-        );
-    },
-);
+            driver: {
+                _id: driver._id,
+                fullName: (driver.userId as any)?.name,
+                phone: driver.phone,
+                vehicleType: driver.vehicleType,
+                vehiclePlateNumber: driver.vehiclePlateNumber,
+            },
+            orderStatus: 'processing',
+        },
+        'Driver assigned to order successfully',
+        201
+    );
+});
+

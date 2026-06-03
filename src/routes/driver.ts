@@ -16,12 +16,14 @@ import {
     bulkDelete,
     getActivityLogs,
     getDriverStatistics,
+    getActiveDelivery,
+    getDeliveryHistory,
     getDashboardSummary,
+    getAvailableDrivers,
 } from '../controllers/admin/driver';
 import { protect, checkPermission } from '../middleware/auth';
 import { upload } from '../services/cloudinary';
 import { validateDriverCreate, validateDriverUpdate } from '../middleware/driverValidation';
-import { getAvailableDrivers } from '../controllers/admin/assignDriverToOrderController';
 
 const router = Router();
 
@@ -77,6 +79,8 @@ router.post('/:id/resend-password-link', checkPermission('view_users'), resendPa
 // Statistics and activity
 router.get('/:id/statistics', checkPermission('access_reports'), getDriverStatistics);
 router.get('/:id/activity-logs', checkPermission('access_reports'), getActivityLogs);
+router.get('/:id/delivery', checkPermission('access_reports'), getActiveDelivery);
+router.get('/:id/history', checkPermission('access_reports'), getDeliveryHistory);
 
 // Bulk operations
 router.post('/bulk/suspend', checkPermission('suspend_accounts'), bulkSuspend);

@@ -32,9 +32,9 @@ export const getAvailableOrders = asyncHandler(async (req: Request, res: Respons
     const driver = await Driver.findOne({ userId: req.user._id, });
     if (!driver) return next(new AppError('Driver profile not found', 404));
 
-    if (!driver.isOnline) {
-        return next(new AppError('You must be online to see available orders', 403));
-    }
+    // if (!driver.isOnline) {
+    //     return next(new AppError('You must be online to see available orders', 403));
+    // }
 
     if (driver.verificationStatus !== 'verified') {
         return next(new AppError('Your account is not verified', 403));
@@ -136,6 +136,18 @@ export const acceptOrder = asyncHandler(async (req: Request, res: Response, next
         priority: 'high'
     }, 'user', { push_notification: true });
 
+    // Notify customer
+    await NotificationController.saveAndSendNotification({
+        userId: delivery.driverId.toString(),
+        title: `You accepted to pick ${delivery.orderNumber}`,
+        body: `You agreed to pick up this order and deliver it to the customer as quickly as possible. Order #${delivery.orderNumber}`,
+        type: 'driver',
+        typeId: { orderId: delivery.orderId },
+        clickUrl: `/orders/${delivery.orderId}`,
+        priority: 'high'
+    }, 'user', { push_notification: true });
+
+
     const populated = await DriverDelivery.findById(delivery._id)
         .populate('orderId', 'orderNumber orderSlug items totalAmount notes')
         .populate('userId', 'name avatar phoneNumber');
@@ -177,6 +189,17 @@ export const rejectOrder = asyncHandler(async (req: Request, res: Response, next
     });
     delivery.driverId = undefined // Clear driver assignment on rejection
     await delivery.save();
+
+    await NotificationController.saveAndSendNotification({
+        userId: req.user._id?.toString(),
+        title: `You rejected to pick ${delivery.orderNumber}`,
+        body: `${reason}. Order #${delivery.orderNumber}`,
+        type: 'driver',
+        typeId: { orderId: delivery.orderId },
+        clickUrl: `/orders/${delivery.orderId}`,
+        priority: 'high'
+    }, 'user', { push_notification: true });
+
 
     (res as AppResponse).success('Order rejected');
 });
@@ -241,6 +264,17 @@ export const updateDeliveryStatus = asyncHandler(async (req: Request, res: Respo
             }
         });
     }
+
+    await NotificationController.saveAndSendNotification({
+        userId: req.user._id?.toString(),
+        title: `Status changed to ${orderStatusMap[status]}. Order ${delivery.orderNumber}`,
+        body: `You updated the delivery status to ${orderStatusMap[status]}. Order #${delivery.orderNumber}`,
+        type: 'driver',
+        typeId: { orderId: delivery.orderId },
+        clickUrl: `/orders/${delivery.orderId}`,
+        priority: 'high'
+    }, 'user', { push_notification: true });
+
 
     // Notify customer when driver is arriving
     if (status === 'arrived_at_customer') {
@@ -370,6 +404,17 @@ export const confirmDelivery = asyncHandler(async (req: Request, res: Response, 
         priority: 'high'
     }, 'user', { push_notification: true });
 
+    await NotificationController.saveAndSendNotification({
+        userId: req.user._id?.toString(),
+        title: `Deliver Completed ${delivery.orderNumber}`,
+        body: `You have successfully delivered order #${delivery.orderNumber}. Great job!`,
+        type: 'driver',
+        typeId: { orderId: delivery.orderId },
+        clickUrl: `/orders/${delivery.orderId}`,
+        priority: 'high'
+    }, 'user', { push_notification: true });
+
+
     (res as AppResponse).data(
         {
             delivery,
@@ -394,6 +439,15 @@ export const cancelDelivery = asyncHandler(async (req: Request, res: Response, n
 
     const cancelableStatuses = ['accepted', 'arrived_at_store'];
     if (!cancelableStatuses.includes(delivery.status)) {
+        await NotificationController.saveAndSendNotification({
+            userId: req.user._id?.toString(),
+            title: 'Cancellation Failed',
+            body: 'This delivery cannot be cancelled at this stage. Please contact support for assistance.',
+            type: 'driver',
+            typeId: { orderId: delivery.orderId },
+            clickUrl: `/orders/${delivery.orderId}`,
+            priority: 'high'
+        }, 'user', { push_notification: true });
         return next(new AppError('This delivery cannot be cancelled at this stage', 400));
     }
 
@@ -404,6 +458,7 @@ export const cancelDelivery = asyncHandler(async (req: Request, res: Response, n
 
     const now = new Date();
     delivery.status = 'cancelled';
+    delivery.driverId = undefined; // Clear driver assignment on cancellation
     delivery.cancellationReason = reason;
     delivery.cancelledAt = now;
     delivery.statusHistory.push({ status: 'cancelled', timestamp: now, note: reason });
@@ -433,6 +488,17 @@ export const cancelDelivery = asyncHandler(async (req: Request, res: Response, n
         title: 'Driver Cancelled',
         body: 'Your driver had to cancel. We are finding a new driver for you.',
         type: 'order',
+        typeId: { orderId: delivery.orderId },
+        clickUrl: `/orders/${delivery.orderId}`,
+        priority: 'high'
+    }, 'user', { push_notification: true });
+
+
+    await NotificationController.saveAndSendNotification({
+        userId: req.user._id?.toString(),
+        title: 'Cancelled Delivery',
+        body: `You cancelled the delivery for order #${delivery.orderNumber}. Reason: ${reason}`,
+        type: 'driver',
         typeId: { orderId: delivery.orderId },
         clickUrl: `/orders/${delivery.orderId}`,
         priority: 'high'
@@ -577,9 +643,15 @@ export const dispatchOrderToDrivers = async (orderId: string, driverId?: string,
         status: { $nin: ['cancelled', 'rejected'] }
     });
 
-    if (existing) {
+    if (existing && !driverId) {
         throw (new AppError('Order has already been dispatched', 409));
     }
+
+    if (existing?.driverId) {
+        throw (new AppError('Order is already on delivery', 409));
+    }
+
+
 
     const fare = calculateFare(distanceKm, isPriority);
 
@@ -618,6 +690,5 @@ export const dispatchOrderToDrivers = async (orderId: string, driverId?: string,
         clickUrl: `/orders/${order._id}`,
         priority: 'high'
     }, 'user', { push_notification: true });
-
     return delivery;
 };

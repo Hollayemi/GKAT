@@ -247,7 +247,7 @@ export const completeProfile = asyncHandler(async (req: Request, res: Response, 
 
     if (avatar) {
         try {
-            imageUrl = await CloudinaryService.uploadImage(base64Data, 'go-kart/products');
+            imageUrl = await CloudinaryService.uploadImage(base64Data, 'go-kart/users');
         } catch (error: any) {
             return next(new AppError(`Image upload failed: ${error.message}`, 400));
         }

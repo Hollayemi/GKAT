@@ -7,7 +7,7 @@ import {
   transferOrder
 } from '../../controllers/admin/orderController';
 
-import { assignDriverToOrder } from '../../controllers/admin/assignDriverToOrderController';
+import { assignDriverToOrder } from '../../controllers/admin/driver';
 
 import { protect, authorize } from '../../middleware/auth';
 
