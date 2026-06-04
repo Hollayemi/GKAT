@@ -7,7 +7,8 @@ import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
 import { dispatchOrderToDrivers } from "../rider/orders";
 import mongoose from 'mongoose';
 import NotificationController from '../others/notification';
-
+import { logActivity } from '../../utils/activityLogger';
+import { ACTIONS } from '../../models/admin/Activitylog.model';
 
 function buildOrderStatusFilter(status: string): OrderStatus | null {
     const map: Record<string, OrderStatus> = {
@@ -267,6 +268,17 @@ export const cancelOrder = asyncHandler(
 
         await order.cancelOrder(`${reason} — ${note}`, req.user.id);
 
+        await logActivity(req, {
+            action: ACTIONS.ORDER_CANCELLED,
+            description: `Cancelled order #${order.orderNumber}. Reason: "${reason}" — ${note}`,
+            targetId: order.orderNumber,
+            targetType: 'Order',
+            targetName: `#${order.orderNumber}`,
+            before: { orderStatus: order.orderStatus },
+            after: { orderStatus: 'cancelled' },
+            metadata: { reason, note },
+        });
+
         await NotificationController.saveAndSendNotification({
             userId: order.userId.toString(),
             title: 'Order Cancelled',
@@ -308,6 +320,7 @@ export const updateOrderStatus = asyncHandler(
         if (newStatus === "ready") {
             await dispatchOrderToDrivers(order.id, undefined, 3.5);
         }
+
         if (newStatus === "confirmed") {
             order.region = staffRegionId
             order.save()
@@ -365,6 +378,15 @@ export const transferOrder = asyncHandler(
             carrier,
             estimatedDelivery ? new Date(estimatedDelivery) : undefined,
         );
+
+        await logActivity(req, {
+            action: ACTIONS.ORDER_TRANSFERRED,
+            description: `Added tracking info to order #${order.orderNumber}. Carrier: ${carrier ?? '-'}, Tracking: ${trackingNumber ?? '-'}`,
+            targetId: order.orderNumber,
+            targetType: 'Order',
+            targetName: `#${order.orderNumber}`,
+            metadata: { trackingNumber, carrier, estimatedDelivery },
+        });
 
         (res as AppResponse).data({ order }, 'Order transfer info updated successfully');
     },

@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import Order from '../../models/Orders';
 import Coupon from '../../models/Coupon';
 import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
+import { logActivity } from '../../utils/activityLogger';
+import { ACTIONS } from '../../models/admin/Activitylog.model';
 
 export const getCoupons = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const {
@@ -240,30 +242,40 @@ export const createCoupon = asyncHandler(async (req: Request, res: Response, nex
 
     try {
 
-        console.log("===========> here", promoType)
-        
-    
-    const coupon = await Coupon.create({
-        promotionName,
-        promoType: promoType.toLowerCase(),
-        couponCode: couponCode.toUpperCase(),
-        discountValue: parseFloat(discountValue),
-        usageLimit: parseInt(usageLimit),
-        perUserLimit: parseInt(perUserLimit),
-        description,
-        minimumOrderValue: minimumOrderValue ? parseFloat(minimumOrderValue) : 0,
-        applicableCategories: applicableCategories || [],
-        applicableProducts: applicableProducts || [],
-        startDateTime: start,
-        endDateTime: end,
-        isActive: true,
-        createdBy: req.user.id
-    });
 
-    (res as AppResponse).data(
-        { coupon },
-        'Coupon created successfully',
-        201
+        const coupon = await Coupon.create({
+            promotionName,
+            promoType: promoType.toLowerCase(),
+            couponCode: couponCode.toUpperCase(),
+            discountValue: parseFloat(discountValue),
+            usageLimit: parseInt(usageLimit),
+            perUserLimit: parseInt(perUserLimit),
+            description,
+            minimumOrderValue: minimumOrderValue ? parseFloat(minimumOrderValue) : 0,
+            applicableCategories: applicableCategories || [],
+            applicableProducts: applicableProducts || [],
+            startDateTime: start,
+            endDateTime: end,
+            isActive: true,
+            createdBy: req.user.id
+        });
+
+        await logActivity(req, {
+            action: ACTIONS.COUPON_CREATED,
+            description: `Created coupon "${couponCode.toUpperCase()}" (${promoType}) — ${discountValue}% off, valid ${startDateTime} → ${endDateTime}`,
+            targetId: coupon._id.toString(),
+            targetType: 'Coupon',
+            targetName: couponCode.toUpperCase(),
+            after: {
+                couponCode: couponCode.toUpperCase(), promoType, discountValue,
+                usageLimit, startDateTime, endDateTime,
+            },
+        });
+
+        (res as AppResponse).data(
+            { coupon },
+            'Coupon created successfully',
+            201
         );
     } catch (error) {
         console.log(error)
@@ -308,6 +320,11 @@ export const updateCoupon = asyncHandler(async (req: Request, res: Response, nex
         }
     }
 
+    const before = {
+        couponCode: coupon.couponCode, discountValue: coupon.discountValue,
+        isActive: coupon.isActive, endDateTime: coupon.endDateTime,
+    };
+
     coupon = await Coupon.findByIdAndUpdate(
         req.params.id,
         req.body,
@@ -316,6 +333,16 @@ export const updateCoupon = asyncHandler(async (req: Request, res: Response, nex
             runValidators: true
         }
     );
+    await logActivity(req, {
+        action: ACTIONS.COUPON_UPDATED,
+        description: `Updated coupon "${coupon!.couponCode}"`,
+        targetId: req.params.id,
+        targetType: 'Coupon',
+        targetName: coupon!.couponCode,
+        before,
+        after: req.body,
+    });
+
 
     (res as AppResponse).data({ coupon }, 'Coupon updated successfully');
 });
@@ -342,6 +369,15 @@ export const deleteCoupon = asyncHandler(async (req: Request, res: Response, nex
 
     await coupon.deleteOne();
 
+    await logActivity(req, {
+        action: ACTIONS.COUPON_DELETED,
+        description: `Deleted coupon "${coupon.couponCode}"`,
+        targetId: req.params.id,
+        targetType: 'Coupon',
+        targetName: coupon.couponCode,
+        before: { couponCode: coupon.couponCode, discountValue: coupon.discountValue },
+    });
+
     (res as AppResponse).success('Coupon deleted successfully');
 });
 
@@ -354,6 +390,15 @@ export const toggleCouponStatus = asyncHandler(async (req: Request, res: Respons
 
     coupon.isActive = !coupon.isActive;
     await coupon.save();
+
+    await logActivity(req, {
+        action: ACTIONS.COUPON_STATUS_TOGGLED,
+        description: `${coupon.isActive ? 'Enabled' : 'Disabled'} coupon "${coupon.couponCode}"`,
+        targetId: coupon._id.toString(),
+        targetType: 'Coupon',
+        targetName: coupon.couponCode,
+        metadata: { isActive: coupon.isActive },
+    });
 
     (res as AppResponse).data(
         { coupon },
@@ -411,7 +456,7 @@ export const bulkUpdateCoupons = asyncHandler(async (req: Request, res: Response
 
 export const getPromotionStats = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const now = new Date();
-    
+
     // Calculate date ranges for comparison
     const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -441,47 +486,47 @@ export const getPromotionStats = asyncHandler(async (req: Request, res: Response
             startDateTime: { $lte: now },
             endDateTime: { $gt: now }
         }),
-        
+
         // Previous Month Active Promotions
         Coupon.countDocuments({
             isActive: true,
             startDateTime: { $lte: previousMonthEnd },
             endDateTime: { $gt: previousMonthStart }
         }),
-        
+
         // Current Upcoming Promotions
         Coupon.countDocuments({
             isActive: true,
             startDateTime: { $gt: now }
         }),
-        
+
         // Previous Month Upcoming Promotions (that started after previous month start)
         Coupon.countDocuments({
             isActive: true,
             startDateTime: { $gt: previousMonthStart, $lte: previousMonthEnd }
         }),
-        
+
         // Current Ended Promotions
         Coupon.countDocuments({
             endDateTime: { $lte: now }
         }),
-        
+
         // Previous Month Ended Promotions
         Coupon.countDocuments({
             endDateTime: { $gt: previousMonthStart, $lte: previousMonthEnd }
         }),
-        
+
         // Most Redeemed Promo (all time)
         Coupon.findOne({ isActive: true })
             .sort({ currentUsage: -1 })
             .select('couponCode promotionName currentUsage'),
-        
+
         // Current Month Total Orders with Discounts
         Order.countDocuments({
             createdAt: { $gte: currentMonthStart, $lte: now },
             'appliedCoupons.0': { $exists: true }
         }),
-        
+
         // Previous Month Total Orders with Discounts
         Order.countDocuments({
             createdAt: { $gte: previousMonthStart, $lt: currentMonthStart },

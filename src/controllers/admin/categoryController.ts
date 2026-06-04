@@ -4,6 +4,8 @@ import Category, { ICategory } from '../../models/config/category.model';
 import Product from '../../models/admin/Product';
 import CloudinaryService from '../../services/cloudinary';
 import { deleteProductFunction } from "./ProductController"
+import { logActivity } from '../../utils/activityLogger';
+import { ACTIONS } from '../../models/admin/Activitylog.model';
 
 export const getAllCategories = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const categories = await Category.findActiveCategories();
@@ -72,7 +74,7 @@ export const getCategoryWithProducts = asyncHandler(async (req: Request, res: Re
 
     const [products, totalProducts] = await Promise.all([
         Product.find(productQuery)
-        .populate('category')
+            .populate('category')
             .sort(sort as string)
             .skip(skip)
             .limit(limitNum)
@@ -127,6 +129,15 @@ export const createCategory = asyncHandler(async (req: Request, res: Response, n
         isActive: req.body.isActive !== undefined ? req.body.isActive : true
     });
 
+    await logActivity(req, {
+        action: ACTIONS.CATEGORY_CREATED,
+        description: `Created category "${name}"`,
+        targetId: category._id.toString(),
+        targetType: 'Category',
+        targetName: name,
+        after: { name, isActive: category.isActive, order: category.order },
+    });
+
     (res as AppResponse).data(
         { category },
         'Category created successfully',
@@ -153,7 +164,7 @@ export const updateCategory = asyncHandler(async (req: Request, res: Response, n
     if (req.file) {
         try {
             const category = await Category.findById(id);
-            
+
             if (category && category.icon) {
                 await CloudinaryService.deleteImage(category.icon);
             }
@@ -164,6 +175,8 @@ export const updateCategory = asyncHandler(async (req: Request, res: Response, n
             return next(new AppError(`Icon upload failed: ${error.message}`, 400));
         }
     }
+    const categoryBefore = await Category.findById(id).lean();
+    const before = { name: categoryBefore?.name, isActive: categoryBefore?.isActive };
 
     const category = await Category.findByIdAndUpdate(
         id,
@@ -178,6 +191,16 @@ export const updateCategory = asyncHandler(async (req: Request, res: Response, n
         return next(new AppError('Category not found', 404));
     }
 
+    await logActivity(req, {
+        action: ACTIONS.CATEGORY_UPDATED,
+        description: `Updated category "${category!.name}"`,
+        targetId: id,
+        targetType: 'Category',
+        targetName: category!.name,
+        before,
+        after: updates,
+    });
+
     (res as AppResponse).data(
         { category },
         'Category updated successfully'
@@ -185,7 +208,7 @@ export const updateCategory = asyncHandler(async (req: Request, res: Response, n
 });
 
 export const deleteCategory = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-  
+
     const { id } = req.params;
 
     const category = await Category.findById(id);
@@ -193,6 +216,8 @@ export const deleteCategory = asyncHandler(async (req: Request, res: Response, n
     if (!category) {
         return next(new AppError('Category not found', 404));
     }
+
+    const before = { name: category.name, isActive: category.isActive };
 
     if (category.icon) {
         try {
@@ -202,12 +227,23 @@ export const deleteCategory = asyncHandler(async (req: Request, res: Response, n
         }
     }
 
+
+
     const relatedProds = await Product.find({ category: id }).lean()
 
     relatedProds.map(async (e) => await deleteProductFunction(e.id))
 
     await category.deleteOne();
 
+    await logActivity(req, {
+        action: ACTIONS.CATEGORY_DELETED,
+        description: `Deleted category "${before.name}" and ${relatedProds.length} related product(s)`,
+        targetId: id,
+        targetType: 'Category',
+        targetName: before.name,
+        before,
+        metadata: { deletedProductCount: relatedProds.length },
+    });
 
     (res as AppResponse).data(
         null,
@@ -248,6 +284,15 @@ export const toggleCategoryActive = asyncHandler(async (req: Request, res: Respo
 
     const status = category.isActive ? 'activated' : 'deactivated';
 
+      await logActivity(req, {
+      action:      ACTIONS.CATEGORY_TOGGLED,
+      description: `${category.isActive ? 'Activated' : 'Deactivated'} category "${category.name}"`,
+      targetId:    id,
+      targetType:  'Category',
+      targetName:  category.name,
+      metadata:    { isActive: category.isActive },
+    });
+
     (res as AppResponse).data(
         category,
         `Category ${status} successfully`
@@ -275,6 +320,12 @@ export const reorderCategories = asyncHandler(async (req: Request, res: Response
     await Category.bulkWrite(bulkOps);
 
     const categories = await Category.findActiveCategories();
+
+    await logActivity(req, {
+      action:      ACTIONS.CATEGORIES_REORDERED,
+      description: `Reordered ${orderList.length} categories`,
+      metadata:    { orderList },
+    });
 
     (res as AppResponse).data(
         { categories },

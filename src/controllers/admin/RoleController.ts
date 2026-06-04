@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import Role from '../../models/admin/Roles.models';
 import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
+import { logActivity } from '../../utils/activityLogger';
+import { ACTIONS } from '../../models/admin/Activitylog.model';
 
 const PERMISSIONS = [
     {
@@ -96,6 +98,16 @@ export const createRole = asyncHandler(async (req: Request, res: Response, next:
         permissions
     });
 
+    await logActivity(req, {
+        action: ACTIONS.ROLE_CREATED,
+        description: `Created role "${displayName}" with ${permissions.length} permission(s)`,
+        targetId: role._id.toString(),
+        targetType: 'Role',
+        targetName: displayName,
+        after: { name, displayName, permissions },
+    });
+
+
     (res as AppResponse).data({ role }, 'Role created successfully', 201);
 });
 
@@ -107,6 +119,8 @@ export const updateRole = asyncHandler(async (req: Request, res: Response, next:
     if (!role) {
         return next(new AppError('Role not found', 404));
     }
+
+    const before = { name: role.name, displayName: role.displayName, permissions: [...role.permissions] };
 
     if (name && name !== role.name) {
         const existingRole = await Role.findOne({ name: name.toLowerCase() });
@@ -134,6 +148,16 @@ export const updateRole = asyncHandler(async (req: Request, res: Response, next:
 
     await role.save();
 
+    await logActivity(req, {
+        action: ACTIONS.ROLE_UPDATED,
+        description: `Updated role "${role.displayName}"`,
+        targetId: req.params.id,
+        targetType: 'Role',
+        targetName: role.displayName,
+        before,
+        after: { name: role.name, displayName: role.displayName, permissions: role.permissions },
+    });
+
     (res as AppResponse).data({ role }, 'Role updated successfully');
 });
 
@@ -155,6 +179,15 @@ export const deleteRole = asyncHandler(async (req: Request, res: Response, next:
     }
 
     await role.deleteOne();
+
+    await logActivity(req, {
+        action: ACTIONS.ROLE_DELETED,
+        description: `Deleted role "${role.displayName}"`,
+        targetId: req.params.id,
+        targetType: 'Role',
+        targetName: role.displayName,
+        before: { name: role.name, permissions: role.permissions },
+    });
 
     (res as AppResponse).success('Role deleted successfully');
 });
@@ -188,6 +221,15 @@ export const addPermissionToRole = asyncHandler(async (req: Request, res: Respon
     role.permissions.push(permissionId);
     await role.save();
 
+    await logActivity(req, {
+        action: ACTIONS.PERMISSION_ADDED,
+        description: `Added permission "${permissionId}" to role "${role.displayName}"`,
+        targetId: role._id.toString(),
+        targetType: 'Role',
+        targetName: role.displayName,
+        metadata: { permissionId },
+    });
+
     (res as AppResponse).data({ role }, 'Permission added to role successfully');
 });
 
@@ -208,6 +250,15 @@ export const removePermissionFromRole = asyncHandler(async (req: Request, res: R
 
     role.permissions.splice(permissionIndex, 1);
     await role.save();
+
+    await logActivity(req, {
+        action: ACTIONS.PERMISSION_REMOVED,
+        description: `Removed permission "${permissionId}" from role "${role.displayName}"`,
+        targetId: role._id.toString(),
+        targetType: 'Role',
+        targetName: role.displayName,
+        metadata: { permissionId },
+    });
 
     (res as AppResponse).data({ role }, 'Permission removed from role successfully');
 });

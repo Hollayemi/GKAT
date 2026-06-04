@@ -4,6 +4,8 @@ import Order from "../../models/Orders";
 import Region from "../../models/config/region.model";
 import { asyncHandler, AppResponse, AppError } from "../../middleware/error";
 import mongoose from "mongoose";
+import { logActivity } from '../../utils/activityLogger';
+import { ACTIONS } from '../../models/admin/Activitylog.model';
 
 
 function formatDate(date?: Date | string | null): string {
@@ -264,6 +266,14 @@ export const getSingleCustomer = asyncHandler(async (req: Request, res: Response
     const loyaltyData = calculateLoyaltyProgress(user, orders);
     const customerActivity = buildCustomerActivity(user, orders);
 
+    await logActivity(req, {
+      action:      ACTIONS.CUSTOMER_VIEWED,
+      description: `Viewed profile of customer "${user.name}" (${user.email})`,
+      targetId:    id,
+      targetType:  'Customer',
+      targetName:  user.name,
+    });
+
     (res as AppResponse).data(
         { ...base, purchaseHistory, customerActivity, loyaltyProgress: loyaltyData.history, totalLoyaltyPoints: loyaltyData.totalPoints },
         "Customer retrieved",
@@ -345,6 +355,11 @@ export const exportCustomers = asyncHandler(async (req: Request, res: Response) 
     ]);
 
     const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+ await logActivity(req, {
+      action:      ACTIONS.CUSTOMERS_EXPORTED,
+      description: `Exported ${customers.length} customer record(s) to CSV`,
+      metadata:    { filters: { search, status, badge, dateFrom, dateTo }, exportedCount: customers.length },
+    });
 
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", `attachment; filename="customers-${new Date().toISOString().split("T")[0]}.csv"`);

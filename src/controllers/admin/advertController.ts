@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import Advert from '../../models/Advert';
 import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
 import CloudinaryService from '../../services/cloudinary';
+import { logActivity } from '../../utils/activityLogger';
+import { ACTIONS } from '../../models/admin/Activitylog.model';
 
 // @desc    Get all adverts (with filtering)
 // @route   GET /api/v1/adverts
@@ -107,6 +109,15 @@ export const createAdvert = asyncHandler(async (req: Request, res: Response, nex
         createdBy: req.user.id
     });
 
+      await logActivity(req, {
+      action:      ACTIONS.ADVERT_CREATED,
+      description: `Created advert "${advert.title}"`,
+      targetId:    advert._id.toString(),
+      targetType:  'Advert',
+      targetName:  advert.title,
+      after:       { title: advert.title, isActive: advert.isActive, position: advert.position },
+    });
+
     (res as AppResponse).data(
         { advert },
         'Advert created successfully',
@@ -150,6 +161,15 @@ export const updateAdvert = asyncHandler(async (req: Request, res: Response, nex
         }
     );
 
+     await logActivity(req, {
+      action:      ACTIONS.ADVERT_UPDATED,
+      description: `Updated advert "${advert!.title}"`,
+      targetId:    req.params.id,
+      targetType:  'Advert',
+      targetName:  advert!.title,
+      after:       req.body,
+    });
+
     (res as AppResponse).data({ advert }, 'Advert updated successfully');
 });
 
@@ -178,6 +198,14 @@ export const deleteAdvert = asyncHandler(async (req: Request, res: Response, nex
 
     await advert.deleteOne();
 
+     await logActivity(req, {
+      action:      ACTIONS.ADVERT_DELETED,
+      description: `Deleted advert "${advert.title}"`,
+      targetId:    req.params.id,
+      targetType:  'Advert',
+      targetName:  advert.title,
+    });
+
     (res as AppResponse).success('Advert deleted successfully');
 });
 
@@ -199,6 +227,15 @@ export const toggleAdvertStatus = asyncHandler(async (req: Request, res: Respons
     await advert.save();
 
     const status = advert.isActive ? 'activated' : 'deactivated';
+
+     await logActivity(req, {
+      action:      ACTIONS.ADVERT_TOGGLED,
+      description: `${advert.isActive ? 'Activated' : 'Deactivated'} advert "${advert.title}"`,
+      targetId:    advert._id.toString(),
+      targetType:  'Advert',
+      targetName:  advert.title,
+      metadata:    { isActive: advert.isActive },
+    });
 
     (res as AppResponse).data(
         { advert },

@@ -2,6 +2,9 @@ import { Request, Response, NextFunction } from 'express';
 import SubscriptionPlan from '../../models/SubscriptionPlan';
 import UserSubscription from '../../models/UserSubscription';
 import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
+import { logActivity } from '../../utils/activityLogger';
+import { ACTIONS } from '../../models/admin/Activitylog.model';
+
 
 export const getAllPlans = asyncHandler(async (req: Request, res: Response) => {
     const { isActive, page = 1, limit = 20 } = req.query;
@@ -95,6 +98,18 @@ export const createPlan = asyncHandler(async (req: Request, res: Response, next:
         createdBy: req.user.id
     });
 
+ await logActivity(req, {
+      action:      ACTIONS.SUBSCRIPTION_PLAN_CREATED,
+      description: `Created subscription plan "${plan.name}" at ₦${plan.price} for ${plan.durationDays} days`,
+      targetId:    plan._id.toString(),
+      targetType:  'SubscriptionPlan',
+      targetName:  plan.name,
+      after: {
+        name: plan.name, price: plan.price, durationDays: plan.durationDays,
+        discountPercentage: plan.discountPercentage, isActive: plan.isActive,
+      },
+    });
+
     (res as AppResponse).data({ plan }, 'Subscription plan created successfully', 201);
 });
 
@@ -103,6 +118,11 @@ export const updatePlan = asyncHandler(async (req: Request, res: Response, next:
 
     const plan = await SubscriptionPlan.findById(req.params.id);
     if (!plan) return next(new AppError('Subscription plan not found', 404));
+
+     const before = {
+      name: plan.name, price: plan.price, durationDays: plan.durationDays,
+      discountPercentage: plan.discountPercentage, isActive: plan.isActive,
+    };
 
     if (req.body.name && req.body.name.trim() !== plan.name) {
         const existing = await SubscriptionPlan.findOne({
@@ -127,6 +147,17 @@ export const updatePlan = asyncHandler(async (req: Request, res: Response, next:
     plan.updatedBy = req.user.id;
     await plan.save();
 
+
+     await logActivity(req, {
+      action:      ACTIONS.SUBSCRIPTION_PLAN_UPDATED,
+      description: `Updated subscription plan "${plan.name}"`,
+      targetId:    plan._id.toString(),
+      targetType:  'SubscriptionPlan',
+      targetName:  plan.name,
+      before,
+      after:       { name: plan.name, price: plan.price, durationDays: plan.durationDays,
+                     discountPercentage: plan.discountPercentage, isActive: plan.isActive },
+    });
     (res as AppResponse).data({ plan }, 'Subscription plan updated successfully');
 });
 
@@ -137,6 +168,16 @@ export const togglePlan = asyncHandler(async (req: Request, res: Response, next:
     plan.isActive = !plan.isActive;
     if (req.user) plan.updatedBy = req.user.id;
     await plan.save();
+
+    await logActivity(req, {
+      action:      ACTIONS.SUBSCRIPTION_PLAN_TOGGLED,
+      description: `${plan.isActive ? 'Activated' : 'Deactivated'} subscription plan "${plan.name}"`,
+      targetId:    plan._id.toString(),
+      targetType:  'SubscriptionPlan',
+      targetName:  plan.name,
+      metadata:    { isActive: plan.isActive },
+    });
+ 
 
     (res as AppResponse).data(
         { plan },
@@ -164,6 +205,15 @@ export const deletePlan = asyncHandler(async (req: Request, res: Response, next:
     }
 
     await plan.deleteOne();
+
+     await logActivity(req, {
+      action:      ACTIONS.SUBSCRIPTION_PLAN_DELETED,
+      description: `Deleted subscription plan "${plan.name}"`,
+      targetId:    plan._id.toString(),
+      targetType:  'SubscriptionPlan',
+      targetName:  plan.name,
+      before:      { name: plan.name, price: plan.price, isActive: plan.isActive },
+    });
     (res as AppResponse).success('Subscription plan deleted successfully');
 });
 

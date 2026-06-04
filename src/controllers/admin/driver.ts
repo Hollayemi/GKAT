@@ -10,8 +10,10 @@ import { AppError, asyncHandler, AppResponse } from '../../middleware/error';
 import CloudinaryService from '../../services/cloudinary';
 import { sendEmail, driverEmailTemplates } from '../../utils/driverEmail';
 import { resolveStaffRegionId } from '../../helpers/regionScope';
-import { dispatchOrderToDrivers } from '../rider/orders';
-import NotificationController from '../others/notification';
+import { dispatchOrderToDrivers } from '../../controllers/rider/orders';
+import NotificationController from '../../controllers/others/notification';
+import { logActivity } from '../../utils/activityLogger';
+import { ACTIONS } from '../../models/admin/Activitylog.model';
 
 
 const logDriverActivity = async (
@@ -191,8 +193,17 @@ export const createDriver = asyncHandler(async (req: Request, res: Response, nex
         totalDeliveries: 0,
     });
 
-    await logDriverActivity(driver._id.toString(), existingUser.name, 'Registration', 'Driver account created', { vehicleType: driver.vehicleType, region: driver.region, employmentType: driver.employmentType }, undefined, req.ip);
-
+    await logActivity(req, {
+        action: ACTIONS.DRIVER_CREATED,
+        description: `Registered new driver ${existingUser.name} (${phone}), vehicle: ${vehiclePlateNumber}`,
+        targetId: driver._id.toString(),
+        targetType: 'Driver',
+        targetName: existingUser.name,
+        after: {
+            phone, vehicleType, vehiclePlateNumber: vehiclePlateNumber.toUpperCase().replace(/\s/g, ''),
+            region, employmentType,
+        },
+    });
     await NotificationController.saveAndSendNotification({
         userId: driver.userId?.toString(),
         title: 'Welcome to Go-Kart!',
@@ -266,10 +277,24 @@ export const updateDriver = asyncHandler(async (req: Request, res: Response, nex
 
 
 
+    const before = {
+        phone: driver.phone, vehiclePlateNumber: driver.vehiclePlateNumber,
+        vehicleType: driver.vehicleType, region: driver.region,
+        employmentType: driver.employmentType,
+    };
+
     const updatedDriver = await Driver.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true }).select('-password -passwordSetupToken -passwordSetupExpiry');
 
-    await logDriverActivity(driver._id.toString(), driver.userId.name, 'Profile Updated', 'Driver profile information updated', { updatedFields: Object.keys(req.body) }, undefined, req.ip);
 
+    await logActivity(req, {
+        action: ACTIONS.DRIVER_UPDATED,
+        description: `Updated profile for driver ${driver.userId.name}`,
+        targetId: driver._id.toString(),
+        targetType: 'Driver',
+        targetName: driver.userId.name,
+        before,
+        after: req.body,
+    });
     (res as AppResponse).data(updatedDriver, 'Driver updated successfully');
 });
 
@@ -282,6 +307,15 @@ export const deleteDriver = asyncHandler(async (req: Request, res: Response, nex
 
     await driver.deleteOne();
     await logDriverActivity(driver._id.toString(), driver.userId.name, 'Account Deleted', 'Driver account deleted by admin', undefined, undefined, req.ip);
+
+    await logActivity(req, {
+        action: ACTIONS.DRIVER_DELETED,
+        description: `Deleted driver account for ${driver.userId.name}`,
+        targetId: req.params.id,
+        targetType: 'Driver',
+        targetName: driver.userId.name,
+        before: { phone: driver.phone, vehicleType: driver.vehicleType, region: driver.region },
+    });
 
     (res as AppResponse).success('Driver deleted successfully');
 });
@@ -363,6 +397,15 @@ export const suspendDriver = asyncHandler(async (req: Request, res: Response, ne
     await driver.save();
 
     if (notifyDriver) { try { await sendEmail({ to: driver.userId.email, subject: 'Your driver account has been suspended', html: driverEmailTemplates.accountSuspended(driver.userId.name, reason, duration, driver.suspendedUntil) }); } catch (e) { console.error(e); } }
+
+    await logActivity(req, {
+        action: ACTIONS.DRIVER_SUSPENDED,
+        description: `Suspended driver ${driver.userId.name}. Reason: "${reason}"${duration ? `. Duration: ${duration} day(s)` : ''}`,
+        targetId: driver._id.toString(),
+        targetType: 'Driver',
+        targetName: driver.userId.name,
+        metadata: { reason, duration, suspendedUntil: driver.suspendedUntil },
+    });
     await logDriverActivity(driver._id.toString(), driver.userId.name, 'Account Suspended', `Driver account suspended: ${reason}`, { suspendedBy: req.user?.fullName, reason, duration }, undefined, req.ip);
 
     await NotificationController.saveAndSendNotification({
@@ -389,6 +432,14 @@ export const unsuspendDriver = asyncHandler(async (req: Request, res: Response, 
     await driver.save();
 
     await logDriverActivity(driver._id.toString(), driver.userId.name, 'Account Unsuspended', 'Driver account unsuspended by admin', { unsuspendedBy: req.user?.fullName }, undefined, req.ip);
+
+    await logActivity(req, {
+        action: ACTIONS.DRIVER_UNSUSPENDED,
+        description: `Unsuspended driver ${driver.userId.name}`,
+        targetId: driver._id.toString(),
+        targetType: 'Driver',
+        targetName: driver.userId.name,
+    });
 
     await NotificationController.saveAndSendNotification({
         userId: driver.userId?.toString(),
@@ -426,6 +477,15 @@ export const disableDriver = asyncHandler(async (req: Request, res: Response, ne
     if (notifyDriver) { try { await sendEmail({ to: driver.userId.email, subject: 'Driver account disabled', html: driverEmailTemplates.accountDisabled(driver.userId.name, reason) }); } catch (e) { console.error(e); } }
     await logDriverActivity(driver._id.toString(), driver.userId.name, 'Account Disabled', `Driver account disabled: ${reason}`, { disabledBy: req.user?.fullName, reason }, undefined, req.ip);
 
+    await logActivity(req, {
+        action: ACTIONS.DRIVER_DISABLED,
+        description: `Permanently disabled driver ${driver.userId.name}. Reason: "${reason}"`,
+        targetId: driver._id.toString(),
+        targetType: 'Driver',
+        targetName: driver.userId.name,
+        metadata: { reason },
+    });
+
     (res as AppResponse).data({ _id: driver._id, status: driver.status, disabledAt: driver.disabledAt, reason: driver.disablementReason }, 'Driver disabled successfully');
 });
 
@@ -438,6 +498,14 @@ export const enableDriver = asyncHandler(async (req: Request, res: Response, nex
     driver.disabledAt = undefined;
     driver.disablementReason = undefined;
     await driver.save();
+
+     await logActivity(req, {
+      action:      ACTIONS.DRIVER_ENABLED,
+      description: `Re-enabled driver ${driver.userId.name}`,
+      targetId:    driver._id.toString(),
+      targetType:  'Driver',
+      targetName:  driver.userId.name,
+    });
 
     await logDriverActivity(driver._id.toString(), driver.userId.name, 'Account Enabled', 'Driver account enabled by admin', { enabledBy: req.user?.fullName }, undefined, req.ip);
 
@@ -757,6 +825,20 @@ export const assignDriverToOrder = asyncHandler(async (req: Request, res: Respon
     const delivery = await dispatchOrderToDrivers(order.id, driver.id, distanceKm,);
 
     await order.updateStatus('ready', `Driver assigned by admin: ${(driver.userId as any)?.name || driver._id}`);
+
+    await logActivity(req, {
+        action: ACTIONS.DRIVER_ASSIGNED,
+        description: `Assigned driver ${(driver.userId as any)?.name} to order #${order.orderNumber}`,
+        targetId: order.orderNumber,
+        targetType: 'Order',
+        targetName: `#${order.orderNumber}`,
+        metadata: {
+            driverId,
+            driverName: (driver.userId as any)?.name,
+            distanceKm,
+            deliveryId: delivery._id,
+        },
+    });
 
     // driver.status = 'on-delivery';
     // await driver.save();

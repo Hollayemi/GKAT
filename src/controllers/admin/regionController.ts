@@ -1,12 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppResponse, AppError, asyncHandler } from '../../middleware/error';
 import Region, { IRegion } from '../../models/config/region.model';
+import { logActivity } from '../../utils/activityLogger';
+import { ACTIONS } from '../../models/admin/Activitylog.model';
 
 export const getAllRegions = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const regions = await Region.findActiveRegions();
 
     (res as AppResponse).data(
-         regions,
+        regions,
         'Regions retrieved successfully'
     );
 });
@@ -36,7 +38,7 @@ export const getRegion = asyncHandler(async (req: Request, res: Response, next: 
 });
 
 export const createRegion = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-   
+
     const { name, coordinates } = req.body;
 
     console.log(req.body)
@@ -47,9 +49,19 @@ export const createRegion = asyncHandler(async (req: Request, res: Response, nex
 
     const region = await Region.create({
         name,
-        coordinate: {coordinates: coordinates as [number, number]},
+        coordinate: { coordinates: coordinates as [number, number] },
         order: req.body.order || 0,
         isActive: req.body.isActive !== undefined ? req.body.isActive : true
+    });
+
+
+    await logActivity(req, {
+        action: ACTIONS.REGION_CREATED,
+        description: `Created region "${name}"`,
+        targetId: region._id.toString(),
+        targetType: 'Region',
+        targetName: name,
+        after: { name, coordinates, isActive: region.isActive },
     });
 
     (res as AppResponse).data(
@@ -91,6 +103,15 @@ export const updateRegion = asyncHandler(async (req: Request, res: Response, nex
         return next(new AppError('Region not found', 404));
     }
 
+    await logActivity(req, {
+        action: ACTIONS.REGION_UPDATED,
+        description: `Updated region "${region!.name}"`,
+        targetId: id,
+        targetType: 'Region',
+        targetName: region!.name,
+        after: updates,
+    });
+
     (res as AppResponse).data(
         { region },
         'Region updated successfully'
@@ -111,6 +132,14 @@ export const deleteRegion = asyncHandler(async (req: Request, res: Response, nex
     }
 
     await region.deleteOne();
+
+    await logActivity(req, {
+        action: ACTIONS.REGION_DELETED,
+        description: `Deleted region "${region.name}"`,
+        targetId: id,
+        targetType: 'Region',
+        targetName: region.name,
+    });
 
     (res as AppResponse).data(
         null,
@@ -150,6 +179,15 @@ export const toggleRegionActive = asyncHandler(async (req: Request, res: Respons
     await region.save();
 
     const status = region.isActive ? 'activated' : 'deactivated';
+
+    await logActivity(req, {
+        action: ACTIONS.REGION_TOGGLED,
+        description: `${region.isActive ? 'Activated' : 'Deactivated'} region "${region.name}"`,
+        targetId: id,
+        targetType: 'Region',
+        targetName: region.name,
+        metadata: { isActive: region.isActive },
+    });
 
     (res as AppResponse).data(
         { region },
